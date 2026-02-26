@@ -1,0 +1,9 @@
+.database.db
+.config.toml
+__pycache__/
+*.pyc
+
+venv/
+.venv/
+env/
+.env

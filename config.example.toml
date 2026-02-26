@@ -1,0 +1,45 @@
+[core]
+temp_tracks_directory="temp_tracks"
+
+[web]
+enabled=true
+api_port= 8000
+web_port = 8001
+
+[[storage]]
+id="main_disk"
+name="Main Disk"
+tag="LOC"
+enabled=true
+priority=10
+params= { save_directory="Z:/music_library" }
+
+[[storage]]
+id="s3_storage"
+name="Local S3"
+tag="S3"
+enabled=false
+priority=9
+params= { endpoint_url="http://127.0.0.1:9000", access_key_id="minioadmin", secret_access_key="minioadmin", bucket="music-saver" }
+
+[[storage]]
+id="mega_disk"
+name="Mega Disk"
+tag="MEG"
+enabled=false
+priority=8
+params= { email="test@gmail.com", password="test" }
+
+[search.MBZ]
+enabled = false
+priority = 1
+
+[search.ITS]
+priority = 1
+enabled = true
+
+[downloader.SLS]
+enabled = true
+priority = 1
+params = { api_route="http://127.0.0.1:5030", download_path="Z:/", username="slskd", password="slskd", share_tracks=false }
+
