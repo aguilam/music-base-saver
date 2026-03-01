@@ -1,5 +1,5 @@
-.database.db
-.config.toml
+database.db
+config.toml
 __pycache__/
 *.pyc
 
