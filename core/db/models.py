@@ -9,30 +9,118 @@ from sqlmodel import (
     delete,
 )
 from typing import List, Optional
-from sqlalchemy import Column, JSON, Integer, ForeignKey, tuple_
+from sqlalchemy import Column, JSON, Integer, ForeignKey, tuple_, DateTime
 from sqlalchemy.orm import selectinload
+
+from datetime import datetime, timezone
+
+
+class PlaylistTrackLink(SQLModel, table=True):
+    playlist_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("playlist.id", ondelete="CASCADE"), primary_key=True
+        ),
+    )
+    track_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("track.id", ondelete="CASCADE"), primary_key=True
+        ),
+    )
+
+
+class Artist(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+
+    albums: List["Album"] = Relationship(
+        back_populates="artist_rel",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+
+
+class Album(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str
+    year: Optional[int] = Field(default=None)
+
+    artist_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("artist.id", ondelete="CASCADE")),
+    )
+
+    artist_rel: Optional[Artist] = Relationship(back_populates="albums")
+
+    tracks: List["Track"] = Relationship(
+        back_populates="album",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
 
 
 class Track(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
-    artist: List[str] = Field(default=[], sa_column=Column(JSON))
     length: int
-    links: List["TrackLink"] = Relationship(
-        back_populates="track", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+
+    album_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("album.id", ondelete="CASCADE")),
     )
+    album: Optional[Album] = Relationship(back_populates="tracks")
+
+    lyrics: Optional["Lyrics"] = Relationship(
+        back_populates="track",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan", "uselist": False},
+    )
+
+    links: List["TrackLink"] = Relationship(
+        back_populates="track",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+
+    playlists: List["Playlist"] = Relationship(
+        back_populates="tracks", link_model=PlaylistTrackLink
+    )
+
+
+class Lyrics(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    track_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("track.id", ondelete="CASCADE"),
+            unique=True,
+            nullable=False,
+        )
+    )
+    value: str
+    track: Optional[Track] = Relationship(back_populates="lyrics")
 
 
 class TrackLink(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    link_type: str
+    link_provider: str
+    link: str
+
     track_id: Optional[int] = Field(
         default=None,
         sa_column=Column(Integer, ForeignKey("track.id", ondelete="CASCADE")),
     )
-    link_type: str
-    link_provider: str
-    link: str
     track: Optional[Track] = Relationship(back_populates="links")
+
+
+class Playlist(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    owner: str
+    created: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    public: bool = Field(default=True)
+
+    tracks: List[Track] = Relationship(
+        back_populates="playlists", link_model=PlaylistTrackLink
+    )
 
 
 class DBManager:
@@ -40,12 +128,23 @@ class DBManager:
         self.engine = create_engine("sqlite:///database.db")
         SQLModel.metadata.create_all(self.engine)
 
-    def add_track(self, track: Track):
+    def get_session(self) -> Session:
+        return Session(self.engine)
+
+    def get_artist_by_name(self, session: Session, name: str) -> Optional[Artist]:
+        return session.exec(select(Artist).where(Artist.name == name)).first()
+
+    def get_album_by_name(self, session: Session, title: str) -> Optional[Album]:
+        return session.exec(select(Album).where(Album.title == title)).first()
+
+    def get_track_by_name(self, session: Session, title: str) -> Optional[Track]:
         with Session(self.engine) as session:
-            session.add(track)
-            session.commit()
-            session.refresh(track)
-            return track
+            return session.exec(select(Track).where(Track.title == title)).first()
+
+    def add(self, session: Session, obj):
+        session.add(obj)
+        session.flush()
+        return obj
 
     def delete_track(self, id: int):
         with Session(self.engine) as session:
@@ -85,13 +184,7 @@ class DBManager:
             statement = select(combined).where(TrackLink.link_type == "storage")
             return set(session.exec(statement).all())
 
-    def get_by_title(self, title: str):
-        with Session(self.engine) as session:
-            statement = select(Track).where(Track.title == title)
-            track = session.exec(statement).first()
-            return track
-
-    def get_by_id(self, id: int):
+    def get_track_by_id(self, id: int):
         with Session(self.engine) as session:
             statement = (
                 select(Track).where(Track.id == id).options(selectinload(Track.links))

@@ -22,11 +22,10 @@ class S3(Storage):
             aws_secret_access_key=secret_acess_key,
         )
 
-    def save_track(self, file: Path) -> str:
-        s3_key = f"tracks/{file.name}"
-        self.s3.upload_file(str(file), self.bucket, s3_key)
+    def save_track(self, file: Path, saving_path: Path) -> str:
+        self.s3.upload_file(str(file), self.bucket, str(saving_path))
         os.remove(file)
-        return s3_key
+        return str(saving_path)
 
     def delete_track(self, track_id: str) -> bool:
         try:

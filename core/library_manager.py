@@ -7,7 +7,7 @@ from storage.base import Storage as BaseStorage
 from .schemas import QueryType
 from utils.utils import compare_tracks, find_best_track
 import shutil
-from .db.models import DBManager, Track, TrackLink
+from .db.models import DBManager, Track, TrackLink, Album, Artist
 import mutagen
 import time
 import os
@@ -107,24 +107,40 @@ class LibraryManager:
         if downloaded_path.exists():
             shutil.copy2(downloaded_path, dst)
             track_metadata = mutagen.File(dst, easy=True)
-            title_list = track_metadata.get("title")
-            title = title_list[0] if title_list else downloaded_path.stem
-
-            artist_list = track_metadata.get("artist")
-            artist = artist_list if artist_list else ["Unknown"]
-
-            length = int(track_metadata.info.length)
-            del track_metadata
-            saved_path = best_storage.save_track(dst)
-            new_track = Track(title=title, artist=artist, length=length)
-            new_link = TrackLink(
-                link_type="storage",
-                link_provider=best_storage.id,
-                link=str(saved_path),
+            title = (track_metadata.get("title") or [downloaded_path.stem])[0]
+            artist_name = (track_metadata.get("artist") or ["Unknown"])[0]
+            album_title = (track_metadata.get("album") or [None])[0]
+            bpm = getattr(track_metadata.info, "bpm", None)
+            bitrate = getattr(track_metadata.info, "bitrate", None)
+            length = int(getattr(track_metadata.info, "length", 0))
+            saving_path = Path(
+                (f"{artist_name}/{album_title}/{dst.name}").replace(" ", "-")
             )
-            new_track.links.append(new_link)
+            saved_path = best_storage.save_track(dst, saving_path)
+            with self.db_manager.get_session() as session:
+                db_artist = self.db_manager.get_artist_by_name(session, artist_name)
+                if db_artist is None:
+                    db_artist = self.db_manager.add(session, Artist(name=artist_name))
 
-            self.db_manager.add_track(new_track)
+                if album_title:
+                    db_album = self.db_manager.get_album_by_name(session, album_title)
+                    if db_album is None:
+                        db_album = Album(title=album_title)
+                        db_artist.albums.append(db_album)
+                        session.flush()
+                else:
+                    db_album = None
+
+                new_track = Track(title=title, length=length, album=db_album)
+                new_link = TrackLink(
+                    link_type="storage",
+                    link_provider=best_storage.id,
+                    link=str(saved_path),
+                )
+                new_track.links.append(new_link)
+                session.add(new_track)
+
+                session.commit()
             # for i in range(5):
             #    try:
             #        os.remove(downloaded_path)
@@ -134,7 +150,7 @@ class LibraryManager:
             #        time.sleep(4)
             return {
                 "title": title,
-                "artist": artist,
+                "artist": [artist_name],
                 "length": length,
                 "storage": best_storage.name,
                 "download_source": downloader.TAG,
@@ -153,7 +169,7 @@ class LibraryManager:
         pass
 
     def stream_track(self, track_id: int, start_bytes: int, end_bytes: int):
-        track = self.db_manager.get_by_id(track_id)
+        track = self.db_manager.get_track_by_id(track_id)
         track_storage = next(
             (links for links in track.links if links.link_type == "storage"), None
         )
@@ -169,49 +185,50 @@ class LibraryManager:
                 return track
 
     def sync(self):
-        db_tracks = self.db_manager.get_all_tracks_storage_links()
-        storaged_tracks = set()
-        for storage in self.storages:
-            params = storage["params"].copy()
-            params.update({"id": storage["id"], "name": storage["name"]})
-            current_storage = storage["class"](params)
-            tracks_path = current_storage.get_all_tracks_paths()
-            named_paths = [f"{storage["id"]}///{f}" for f in tracks_path]
-            storaged_tracks.update(named_paths)
-        deleted_tracks_links = db_tracks - storaged_tracks
-        added_tracks_links = storaged_tracks - db_tracks
-        tracks_for_deleting = [
-            (track.split("///")[0], track.split("///")[1])
-            for track in deleted_tracks_links
-        ]
-        deleted_count = self.db_manager.bulk_delete_by_links(tracks_for_deleting)
-        tracks_to_adding = {}
-        for track in added_tracks_links:
-            k, v = track.split("///")
-            if k in tracks_to_adding:
-                tracks_to_adding[k].append(v)
-            else:
-                tracks_to_adding[k] = [v]
-        for storage in self.storages:
-            params = storage["params"].copy()
-            params.update({"id": storage["id"], "name": storage["name"]})
-            current_storage = storage["class"](params)
-            if storage["id"] in tracks_to_adding:
-                for path in tracks_to_adding[storage["id"]]:
-                    track_metadata = current_storage.get_track_metadata(path)
-                    new_track = Track(
-                        title=track_metadata["title"],
-                        artist=track_metadata["artist"],
-                        length=track_metadata["length"],
-                    )
-                    new_link = TrackLink(
-                        link_type="storage",
-                        link_provider=current_storage.id,
-                        link=str(path),
-                    )
-                    new_track.links.append(new_link)
-
-                    self.db_manager.add_track(new_track)
+        with self.db_manager.get_session() as session:
+            db_tracks = self.db_manager.get_all_tracks_storage_links()
+            storaged_tracks = set()
+            for storage in self.storages:
+                params = storage["params"].copy()
+                params.update({"id": storage["id"], "name": storage["name"]})
+                current_storage = storage["class"](params)
+                tracks_path = current_storage.get_all_tracks_paths()
+                named_paths = [f"{storage["id"]}///{f}" for f in tracks_path]
+                storaged_tracks.update(named_paths)
+            deleted_tracks_links = db_tracks - storaged_tracks
+            added_tracks_links = storaged_tracks - db_tracks
+            tracks_for_deleting = [
+                (track.split("///")[0], track.split("///")[1])
+                for track in deleted_tracks_links
+            ]
+            deleted_count = self.db_manager.bulk_delete_by_links(tracks_for_deleting)
+            tracks_to_adding = {}
+            for track in added_tracks_links:
+                k, v = track.split("///")
+                if k in tracks_to_adding:
+                    tracks_to_adding[k].append(v)
+                else:
+                    tracks_to_adding[k] = [v]
+            for storage in self.storages:
+                params = storage["params"].copy()
+                params.update({"id": storage["id"], "name": storage["name"]})
+                current_storage = storage["class"](params)
+                if storage["id"] in tracks_to_adding:
+                    for path in tracks_to_adding[storage["id"]]:
+                        track_metadata = current_storage.get_track_metadata(path)
+                        new_track = Track(
+                            title=track_metadata["title"],
+                            artist=track_metadata["artist"],
+                            length=track_metadata["length"],
+                        )
+                        new_link = TrackLink(
+                            link_type="storage",
+                            link_provider=current_storage.id,
+                            link=str(path),
+                        )
+                        new_track.links.append(new_link)
+                        self.db_manager.add(session, new_track)
+            session.commit()
 
     def checks_status():
         pass

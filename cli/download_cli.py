@@ -30,5 +30,5 @@ def search_track(query: str):
     table.add_column("Artist", style="cyan")
     table.add_column("Length", style="green")
     artist = ", ".join(track["artist"])
-    table.add_row(track["title"], artist, str(int(track["length"] / 1000)))
+    table.add_row(track["title"], artist, str(int(track["length"])))
     console.print(table)

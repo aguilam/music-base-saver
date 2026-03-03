@@ -98,6 +98,21 @@ def get_music_directory():
     return {"hello world"}
 
 
+@router.get("/getArtist")
+def get_artist():
+    return {"hello world"}
+
+
+@router.get("/getSong")
+def get_song():
+    return {"hello world"}
+
+
+@router.get("/getAlbum")
+def get_album():
+    return {"hello world"}
+
+
 @router.get("/ping")
 def ping():
     return {

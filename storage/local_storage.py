@@ -16,8 +16,9 @@ class LocalStorage(Storage):
         self.save_directory = Path(self.config["save_directory"])
         self.save_directory.mkdir(parents=True, exist_ok=True)
 
-    def save_track(self, file: Path) -> Path:
-        dst = self.save_directory / file.name
+    def save_track(self, file: Path, saving_path: Path) -> Path:
+        dst = self.save_directory / saving_path
+        dst.parent.mkdir(parents=True, exist_ok=True)
         move(file, dst)
         return dst
 
@@ -40,7 +41,7 @@ class LocalStorage(Storage):
         self,
     ):
         return [
-            f"{self.save_directory}:{f.name}"
+            f"{f.parent}:{f.name}"
             for f in self.save_directory.rglob("*")
             if f.is_file()
         ]
