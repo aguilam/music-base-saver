@@ -176,6 +176,18 @@ class DBManager:
             tracks = session.exec(statement).all()
             return tracks
 
+    def get_all_artists(self):
+        with Session(self.engine) as session:
+            statement = select(Artist).options(selectinload(Artist.albums))
+            tracks = session.exec(statement).all()
+            return tracks
+
+    def get_all_albums(self):
+        with Session(self.engine) as session:
+            statement = select(Artist).options(selectinload(Album.tracks))
+            tracks = session.exec(statement).all()
+            return tracks
+
     def get_all_tracks_storage_links(self):
         with Session(self.engine) as session:
             combined = (
@@ -188,6 +200,24 @@ class DBManager:
         with Session(self.engine) as session:
             statement = (
                 select(Track).where(Track.id == id).options(selectinload(Track.links))
+            )
+            track = session.exec(statement).first()
+            return track
+
+    def get_album_by_id(self, id: int):
+        with Session(self.engine) as session:
+            statement = (
+                select(Album).where(Album.id == id).options(selectinload(Album.tracks))
+            )
+            track = session.exec(statement).first()
+            return track
+
+    def get_artist_by_id(self, id: int):
+        with Session(self.engine) as session:
+            statement = (
+                select(Artist)
+                .where(Artist.id == id)
+                .options(selectinload(Artist.albums))
             )
             track = session.exec(statement).first()
             return track

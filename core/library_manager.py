@@ -161,6 +161,26 @@ class LibraryManager:
         tracks = self.db_manager.get_all_tracks()
         return tracks
 
+    def get_all_artists(self):
+        artists = self.db_manager.get_all_artists()
+        return artists
+
+    def get_all_albums(self):
+        albums = self.db_manager.get_all_albums()
+        return albums
+
+    def get_track_by_id(self, id: int):
+        track = self.db_manager.get_track_by_id(id)
+        return track
+
+    def get_album_by_id(self, id: int):
+        album = self.db_manager.get_album_by_id(id)
+        return album
+
+    def get_artist_by_id(self, id: int):
+        artist = self.db_manager.get_artist_by_id(id)
+        return artist
+
     def delete_track(self, track_id: int):
         track = self.db_manager.delete_track(track_id)
         return track

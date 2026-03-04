@@ -5,6 +5,7 @@ from fastapi import FastAPI, status, Request
 from fastapi.responses import Response
 from core.library_manager import LibraryManager
 from core.schemas import QueryType
+from collections import defaultdict
 
 app = FastAPI()
 router = APIRouter(prefix="/rest")
@@ -99,18 +100,162 @@ def get_music_directory():
 
 
 @router.get("/getArtist")
-def get_artist():
-    return {"hello world"}
+def get_artist(id: int):
+    artist = library_manager.get_artist_by_id(id)
+    albums = []
+    for album in artist.albums:
+        title = album.title
+        albums.append(
+            {
+                "id": album.id,
+                "parent": album.artist_id,
+                "album": title,
+                "title": title,
+                "name": title,
+                "isDir": True,
+                "coverArt": "al-200000002",
+                "songCount": len(album.tracks),
+                "created": "2021-02-23T04:24:48+00:00",
+                "artistId": album.artist_id,
+                "artist": album.artist_rel.name,
+                "duration": 0,
+            }
+        )
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "artist": {
+                "id": artist.id,
+                "name": artist.name,
+                "albumCount": len(artist.albums),
+                "artistImageUrl": "https://demo.org/image.jpg",
+                "album": albums,
+            },
+        }
+    }
+
+
+@router.get("/getArtists")
+def get_artists():
+    artists = library_manager.get_all_artists()
+    capitalized_artists = defaultdict(list)
+    for artist in artists:
+        key = artist.name[0].upper()
+        capitalized_artists[key].append(
+            {
+                "id": artist.id,
+                "name": artist.name,
+                "coverArt": "test",
+                "albumCount": len(artist.albums),
+            }
+        )
+    sorted_artists = dict(sorted(capitalized_artists.items()))
+    index = []
+    for k, v in sorted_artists.items():
+        index.append({"name": k, "artist": v})
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "artists": {
+                "ignoredArticles": "The An A Die Das Ein Eine Les Le La",
+                "index": index,
+            },
+        }
+    }
 
 
 @router.get("/getSong")
-def get_song():
-    return {"hello world"}
+def get_song(id: int):
+    track = library_manager.get_track_by_id(id)
+    song_link = next(
+        (link.link for link in track.links if link.link_type == "storage"), None
+    )
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "song": {
+                "id": track.id,
+                "parent": track.album_id,
+                "isDir": False,
+                "title": track.title,
+                "album": track.album.title,
+                "artist": track.album.artist_rel.name,
+                "coverArt": "mf-082f435a363c32c57d5edb6a678a28d4_6410b3ce",
+                "duration": track.length,
+                "path": song_link,
+                "created": "2023-03-14T17:51:22.112827504Z",
+                "albumId": track.album_id,
+                "artistId": track.album.artist_id,
+                "type": "music",
+                "mediaType": "song",
+                "isVideo": False,
+            },
+        }
+    }
 
 
 @router.get("/getAlbum")
-def get_album():
-    return {"hello world"}
+def get_album(id: int):
+    album = library_manager.get_album_by_id(id)
+    songs = []
+    album_title = album.title
+    for song in album.tracks:
+        song_link = next(
+            (link.link for link in song.links if link.link_type == "storage"), None
+        )
+        songs.append(
+            {
+                "id": song.id,
+                "parent": album.id,
+                "title": song.title,
+                "isDir": False,
+                "isVideo": False,
+                "type": "music",
+                "albumId": album.id,
+                "album": album_title,
+                "artistId": album.artist_id,
+                "artist": album.artist_rel.name,
+                "coverArt": "300000116",
+                "duration": song.length,
+                "path": song_link,
+            }
+        )
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "album": {
+                "id": album.id,
+                "parent": album.artist_id,
+                "album": album_title,
+                "title": album_title,
+                "name": album_title,
+                "isDir": True,
+                "coverArt": "al-200000021",
+                "songCount": len(album.tracks),
+                "created": "2021-07-22T02:09:31+00:00",
+                "duration": 0,
+                "artistId": album.artist_id,
+                "artist": album.artist_rel.name,
+                "song": songs,
+            },
+        }
+    }
 
 
 @router.get("/ping")
