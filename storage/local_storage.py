@@ -34,6 +34,7 @@ class LocalStorage(Storage):
         return free
 
     def get_track(self, path: str):
+        print(path)
         if Path(path).exists():
             return path
 

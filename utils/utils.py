@@ -1,3 +1,13 @@
+from pathlib import Path
+from mutagen import File
+from mutagen.mp3 import MP3
+from mutagen.flac import FLAC, Picture
+from mutagen.oggvorbis import OggVorbis
+from mutagen.oggopus import OggOpus
+from mutagen.mp4 import MP4
+import base64
+
+
 def compare_tracks(original_metadata: dict, track_metadata: dict):
     similarity = 0
     if any(
@@ -59,3 +69,33 @@ def find_best_track(
         artist.append(a[0])
     best_match_track = {"title": track, "artist": artist, "length": frequent_length}
     return best_match_track
+
+
+def get_cover(filepath: str | Path) -> tuple[bytes, str] | None:
+
+    audio = File(str(filepath))
+
+    if audio is None:
+        return None
+
+    if isinstance(audio, MP3) and audio.tags:
+        for key, tag in audio.tags.items():
+            if key.startswith("APIC"):
+                return tag.data, tag.split("/")[1]
+
+    if isinstance(audio, FLAC) and audio.pictures:
+        pic = audio.pictures[0]
+        return pic.data, pic.mime.split("/")[1]
+
+    if isinstance(audio, (OggVorbis, OggOpus)):
+        for b64 in audio.get("metadata_block_picture", []):
+            pic = Picture(base64.b64decode(b64))
+            return pic.data, pic.mime.split("/")[1]
+
+    if isinstance(audio, MP4) and audio.tags:
+        covers = audio.tags.get("covr", [])
+        if covers:
+            mime = "image/jpeg" if covers[0].imageformat == 13 else "image/png"
+            return bytes(covers[0]), mime.split("/")[1]
+
+    return None

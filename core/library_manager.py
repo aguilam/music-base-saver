@@ -5,7 +5,7 @@ from search.base import Search as BaseSearch
 from downloader.base import Downloader as BaseDownloader
 from storage.base import Storage as BaseStorage
 from .schemas import QueryType
-from utils.utils import compare_tracks, find_best_track
+from utils.utils import compare_tracks, find_best_track, get_cover
 import shutil
 from .db.models import DBManager, Track, TrackLink, Album, Artist
 import mutagen
@@ -116,6 +116,15 @@ class LibraryManager:
             saving_path = Path(
                 (f"{artist_name}/{album_title}/{dst.name}").replace(" ", "-")
             )
+            cover = get_cover(dst)
+            if cover is not None:
+                bytes, ext = cover
+                cover_path = dst.parent / f"cover.{ext}"
+                cover_path.write_bytes(bytes)
+                cover_save_path = saving_path.parent / cover_path.name
+                cover_storage_path = best_storage.save_track(
+                    cover_path, cover_save_path
+                )
             saved_path = best_storage.save_track(dst, saving_path)
             with self.db_manager.get_session() as session:
                 db_artist = self.db_manager.get_artist_by_name(session, artist_name)
@@ -127,6 +136,11 @@ class LibraryManager:
                     if db_album is None:
                         db_album = Album(title=album_title)
                         db_artist.albums.append(db_album)
+                        session.flush()
+                    if db_album.cover_path is None and cover is not None:
+                        db_album.cover_path = (
+                            f"{best_storage.id}///{cover_storage_path}"
+                        )
                         session.flush()
                 else:
                     db_album = None
@@ -156,6 +170,16 @@ class LibraryManager:
                 "download_source": downloader.TAG,
                 "saved_path": saved_path,
             }
+
+    def get_file(self, path: str, storage_id: str):
+        for storage in self.storages:
+            params = storage["params"].copy()
+            params.update({"id": storage["id"], "name": storage["name"]})
+            current_storage = storage["class"](params)
+            if current_storage.id == storage_id:
+                cover_path = current_storage.get_track(path)
+                print(cover_path)
+                return Path(cover_path).read_bytes()
 
     def get_all_tracks(self):
         tracks = self.db_manager.get_all_tracks()
@@ -201,7 +225,6 @@ class LibraryManager:
                 track = current_storage.stream_track(
                     track_storage.link, start_bytes, end_bytes
                 )
-                print(track)
                 return track
 
     def sync(self):

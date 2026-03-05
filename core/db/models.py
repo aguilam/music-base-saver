@@ -8,8 +8,10 @@ from sqlmodel import (
     literal,
     delete,
 )
+from sqlalchemy.ext.hybrid import hybrid_property
+
 from typing import List, Optional
-from sqlalchemy import Column, JSON, Integer, ForeignKey, tuple_, DateTime
+from sqlalchemy import Column, Integer, ForeignKey, tuple_, func
 from sqlalchemy.orm import selectinload
 
 from datetime import datetime, timezone
@@ -33,7 +35,8 @@ class PlaylistTrackLink(SQLModel, table=True):
 class Artist(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
-
+    cover_path: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     albums: List["Album"] = Relationship(
         back_populates="artist_rel",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
@@ -49,20 +52,33 @@ class Album(SQLModel, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("artist.id", ondelete="CASCADE")),
     )
-
+    cover_path: Optional[str] = Field(default=None)
     artist_rel: Optional[Artist] = Relationship(back_populates="albums")
 
     tracks: List["Track"] = Relationship(
         back_populates="album",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @hybrid_property
+    def duration(self) -> int:
+        return sum(t.length for t in self.tracks)
+
+    @duration.expression
+    def duration(cls):
+        return (
+            select(func.sum(Track.length))
+            .where(Track.album_id == cls.id)
+            .scalar_subquery()
+        )
 
 
 class Track(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
     length: int
-
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     album_id: Optional[int] = Field(
         default=None,
         sa_column=Column(Integer, ForeignKey("album.id", ondelete="CASCADE")),
@@ -86,6 +102,8 @@ class Track(SQLModel, table=True):
 
 class Lyrics(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    value: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     track_id: int = Field(
         sa_column=Column(
             Integer,
@@ -94,7 +112,6 @@ class Lyrics(SQLModel, table=True):
             nullable=False,
         )
     )
-    value: str
     track: Optional[Track] = Relationship(back_populates="lyrics")
 
 
@@ -103,6 +120,7 @@ class TrackLink(SQLModel, table=True):
     link_type: str
     link_provider: str
     link: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     track_id: Optional[int] = Field(
         default=None,
@@ -115,7 +133,7 @@ class Playlist(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     owner: str
-    created: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     public: bool = Field(default=True)
 
     tracks: List[Track] = Relationship(

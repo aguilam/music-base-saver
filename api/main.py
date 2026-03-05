@@ -80,8 +80,14 @@ def stream_track(request: Request, track_id: int):
 
 
 @router.get("/getCoverArt")
-def get_cover_art():
-    return {"hello world"}
+def get_cover_art(id: int):
+    album = library_manager.get_album_by_id(id)
+    if album is not None:
+        splited_path = album.cover_path.split("///")
+        cover_art = library_manager.get_file(splited_path[1], splited_path[0])
+        return Response(content=cover_art)
+    else:
+        return {"error"}
 
 
 @router.get("/getMusicFolders")
@@ -113,12 +119,12 @@ def get_artist(id: int):
                 "title": title,
                 "name": title,
                 "isDir": True,
-                "coverArt": "al-200000002",
+                "coverArt": album.cover_path,
                 "songCount": len(album.tracks),
-                "created": "2021-02-23T04:24:48+00:00",
+                "created": album.created_at,
                 "artistId": album.artist_id,
                 "artist": album.artist_rel.name,
-                "duration": 0,
+                "duration": album.duration,
             }
         )
     return {
@@ -192,10 +198,10 @@ def get_song(id: int):
                 "title": track.title,
                 "album": track.album.title,
                 "artist": track.album.artist_rel.name,
-                "coverArt": "mf-082f435a363c32c57d5edb6a678a28d4_6410b3ce",
+                "coverArt": track.album.cover_path,
                 "duration": track.length,
                 "path": song_link,
-                "created": "2023-03-14T17:51:22.112827504Z",
+                "created": track.created_at,
                 "albumId": track.album_id,
                 "artistId": track.album.artist_id,
                 "type": "music",
@@ -227,7 +233,7 @@ def get_album(id: int):
                 "album": album_title,
                 "artistId": album.artist_id,
                 "artist": album.artist_rel.name,
-                "coverArt": "300000116",
+                "coverArt": album.cover_path,
                 "duration": song.length,
                 "path": song_link,
             }
@@ -246,10 +252,10 @@ def get_album(id: int):
                 "title": album_title,
                 "name": album_title,
                 "isDir": True,
-                "coverArt": "al-200000021",
+                "coverArt": album.cover_path,
                 "songCount": len(album.tracks),
-                "created": "2021-07-22T02:09:31+00:00",
-                "duration": 0,
+                "created": album.created_at,
+                "duration": album.duration,
                 "artistId": album.artist_id,
                 "artist": album.artist_rel.name,
                 "song": songs,
@@ -308,3 +314,6 @@ def get_license():
             },
         }
     }
+
+
+app.include_router(router)
