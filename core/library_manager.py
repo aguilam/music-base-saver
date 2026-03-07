@@ -246,6 +246,7 @@ class LibraryManager:
             ]
             deleted_count = self.db_manager.bulk_delete_by_links(tracks_for_deleting)
             tracks_to_adding = {}
+            added_count = 0
             for track in added_tracks_links:
                 k, v = track.split("///")
                 if k in tracks_to_adding:
@@ -271,7 +272,12 @@ class LibraryManager:
                         )
                         new_track.links.append(new_link)
                         self.db_manager.add(session, new_track)
+                        added_count += 1
             session.commit()
+            return {
+                "deleted_count": deleted_count,
+                "added_count": added_count,
+            }
 
     def checks_status():
         pass
