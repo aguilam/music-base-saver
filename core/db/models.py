@@ -9,9 +9,9 @@ from sqlmodel import (
     delete,
 )
 from sqlalchemy.ext.hybrid import hybrid_property
-
+from typing import ClassVar
 from typing import List, Optional
-from sqlalchemy import Column, Integer, ForeignKey, tuple_, func
+from sqlalchemy import Column, Integer, ForeignKey, tuple_, func, UniqueConstraint
 from sqlalchemy.orm import selectinload
 
 from datetime import datetime, timezone
@@ -32,6 +32,62 @@ class PlaylistTrackLink(SQLModel, table=True):
     )
 
 
+class StarredTrack(SQLModel, table=True):
+    user_id: int = Field(foreign_key="user.id", primary_key=True)
+    track_id: int = Field(foreign_key="track.id", primary_key=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    user: "User" = Relationship(back_populates="starred_tracks_link")
+    track: "Track" = Relationship(back_populates="starred_track_links")
+
+
+class StarredAlbum(SQLModel, table=True):
+    user_id: int = Field(foreign_key="user.id", primary_key=True)
+    album_id: int = Field(foreign_key="album.id", primary_key=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    user: "User" = Relationship(back_populates="starred_albums_link")
+    album: "Album" = Relationship(back_populates="starred_album_links")
+
+
+class StarredArtist(SQLModel, table=True):
+    user_id: int = Field(foreign_key="user.id", primary_key=True)
+    artist_id: int = Field(foreign_key="artist.id", primary_key=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    user: "User" = Relationship(back_populates="starred_artists_link")
+    artist: "Artist" = Relationship(back_populates="starred_artist_links")
+
+
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(unique=True)
+    password: str
+    email: str
+    api_key: Optional[str] = Field(default=None, unique=True, index=True)
+    is_admin: bool
+
+    starred_tracks_link: List["StarredTrack"] = Relationship(back_populates="user")
+    starred_albums_link: List["StarredAlbum"] = Relationship(back_populates="user")
+    starred_artists_link: List["StarredArtist"] = Relationship(back_populates="user")
+
+    starred_tracks: List["Track"] = Relationship(
+        back_populates="starred_by",
+        link_model=StarredTrack,
+        sa_relationship_kwargs={"viewonly": True},
+    )
+    starred_albums: List["Album"] = Relationship(
+        back_populates="starred_by",
+        link_model=StarredAlbum,
+        sa_relationship_kwargs={"viewonly": True},
+    )
+    starred_artists: List["Artist"] = Relationship(
+        back_populates="starred_by",
+        link_model=StarredArtist,
+        sa_relationship_kwargs={"viewonly": True},
+    )
+
+
 class Artist(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
@@ -40,6 +96,10 @@ class Artist(SQLModel, table=True):
     albums: List["Album"] = Relationship(
         back_populates="artist_rel",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    starred_artist_links: List[StarredArtist] = Relationship(back_populates="artist")
+    starred_by: List[User] = Relationship(
+        back_populates="starred_artists", link_model=StarredArtist
     )
 
 
@@ -65,6 +125,8 @@ class Album(SQLModel, table=True):
     def duration(self) -> int:
         return sum(t.length for t in self.tracks)
 
+    duration: ClassVar[hybrid_property]
+
     @duration.expression
     def duration(cls):
         return (
@@ -72,6 +134,11 @@ class Album(SQLModel, table=True):
             .where(Track.album_id == cls.id)
             .scalar_subquery()
         )
+
+    starred_album_links: List[StarredAlbum] = Relationship(back_populates="album")
+    starred_by: List[User] = Relationship(
+        back_populates="starred_albums", link_model=StarredAlbum
+    )
 
 
 class Track(SQLModel, table=True):
@@ -97,6 +164,11 @@ class Track(SQLModel, table=True):
 
     playlists: List["Playlist"] = Relationship(
         back_populates="tracks", link_model=PlaylistTrackLink
+    )
+
+    starred_track_links: List[StarredTrack] = Relationship(back_populates="track")
+    starred_by: List[User] = Relationship(
+        back_populates="starred_tracks", link_model=StarredTrack
     )
 
 
@@ -141,10 +213,26 @@ class Playlist(SQLModel, table=True):
     )
 
 
+def admin_create(engine):
+    with Session(engine) as session:
+        statement = select(func.count()).select_from(User)
+        users_count = session.exec(statement).one()
+        if users_count < 1:
+            admin = User(
+                username="admin",
+                password="admin",
+                email="admin@mail.com",
+                is_admin=True,
+            )
+            session.add(admin)
+            session.commit()
+
+
 class DBManager:
     def __init__(self) -> None:
         self.engine = create_engine("sqlite:///database.db")
         SQLModel.metadata.create_all(self.engine)
+        admin_create(self.engine)
 
     def get_session(self) -> Session:
         return Session(self.engine)
@@ -156,8 +244,23 @@ class DBManager:
         return session.exec(select(Album).where(Album.title == title)).first()
 
     def get_track_by_name(self, session: Session, title: str) -> Optional[Track]:
-        with Session(self.engine) as session:
-            return session.exec(select(Track).where(Track.title == title)).first()
+        return session.exec(select(Track).where(Track.title == title)).first()
+
+    def get_user_by_name(self, session: Session, username: str) -> Optional[User]:
+        return session.exec(select(User).where(User.username == username)).first()
+
+    def get_user_by_id(self, session: Session, id: int) -> Optional[User]:
+        return session.exec(select(User).where(User.id == id)).first()
+
+    def get_user_by_apikey(self, session: Session, api_key: str) -> Optional[User]:
+        return session.exec(select(User).where(User.api_key == api_key)).first()
+
+    def get_all_user_starred(self, session: Session, user_id: int):
+        user = self.get_user_by_id(session, user_id)
+        starred_tracks = user.starred_tracks
+        starred_albums = user.starred_albums
+        starred_artists = user.starred_artists
+        return (starred_tracks, starred_albums, starred_artists)
 
     def add(self, session: Session, obj):
         session.add(obj)

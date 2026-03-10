@@ -51,11 +51,16 @@ class LocalStorage(Storage):
         track_metadata = mutagen.File(Path(self._fix_windows_path(path)), easy=True)
         title_list = track_metadata.get("title")
         title = title_list[0] if title_list else Path(path).stem
-        artist_list = track_metadata.get("artist")
-        artist = artist_list if artist_list else ["Unknown"]
+        artist_name = (track_metadata.get("artist") or ["Unknown"])[0]
+        album_title = (track_metadata.get("album") or [None])[0]
         length = int(track_metadata.info.length)
         del track_metadata
-        return {"title": title, "artist": artist, "length": length}
+        return {
+            "title": title,
+            "artist": artist_name,
+            "album": album_title,
+            "length": length,
+        }
 
     def stream_track(self, path: str, start: int, end: int):
         file_size = os.stat(self._fix_windows_path(path)).st_size

@@ -7,12 +7,32 @@ from storage.base import Storage as BaseStorage
 from .schemas import QueryType
 from utils.utils import compare_tracks, find_best_track, get_cover
 import shutil
-from .db.models import DBManager, Track, TrackLink, Album, Artist
+from .db.models import (
+    DBManager,
+    Track,
+    TrackLink,
+    Album,
+    Artist,
+    StarredAlbum,
+    StarredArtist,
+    StarredTrack,
+)
 import mutagen
-import time
-import os
+from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
 from typing import Callable
+
+STAR_LINK_MAP = {
+    "track": lambda user_id, obj_id: StarredTrack(user_id=user_id, song_id=obj_id),
+    "album": lambda user_id, obj_id: StarredAlbum(user_id=user_id, album_id=obj_id),
+    "artist": lambda user_id, obj_id: StarredArtist(user_id=user_id, artist_id=obj_id),
+}
+
+UNSTAR_LINK_MAP = {
+    "track": (StarredTrack, "song_id"),
+    "album": (StarredAlbum, "album_id"),
+    "artist": (StarredArtist, "artist_id"),
+}
 
 
 class LibraryManager:
@@ -155,13 +175,6 @@ class LibraryManager:
                 session.add(new_track)
 
                 session.commit()
-            # for i in range(5):
-            #    try:
-            #        os.remove(downloaded_path)
-            #        break
-            #    except PermissionError:
-            #        print(f"File locked(attempt {i+1}/5)")
-            #        time.sleep(4)
             return {
                 "title": title,
                 "artist": [artist_name],
@@ -212,6 +225,37 @@ class LibraryManager:
     def import_tracks():
         pass
 
+    def star(self, user_id: int, object_id: int, object_type: str):
+        factory = STAR_LINK_MAP.get(object_type)
+        if not factory:
+            raise ValueError(f"Unknown type: {object_type}")
+
+        link = factory(user_id, object_id)
+
+        with self.db_manager.get_session() as session:
+            session.add(link)
+            session.commit()
+
+    def unstar(self, user_id: int, object_id: int, object_type: str):
+        model, id_field = UNSTAR_LINK_MAP.get(object_type)
+        if not model:
+            raise ValueError(f"Unknown type: {object_type}")
+
+        with self.db_manager.get_session() as session:
+            statement = select(model).where(
+                model.user_id == user_id,
+                getattr(model, id_field) == object_id,
+            )
+            link = session.exec(statement).first()
+            if link:
+                session.delete(link)
+                session.commit()
+
+    def get_all_user_starred(self, user_id: int):
+        return self.db_manager.get_all_user_starred(
+            self.db_manager.get_session(), user_id
+        )
+
     def stream_track(self, track_id: int, start_bytes: int, end_bytes: int):
         track = self.db_manager.get_track_by_id(track_id)
         track_storage = next(
@@ -249,6 +293,8 @@ class LibraryManager:
             added_count = 0
             for track in added_tracks_links:
                 k, v = track.split("///")
+                if any(ext in v for ext in ["jpeg", "jpg", "png"]):
+                    continue
                 if k in tracks_to_adding:
                     tracks_to_adding[k].append(v)
                 else:
@@ -260,10 +306,30 @@ class LibraryManager:
                 if storage["id"] in tracks_to_adding:
                     for path in tracks_to_adding[storage["id"]]:
                         track_metadata = current_storage.get_track_metadata(path)
+                        db_artist = self.db_manager.get_artist_by_name(
+                            session, track_metadata["artist"]
+                        )
+                        if db_artist is None:
+                            db_artist = self.db_manager.add(
+                                session, Artist(name=track_metadata["artist"])
+                            )
+
+                        if track_metadata["album"]:
+                            db_album = self.db_manager.get_album_by_name(
+                                session, track_metadata["album"]
+                            )
+                            if db_album is None:
+                                db_album = Album(title=track_metadata["album"])
+                                db_artist.albums.append(db_album)
+                                session.flush()
+                                session.flush()
+                        else:
+                            db_album = None
+
                         new_track = Track(
                             title=track_metadata["title"],
-                            artist=track_metadata["artist"],
                             length=track_metadata["length"],
+                            album=db_album,
                         )
                         new_link = TrackLink(
                             link_type="storage",
@@ -271,7 +337,7 @@ class LibraryManager:
                             link=str(path),
                         )
                         new_track.links.append(new_link)
-                        self.db_manager.add(session, new_track)
+                        session.add(new_track)
                         added_count += 1
             session.commit()
             return {

@@ -1,16 +1,107 @@
 import tomllib
 from pathlib import Path
-from fastapi import FastAPI, status, Request, APIRouter
+from fastapi import FastAPI, status, Request, APIRouter, Depends
 from fastapi.responses import Response, JSONResponse
 from core.library_manager import LibraryManager
 from core.schemas import QueryType
 from collections import defaultdict
 import hashlib
 from hmac import compare_digest
-import magic
+from utils.utils import image_mime
+from fastapi.middleware.cors import CORSMiddleware
+
+
+async def login_middleware(request: Request):
+    params = request.query_params
+    api_key = params.get("apiKey")
+    username = params.get("u")
+    token = params.get("t")
+    salt = params.get("s")
+    user_password = config["web"]["password"]
+    user_username = config["web"]["username"]
+    user_api_key = config["web"]["api_key"]
+    if username is not None and api_key is not None:
+        return JSONResponse(
+            {
+                "subsonic-response": {
+                    "status": "failed",
+                    "version": "1.16.1",
+                    "type": "AwesomeServerName",
+                    "serverVersion": "0.1.3 (tag)",
+                    "openSubsonic": True,
+                    "error": {
+                        "code": 43,
+                        "message": "Multiple conflicting authentication mechanisms provided",
+                    },
+                }
+            }
+        )
+    if api_key is not None and username is None:
+        if not compare_digest(api_key, user_api_key):
+            return JSONResponse(
+                {
+                    "subsonic-response": {
+                        "status": "failed",
+                        "version": "1.16.1",
+                        "type": "AwesomeServerName",
+                        "serverVersion": "0.1.3 (tag)",
+                        "openSubsonic": True,
+                        "error": {"code": 44, "message": "Invalid API key"},
+                    }
+                }
+            )
+    elif (
+        username is not None
+        and api_key is None
+        and user_password is not None
+        and salt is not None
+        and token is not None
+    ):
+        if not (
+            compare_digest(
+                hashlib.md5((user_password + salt).encode("utf-8")).hexdigest(), token
+            )
+            and compare_digest(username, user_username)
+        ):
+            return JSONResponse(
+                {
+                    "subsonic-response": {
+                        "status": "failed",
+                        "version": "1.16.1",
+                        "type": "AwesomeServerName",
+                        "serverVersion": "0.1.3 (tag)",
+                        "openSubsonic": True,
+                        "error": {"code": 40, "message": "Wrong username or password"},
+                    }
+                }
+            )
+    else:
+        return JSONResponse(
+            {
+                "subsonic-response": {
+                    "status": "failed",
+                    "version": "1.16.1",
+                    "type": "AwesomeServerName",
+                    "serverVersion": "0.1.3 (tag)",
+                    "openSubsonic": True,
+                    "error": {
+                        "code": 10,
+                        "message": "Required parameter is missing",
+                    },
+                }
+            }
+        )
+
 
 app = FastAPI()
-subsonic_router = APIRouter(prefix="/rest")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+subsonic_router = APIRouter(prefix="/rest", dependencies=[Depends(login_middleware)])
 toml_file_path = Path("config.toml")
 with toml_file_path.open("rb") as config_file:
     config = tomllib.load(config_file)
@@ -66,7 +157,7 @@ def get_tracks():
     return tracks
 
 
-@subsonic_router.get("/track/stream", status_code=status.HTTP_206_PARTIAL_CONTENT)
+@subsonic_router.get("/stream", status_code=status.HTTP_206_PARTIAL_CONTENT)
 def stream_track(request: Request, track_id: int):
     CHUNK_SIZE = 1024 * 1024
     range_header = request.headers.get("range")
@@ -110,7 +201,7 @@ def get_cover_art(id: int):
         }
     splited_path = album.cover_path.split("///")
     cover_art = library_manager.get_file(splited_path[1], splited_path[0])
-    mime = magic.from_buffer(cover_art, mime=True)
+    mime = image_mime(cover_art)
     return Response(content=cover_art, media_type=mime)
 
 
@@ -393,88 +484,4 @@ def get_license():
     }
 
 
-@subsonic_router.middleware("http")
-async def login_middleware(request: Request, call_next):
-    params = request.query_params
-    api_key = params.get("api_key")
-    username = params.get("u")
-    token = params.get("t")
-    salt = params.get("s")
-    user_password = config["api"]["password"]
-    user_username = config["api"]["username"]
-    user_api_key = config["api"]["api_key"]
-    if username is not None and api_key is not None:
-        return JSONResponse(
-            {
-                "subsonic-response": {
-                    "status": "failed",
-                    "version": "1.16.1",
-                    "type": "AwesomeServerName",
-                    "serverVersion": "0.1.3 (tag)",
-                    "openSubsonic": True,
-                    "error": {
-                        "code": 43,
-                        "message": "Multiple conflicting authentication mechanisms provided",
-                    },
-                }
-            }
-        )
-    if api_key is not None and username is None:
-        if compare_digest(api_key, user_api_key):
-            return await call_next(request)
-        else:
-            return JSONResponse(
-                {
-                    "subsonic-response": {
-                        "status": "failed",
-                        "version": "1.16.1",
-                        "type": "AwesomeServerName",
-                        "serverVersion": "0.1.3 (tag)",
-                        "openSubsonic": True,
-                        "error": {"code": 44, "message": "Invalid API key"},
-                    }
-                }
-            )
-    elif (
-        username is not None
-        and api_key is None
-        and user_password is not None
-        and salt is not None
-        and token is not None
-    ):
-        if compare_digest(
-            hashlib.md5((user_password + salt).encode("utf-8")).hexdigest(), token
-        ) and compare_digest(username, user_username):
-            return await call_next(request)
-        else:
-            return JSONResponse(
-                {
-                    "subsonic-response": {
-                        "status": "failed",
-                        "version": "1.16.1",
-                        "type": "AwesomeServerName",
-                        "serverVersion": "0.1.3 (tag)",
-                        "openSubsonic": True,
-                        "error": {"code": 40, "message": "Wrong username or password"},
-                    }
-                }
-            )
-    else:
-        return JSONResponse(
-            {
-                "subsonic-response": {
-                    "status": "failed",
-                    "version": "1.16.1",
-                    "type": "AwesomeServerName",
-                    "serverVersion": "0.1.3 (tag)",
-                    "openSubsonic": True,
-                    "error": {
-                        "code": 10,
-                        "message": "Required parameter is missing",
-                    },
-                }
-            }
-        )
-
-
-app.include_subsonic_router(subsonic_router)
+app.include_router(subsonic_router)

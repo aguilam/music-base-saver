@@ -99,3 +99,17 @@ def get_cover(filepath: str | Path) -> tuple[bytes, str] | None:
             return bytes(covers[0]), mime.split("/")[1]
 
     return None
+
+
+def image_mime(data: bytes) -> str:
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if data[:2] in (b"BM",):
+        return "image/bmp"
+    return "application/octet-stream"
