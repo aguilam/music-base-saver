@@ -6,20 +6,29 @@ from core.library_manager import LibraryManager
 from core.schemas import QueryType
 from collections import defaultdict
 import hashlib
+from typing import Annotated
+from core.db.models import User
 from hmac import compare_digest
 from utils.utils import image_mime
 from fastapi.middleware.cors import CORSMiddleware
+from api.mappers import (
+    to_subsonic_album,
+    to_subsonic_artist,
+    to_subsonic_playlist,
+    to_subsonic_song,
+)
 
 
-async def login_middleware(request: Request):
-    params = request.query_params
-    api_key = params.get("apiKey")
-    username = params.get("u")
-    token = params.get("t")
-    salt = params.get("s")
-    user_password = config["web"]["password"]
-    user_username = config["web"]["username"]
-    user_api_key = config["web"]["api_key"]
+async def get_user(
+    u: str | None = None,
+    t: str | None = None,
+    s: str | None = None,
+    apiKey: str | None = None,
+):
+    api_key = apiKey
+    username = u
+    token = t
+    salt = s
     if username is not None and api_key is not None:
         return JSONResponse(
             {
@@ -37,7 +46,8 @@ async def login_middleware(request: Request):
             }
         )
     if api_key is not None and username is None:
-        if not compare_digest(api_key, user_api_key):
+        user = library_manager.get_user(apiKey=api_key)
+        if user is None:
             return JSONResponse(
                 {
                     "subsonic-response": {
@@ -50,18 +60,19 @@ async def login_middleware(request: Request):
                     }
                 }
             )
+        return user
     elif (
         username is not None
         and api_key is None
-        and user_password is not None
         and salt is not None
         and token is not None
     ):
-        if not (
+        user = library_manager.get_user(username=username)
+        if user is None or not (
             compare_digest(
-                hashlib.md5((user_password + salt).encode("utf-8")).hexdigest(), token
+                hashlib.md5((user.password + salt).encode("utf-8")).hexdigest(), token
             )
-            and compare_digest(username, user_username)
+            and compare_digest(username, user.username)
         ):
             return JSONResponse(
                 {
@@ -75,6 +86,7 @@ async def login_middleware(request: Request):
                     }
                 }
             )
+        return user
     else:
         return JSONResponse(
             {
@@ -101,7 +113,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-subsonic_router = APIRouter(prefix="/rest", dependencies=[Depends(login_middleware)])
+subsonic_router = APIRouter(prefix="/rest", dependencies=[Depends(get_user)])
 toml_file_path = Path("config.toml")
 with toml_file_path.open("rb") as config_file:
     config = tomllib.load(config_file)
@@ -182,6 +194,44 @@ def stream_track(request: Request, track_id: int):
     )
 
 
+@subsonic_router.get("/getPlaylists")
+def get_user_playlists(user: Annotated[User, Depends(get_user)]):
+    user_playlists = library_manager.get_user_playlists(user.id)
+    subsonic_playlists = list(map(to_subsonic_playlist(user_playlists)))
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "playlists": {"playlist": subsonic_playlists},
+        }
+    }
+
+
+@subsonic_router.get("/getStarred2")
+def get_user_starred(user: Annotated[User, Depends(get_user)]):
+    tracks, albums, artists = library_manager.get_all_user_starred(user.id)
+    parsed_tracks = list(map(to_subsonic_song(tracks)))
+    parsed_albums = list(map(to_subsonic_album(albums)))
+    parsed_artist = list(map(to_subsonic_artist(artists)))
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "starred2": {
+                "artist": parsed_artist,
+                "album": parsed_albums,
+                "song": parsed_tracks,
+            },
+        }
+    }
+
+
 @subsonic_router.get("/getCoverArt")
 def get_cover_art(id: int):
     album = library_manager.get_album_by_id(id)
@@ -237,25 +287,8 @@ def get_artist(id: int):
                 },
             }
         }
-    albums = []
-    for album in artist.albums:
-        title = album.title
-        albums.append(
-            {
-                "id": album.id,
-                "parent": album.artist_id,
-                "album": title,
-                "title": title,
-                "name": title,
-                "isDir": True,
-                "coverArt": album.cover_path,
-                "songCount": len(album.tracks),
-                "created": album.created_at,
-                "artistId": album.artist_id,
-                "artist": album.artist_rel.name,
-                "duration": album.duration,
-            }
-        )
+    parsed_artist = to_subsonic_artist(artist)
+    parsed_artist["album"] = list(map(to_subsonic_album(artist.albums)))
     return {
         "subsonic-response": {
             "status": "ok",
@@ -263,13 +296,7 @@ def get_artist(id: int):
             "type": "AwesomeServerName",
             "serverVersion": "0.1.3 (tag)",
             "openSubsonic": True,
-            "artist": {
-                "id": artist.id,
-                "name": artist.name,
-                "albumCount": len(artist.albums),
-                "artistImageUrl": "https://demo.org/image.jpg",
-                "album": albums,
-            },
+            "artist": parsed_artist,
         }
     }
 
@@ -280,14 +307,7 @@ def get_artists():
     capitalized_artists = defaultdict(list)
     for artist in artists:
         key = artist.name[0].upper()
-        capitalized_artists[key].append(
-            {
-                "id": artist.id,
-                "name": artist.name,
-                "coverArt": "test",
-                "albumCount": len(artist.albums),
-            }
-        )
+        capitalized_artists[key].append(to_subsonic_artist(artist))
     sorted_artists = dict(sorted(capitalized_artists.items()))
     index = []
     for k, v in sorted_artists.items():
@@ -327,6 +347,8 @@ def get_song(id: int):
     song_link = next(
         (link.link for link in track.links if link.link_type == "storage"), None
     )
+    song = to_subsonic_song(track)
+    song["path"] = song_link
     return {
         "subsonic-response": {
             "status": "ok",
@@ -334,23 +356,7 @@ def get_song(id: int):
             "type": "AwesomeServerName",
             "serverVersion": "0.1.3 (tag)",
             "openSubsonic": True,
-            "song": {
-                "id": track.id,
-                "parent": track.album_id,
-                "isDir": False,
-                "title": track.title,
-                "album": track.album.title,
-                "artist": track.album.artist_rel.name,
-                "coverArt": track.album.cover_path,
-                "duration": track.length,
-                "path": song_link,
-                "created": track.created_at,
-                "albumId": track.album_id,
-                "artistId": track.album.artist_id,
-                "type": "music",
-                "mediaType": "song",
-                "isVideo": False,
-            },
+            "song": song,
         }
     }
 
@@ -372,29 +378,15 @@ def get_album(id: int):
                 },
             }
         }
-    songs = []
-    album_title = album.title
-    for song in album.tracks:
-        song_link = next(
-            (link.link for link in song.links if link.link_type == "storage"), None
+    parsed_album = to_subsonic_album(album)
+    tracks = []
+    for track in album.tracks:
+        track_link = next(
+            (link.link for link in track.links if link.link_type == "storage"), None
         )
-        songs.append(
-            {
-                "id": song.id,
-                "parent": album.id,
-                "title": song.title,
-                "isDir": False,
-                "isVideo": False,
-                "type": "music",
-                "albumId": album.id,
-                "album": album_title,
-                "artistId": album.artist_id,
-                "artist": album.artist_rel.name,
-                "coverArt": album.cover_path,
-                "duration": song.length,
-                "path": song_link,
-            }
-        )
+        tracks.append(to_subsonic_song(track))
+        track["path"] = track_link
+    parsed_album["song"] = tracks
     return {
         "subsonic-response": {
             "status": "ok",
@@ -402,21 +394,7 @@ def get_album(id: int):
             "type": "AwesomeServerName",
             "serverVersion": "0.1.3 (tag)",
             "openSubsonic": True,
-            "album": {
-                "id": album.id,
-                "parent": album.artist_id,
-                "album": album_title,
-                "title": album_title,
-                "name": album_title,
-                "isDir": True,
-                "coverArt": album.cover_path,
-                "songCount": len(album.tracks),
-                "created": album.created_at,
-                "duration": album.duration,
-                "artistId": album.artist_id,
-                "artist": album.artist_rel.name,
-                "song": songs,
-            },
+            "album": parsed_album,
         }
     }
 

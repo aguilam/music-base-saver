@@ -16,6 +16,8 @@ from .db.models import (
     StarredAlbum,
     StarredArtist,
     StarredTrack,
+    Playlist,
+    User,
 )
 import mutagen
 from sqlalchemy import select
@@ -23,7 +25,7 @@ from core.loader import import_modules, load_storages, load_modules
 from typing import Callable
 
 STAR_LINK_MAP = {
-    "track": lambda user_id, obj_id: StarredTrack(user_id=user_id, song_id=obj_id),
+    "track": lambda user_id, obj_id: StarredTrack(user_id=user_id, track_id=obj_id),
     "album": lambda user_id, obj_id: StarredAlbum(user_id=user_id, album_id=obj_id),
     "artist": lambda user_id, obj_id: StarredArtist(user_id=user_id, artist_id=obj_id),
 }
@@ -251,10 +253,24 @@ class LibraryManager:
                 session.delete(link)
                 session.commit()
 
+    def get_user_playlists(self, user_id: int) -> list[Playlist]:
+        return self.db_manager.get_user_playlists(user_id)
+
     def get_all_user_starred(self, user_id: int):
         return self.db_manager.get_all_user_starred(
             self.db_manager.get_session(), user_id
         )
+
+    def get_user(
+        self, username: str | None = None, apiKey: str | None = None
+    ) -> User | None:
+        with self.db_manager.get_session() as session:
+            if username is not None:
+                return self.db_manager.get_user_by_name(session, username)
+            elif apiKey is not None:
+                return self.db_manager.get_user_by_apikey(session, apiKey)
+            else:
+                return None
 
     def stream_track(self, track_id: int, start_bytes: int, end_bytes: int):
         track = self.db_manager.get_track_by_id(track_id)

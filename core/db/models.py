@@ -67,6 +67,8 @@ class User(SQLModel, table=True):
     api_key: Optional[str] = Field(default=None, unique=True, index=True)
     is_admin: bool
 
+    playlists: List["Playlist"] = Relationship(back_populates="owner")
+
     starred_tracks_link: List["StarredTrack"] = Relationship(back_populates="user")
     starred_albums_link: List["StarredAlbum"] = Relationship(back_populates="user")
     starred_artists_link: List["StarredArtist"] = Relationship(back_populates="user")
@@ -206,7 +208,43 @@ class Playlist(SQLModel, table=True):
     name: str
     owner: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    public: bool = Field(default=True)
+    public: bool = Field(default=False)
+
+    owner_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("user.id", ondelete="CASCADE")),
+    )
+    owner: Optional[User] = Relationship(back_populates="playlists")
+
+    @hybrid_property
+    def song_count(self) -> int:
+        return len(self.tracks)
+
+    song_count: ClassVar[hybrid_property]
+
+    @song_count.expression
+    def song_count(cls):
+        return (
+            select(func.count())
+            .select_from(PlaylistTrackLink)
+            .where(PlaylistTrackLink.playlist_id == cls.id)
+            .scalar_subquery()
+        )
+
+    @hybrid_property
+    def duration(self) -> int:
+        return sum(t.length for t in self.tracks)
+
+    duration: ClassVar[hybrid_property]
+
+    @duration.expression
+    def duration(cls):
+        return (
+            select(func.sum(Track.length))
+            .join(PlaylistTrackLink, PlaylistTrackLink.track_id == Track.id)
+            .where(PlaylistTrackLink.playlist_id == cls.id)
+            .scalar_subquery()
+        )
 
     tracks: List[Track] = Relationship(
         back_populates="playlists", link_model=PlaylistTrackLink
@@ -261,6 +299,10 @@ class DBManager:
         starred_albums = user.starred_albums
         starred_artists = user.starred_artists
         return (starred_tracks, starred_albums, starred_artists)
+
+    def get_user_playlists(self, session: Session, user_id: int):
+        playlists = session.exec(select(Playlist).where(Playlist.owner_id == user_id))
+        return playlists
 
     def add(self, session: Session, obj):
         session.add(obj)
