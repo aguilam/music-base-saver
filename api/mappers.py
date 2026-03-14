@@ -2,43 +2,39 @@ from core.db.models import Playlist, Album, Artist, Track
 
 
 def to_subsonic_song(track: Track):
-    return (
-        {
-            "id": track.id,
-            "parent": track.album_id,
-            "isDir": False,
-            "title": track.title,
-            "album": track.album.title,
-            "artist": track.album.artist_rel.name,
-            "coverArt": track.album.cover_path,
-            "duration": track.length,
-            "created": track.created_at,
-            "albumId": track.album_id,
-            "artistId": track.album.artist_id,
-            "type": "music",
-            "mediaType": "song",
-            "isVideo": False,
-        },
-    )
+    return {
+        "id": track.id,
+        "parent": track.album_id,
+        "isDir": False,
+        "title": track.title,
+        "album": track.album.title,
+        "artist": track.album.artist_rel.name,
+        "coverArt": track.album.cover_path,
+        "duration": track.length,
+        "created": track.created_at,
+        "albumId": track.album_id,
+        "artistId": track.album.artist_id,
+        "type": "music",
+        "mediaType": "song",
+        "isVideo": False,
+    }
 
 
 def to_subsonic_album(album: Album):
-    return (
-        {
-            "id": album.id,
-            "parent": album.artist_id,
-            "album": album.title,
-            "title": album.title,
-            "name": album.title,
-            "isDir": True,
-            "coverArt": album.cover_path,
-            "songCount": len(album.tracks),
-            "created": album.created_at,
-            "duration": album.duration,
-            "artistId": album.artist_id,
-            "artist": album.artist_rel.name,
-        },
-    )
+    return {
+        "id": album.id,
+        "parent": album.artist_id,
+        "album": album.title,
+        "title": album.title,
+        "name": album.title,
+        "isDir": True,
+        "coverArt": album.cover_path,
+        "songCount": len(album.tracks),
+        "created": album.created_at,
+        "duration": album.duration,
+        "artistId": album.artist_id,
+        "artist": album.artist_rel.name,
+    }
 
 
 def to_subsonic_artist(artist: Artist):

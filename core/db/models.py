@@ -100,8 +100,12 @@ class Artist(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     starred_artist_links: List[StarredArtist] = Relationship(back_populates="artist")
-    starred_by: List[User] = Relationship(
-        back_populates="starred_artists", link_model=StarredArtist
+    starred_by: List["User"] = Relationship(
+        back_populates="starred_artists",
+        link_model=StarredArtist,
+        sa_relationship_kwargs={
+            "overlaps": "starred_artist_links,starred_artists_link,artist,user"
+        },
     )
 
 
@@ -138,8 +142,12 @@ class Album(SQLModel, table=True):
         )
 
     starred_album_links: List[StarredAlbum] = Relationship(back_populates="album")
-    starred_by: List[User] = Relationship(
-        back_populates="starred_albums", link_model=StarredAlbum
+    starred_by: List["User"] = Relationship(
+        back_populates="starred_albums",
+        link_model=StarredAlbum,
+        sa_relationship_kwargs={
+            "overlaps": "starred_album_links,starred_albums_link,album,user"
+        },
     )
 
 
@@ -169,8 +177,12 @@ class Track(SQLModel, table=True):
     )
 
     starred_track_links: List[StarredTrack] = Relationship(back_populates="track")
-    starred_by: List[User] = Relationship(
-        back_populates="starred_tracks", link_model=StarredTrack
+    starred_by: List["User"] = Relationship(
+        back_populates="starred_tracks",
+        link_model=StarredTrack,
+        sa_relationship_kwargs={
+            "overlaps": "starred_track_links,starred_tracks_link,track,user"
+        },
     )
 
 
@@ -290,6 +302,20 @@ class DBManager:
     def get_user_by_id(self, session: Session, id: int) -> Optional[User]:
         return session.exec(select(User).where(User.id == id)).first()
 
+    def get_playlist_by_id(self, session: Session, id: int) -> Optional[Playlist]:
+        playlist = session.exec(
+            select(Playlist)
+            .where(Playlist.id == id)
+            .options(
+                selectinload(Playlist.owner),
+                selectinload(Playlist.tracks).selectinload(Track.links),
+                selectinload(Playlist.tracks)
+                .selectinload(Track.album)
+                .selectinload(Album.artist_rel),
+            )
+        ).first()
+        return playlist
+
     def get_user_by_apikey(self, session: Session, api_key: str) -> Optional[User]:
         return session.exec(select(User).where(User.api_key == api_key)).first()
 
@@ -301,7 +327,13 @@ class DBManager:
         return (starred_tracks, starred_albums, starred_artists)
 
     def get_user_playlists(self, session: Session, user_id: int):
-        playlists = session.exec(select(Playlist).where(Playlist.owner_id == user_id))
+        playlists = session.exec(
+            select(Playlist)
+            .where(Playlist.owner_id == user_id)
+            .options(selectinload(Playlist.owner), selectinload(Playlist.tracks))
+        ).all()
+        for p in playlists:
+            session.expunge(p)
         return playlists
 
     def add(self, session: Session, obj):
@@ -345,11 +377,14 @@ class DBManager:
             tracks = session.exec(statement).all()
             return tracks
 
-    def get_all_albums(self):
-        with Session(self.engine) as session:
-            statement = select(Artist).options(selectinload(Album.tracks))
-            tracks = session.exec(statement).all()
-            return tracks
+    def get_all_albums(self, session: Session):
+        statement = select(Album).options(
+            selectinload(Album.tracks).selectinload(Track.links),
+            selectinload(Album.tracks).selectinload(Track.album),
+            selectinload(Album.artist_rel),
+        )
+        albums = session.exec(statement).all()
+        return albums
 
     def get_all_tracks_storage_links(self):
         with Session(self.engine) as session:
@@ -370,7 +405,13 @@ class DBManager:
     def get_album_by_id(self, id: int):
         with Session(self.engine) as session:
             statement = (
-                select(Album).where(Album.id == id).options(selectinload(Album.tracks))
+                select(Album)
+                .where(Album.id == id)
+                .options(
+                    selectinload(Album.tracks).selectinload(Track.links),
+                    selectinload(Album.tracks).selectinload(Track.album),
+                    selectinload(Album.artist_rel),
+                )
             )
             track = session.exec(statement).first()
             return track
@@ -380,7 +421,10 @@ class DBManager:
             statement = (
                 select(Artist)
                 .where(Artist.id == id)
-                .options(selectinload(Artist.albums))
+                .options(
+                    selectinload(Artist.albums).selectinload(Album.tracks),
+                    selectinload(Artist.albums).selectinload(Album.artist_rel),
+                )
             )
             track = session.exec(statement).first()
             return track

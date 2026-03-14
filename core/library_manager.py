@@ -193,7 +193,6 @@ class LibraryManager:
             current_storage = storage["class"](params)
             if current_storage.id == storage_id:
                 cover_path = current_storage.get_track(path)
-                print(cover_path)
                 return Path(cover_path).read_bytes()
 
     def get_all_tracks(self):
@@ -219,6 +218,15 @@ class LibraryManager:
     def get_artist_by_id(self, id: int):
         artist = self.db_manager.get_artist_by_id(id)
         return artist
+
+    def get_playlist_by_id(self, id: int):
+        with self.db_manager.get_session() as session:
+            playlist = self.db_manager.get_playlist_by_id(session, id)
+            if playlist is None:
+                return None
+            if playlist:
+                session.expunge_all()
+            return playlist
 
     def delete_track(self, track_id: int):
         track = self.db_manager.delete_track(track_id)
@@ -254,7 +262,12 @@ class LibraryManager:
                 session.commit()
 
     def get_user_playlists(self, user_id: int) -> list[Playlist]:
-        return self.db_manager.get_user_playlists(user_id)
+        with self.db_manager.get_session() as session:
+            return self.db_manager.get_user_playlists(session, user_id)
+
+    def get_all_albums(self) -> list[Album]:
+        with self.db_manager.get_session() as session:
+            return self.db_manager.get_all_albums(session)
 
     def get_all_user_starred(self, user_id: int):
         return self.db_manager.get_all_user_starred(

@@ -197,7 +197,7 @@ def stream_track(request: Request, track_id: int):
 @subsonic_router.get("/getPlaylists")
 def get_user_playlists(user: Annotated[User, Depends(get_user)]):
     user_playlists = library_manager.get_user_playlists(user.id)
-    subsonic_playlists = list(map(to_subsonic_playlist(user_playlists)))
+    subsonic_playlists = [to_subsonic_playlist(playlist) for playlist in user_playlists]
     return {
         "subsonic-response": {
             "status": "ok",
@@ -210,12 +210,54 @@ def get_user_playlists(user: Annotated[User, Depends(get_user)]):
     }
 
 
+@subsonic_router.get("/getPlaylist")
+def get_playlist(id: int, user: Annotated[User, Depends(get_user)]):
+    playlist = library_manager.get_playlist_by_id(id)
+    if playlist is None:
+        return {
+            "subsonic-response": {
+                "status": "failed",
+                "version": "1.16.1",
+                "type": "AwesomeServerName",
+                "serverVersion": "0.1.3 (tag)",
+                "openSubsonic": True,
+                "error": {
+                    "code": 70,
+                    "message": "The requested data was not found",
+                },
+            }
+        }
+    subsonic_playlist = to_subsonic_playlist(playlist)
+    tracks = []
+    for track in playlist.tracks:
+        track_link = next(
+            (link.link for link in track.links if link.link_type == "storage"),
+            None,
+        )
+        subsonic_track = to_subsonic_song(track)
+
+        subsonic_track["path"] = track_link
+
+        tracks.append(subsonic_track)
+    subsonic_playlist["entry"] = tracks
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "playlist": subsonic_playlist,
+        }
+    }
+
+
 @subsonic_router.get("/getStarred2")
 def get_user_starred(user: Annotated[User, Depends(get_user)]):
     tracks, albums, artists = library_manager.get_all_user_starred(user.id)
-    parsed_tracks = list(map(to_subsonic_song(tracks)))
-    parsed_albums = list(map(to_subsonic_album(albums)))
-    parsed_artist = list(map(to_subsonic_artist(artists)))
+    parsed_tracks = [to_subsonic_song(track) for track in tracks]
+    parsed_albums = [to_subsonic_album(album) for album in albums]
+    parsed_artist = [to_subsonic_artist(artist) for artist in artists]
     return {
         "subsonic-response": {
             "status": "ok",
@@ -288,7 +330,7 @@ def get_artist(id: int):
             }
         }
     parsed_artist = to_subsonic_artist(artist)
-    parsed_artist["album"] = list(map(to_subsonic_album(artist.albums)))
+    parsed_artist["album"] = [to_subsonic_album(album) for album in artist.albums]
     return {
         "subsonic-response": {
             "status": "ok",
@@ -384,8 +426,11 @@ def get_album(id: int):
         track_link = next(
             (link.link for link in track.links if link.link_type == "storage"), None
         )
-        tracks.append(to_subsonic_song(track))
-        track["path"] = track_link
+        subsonic_track = to_subsonic_song(track)
+
+        subsonic_track["path"] = track_link
+
+        tracks.append(subsonic_track)
     parsed_album["song"] = tracks
     return {
         "subsonic-response": {
@@ -395,6 +440,36 @@ def get_album(id: int):
             "serverVersion": "0.1.3 (tag)",
             "openSubsonic": True,
             "album": parsed_album,
+        }
+    }
+
+
+@subsonic_router.get("/getAlbumList2")
+def get_albums():
+    albums = library_manager.get_all_albums()
+    if albums is None:
+        return {
+            "subsonic-response": {
+                "status": "failed",
+                "version": "1.16.1",
+                "type": "AwesomeServerName",
+                "serverVersion": "0.1.3 (tag)",
+                "openSubsonic": True,
+                "error": {
+                    "code": 70,
+                    "message": "The requested data was not found",
+                },
+            }
+        }
+    parsed_albums = [to_subsonic_album(album) for album in albums]
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "albumList2": {"album": parsed_albums},
         }
     }
 

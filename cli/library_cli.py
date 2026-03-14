@@ -33,7 +33,6 @@ def delete_track(track_id: int):
     library_manager = LibraryManager()
 
     track = library_manager.delete_track(track_id)
-    print(track)
 
 
 @library_app.command("sync")
