@@ -170,7 +170,7 @@ def get_tracks():
 
 
 @subsonic_router.get("/stream", status_code=status.HTTP_206_PARTIAL_CONTENT)
-def stream_track(request: Request, track_id: int):
+def stream_track(request: Request, id: int):
     CHUNK_SIZE = 1024 * 1024
     range_header = request.headers.get("range")
     if not range_header:
@@ -180,7 +180,7 @@ def stream_track(request: Request, track_id: int):
         range = range_header.replace("bytes=", "").split("-")
         start = int(range[0])
         end = int(range[1]) if range[1] != "" else start + CHUNK_SIZE
-    track_bytes = library_manager.stream_track(track_id, start, end)
+    track_bytes = library_manager.stream_track(id, start, end)
     headers = {
         "content-length": str(len(track_bytes["bytes"])),
         "content-range": f"bytes {start}-{track_bytes['end_bytes']}/{track_bytes['file_size']}",
@@ -275,9 +275,10 @@ def get_user_starred(user: Annotated[User, Depends(get_user)]):
 
 
 @subsonic_router.get("/getCoverArt")
-def get_cover_art(id: int):
-    album = library_manager.get_album_by_id(id)
-    if album is None or album.cover_path is None:
+def get_cover_art(id: str):
+    splited_id = id.split("-")
+    cover_path = ""
+    if len(splited_id) != 2:
         return {
             "subsonic-response": {
                 "status": "failed",
@@ -291,7 +292,55 @@ def get_cover_art(id: int):
                 },
             }
         }
-    splited_path = album.cover_path.split("///")
+    if splited_id[0] == "al":
+        album = library_manager.get_album_by_id(splited_id[1])
+        if album is None or album.cover_path is None:
+            return {
+                "subsonic-response": {
+                    "status": "failed",
+                    "version": "1.16.1",
+                    "type": "AwesomeServerName",
+                    "serverVersion": "0.1.3 (tag)",
+                    "openSubsonic": True,
+                    "error": {
+                        "code": 70,
+                        "message": "The requested data was not found",
+                    },
+                }
+            }
+        cover_path = album.cover_path
+    elif splited_id[0] == "ar":
+        artist = library_manager.get_artist_by_id(splited_id[1])
+        if artist is None or artist.cover_path is None:
+            return {
+                "subsonic-response": {
+                    "status": "failed",
+                    "version": "1.16.1",
+                    "type": "AwesomeServerName",
+                    "serverVersion": "0.1.3 (tag)",
+                    "openSubsonic": True,
+                    "error": {
+                        "code": 70,
+                        "message": "The requested data was not found",
+                    },
+                }
+            }
+        cover_path = artist.cover_path
+    else:
+        return {
+            "subsonic-response": {
+                "status": "failed",
+                "version": "1.16.1",
+                "type": "AwesomeServerName",
+                "serverVersion": "0.1.3 (tag)",
+                "openSubsonic": True,
+                "error": {
+                    "code": 70,
+                    "message": "The requested data was not found",
+                },
+            }
+        }
+    splited_path = cover_path.split("///")
     cover_art = library_manager.get_file(splited_path[1], splited_path[0])
     mime = image_mime(cover_art)
     return Response(content=cover_art, media_type=mime)

@@ -9,7 +9,7 @@ def to_subsonic_song(track: Track):
         "title": track.title,
         "album": track.album.title,
         "artist": track.album.artist_rel.name,
-        "coverArt": track.album.cover_path,
+        "coverArt": f"al-{track.album.id}",
         "duration": track.length,
         "created": track.created_at,
         "albumId": track.album_id,
@@ -28,7 +28,7 @@ def to_subsonic_album(album: Album):
         "title": album.title,
         "name": album.title,
         "isDir": True,
-        "coverArt": album.cover_path,
+        "coverArt": f"al-{album.id}",
         "songCount": len(album.tracks),
         "created": album.created_at,
         "duration": album.duration,
@@ -41,7 +41,7 @@ def to_subsonic_artist(artist: Artist):
     return {
         "id": artist.id,
         "name": artist.name,
-        "coverArt": "test",
+        "coverArt": f"ar-{artist.id}",
         "albumCount": len(artist.albums),
     }
 
