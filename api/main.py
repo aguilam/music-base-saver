@@ -536,6 +536,54 @@ def ping():
     }
 
 
+@subsonic_router.post("/star")
+def star(
+    user: Annotated[User, Depends(get_user)],
+    id: str | None = None,
+    albumId: str | None = None,
+    artistId: str | None = None,
+):
+    if id is not None:
+        library_manager.star(user.id, id, "track")
+    if albumId is not None:
+        library_manager.star(user.id, albumId, "album")
+    if artistId is not None:
+        library_manager.star(user.id, artistId, "artist")
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "0.0.1",
+            "type": "Music Saver",
+            "serverVersion": "0.0.1 (tag)",
+            "openSubsonic": True,
+        }
+    }
+
+
+@subsonic_router.post("/unstar")
+def unstar(
+    user: Annotated[User, Depends(get_user)],
+    id: str | None = None,
+    albumId: str | None = None,
+    artistId: str | None = None,
+):
+    if id is not None:
+        library_manager.unstar(user.id, id, "track")
+    if albumId is not None:
+        library_manager.unstar(user.id, albumId, "album")
+    if artistId is not None:
+        library_manager.unstar(user.id, artistId, "artist")
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "0.0.1",
+            "type": "Music Saver",
+            "serverVersion": "0.0.1 (tag)",
+            "openSubsonic": True,
+        }
+    }
+
+
 @subsonic_router.get("/getLyrics")
 def get_lyrics():
     return {"hello world"}

@@ -4,6 +4,9 @@ from shutil import disk_usage, move
 import os
 import mutagen
 import re
+from PIL import Image
+from PIL.ExifTags import Base
+from PIL.PngImagePlugin import PngInfo
 
 
 class LocalStorage(Storage):
@@ -34,8 +37,9 @@ class LocalStorage(Storage):
         return free
 
     def get_track(self, path: str):
-        if Path(path).exists():
-            return path
+        norm_path = self._fix_windows_path(path)
+        if Path(norm_path).exists():
+            return norm_path
 
     def get_all_tracks_paths(
         self,
@@ -60,6 +64,34 @@ class LocalStorage(Storage):
             "album": album_title,
             "length": length,
         }
+
+    def get_cover_metadata(self, path):
+        norm_path = Path(self._fix_windows_path(path))
+        try:
+            with Image.open(norm_path) as img:
+                if norm_path.suffix == ".png":
+                    img.load()
+                    return img.info.get("contentId")
+                else:
+                    exif = img.getexif()
+                    return exif.get(Base.UserComment)
+        except:
+            None
+
+    def write_cover_metadata(self, path, id):
+        norm_path = Path(self._fix_windows_path(path))
+        img = Image.open(norm_path)
+        if norm_path.suffix == ".png":
+            img.load()
+            pnginfo = PngInfo()
+            for key, value in img.info.items():
+                if isinstance(value, (str, int, float, bytes)):
+                    pnginfo.add_text(str(key), str(value))
+            img.save(norm_path, pnginfo=pnginfo)
+        else:
+            exif = img.getexif()
+            exif[Base.UserComment] = id
+            img.save(norm_path, exif=exif)
 
     def stream_track(self, path: str, start: int, end: int):
         file_size = os.stat(self._fix_windows_path(path)).st_size

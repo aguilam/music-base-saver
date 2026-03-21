@@ -402,29 +402,27 @@ class DBManager:
             track = session.exec(statement).first()
             return track
 
-    def get_album_by_id(self, id: int):
-        with Session(self.engine) as session:
-            statement = (
-                select(Album)
-                .where(Album.id == id)
-                .options(
-                    selectinload(Album.tracks).selectinload(Track.links),
-                    selectinload(Album.tracks).selectinload(Track.album),
-                    selectinload(Album.artist_rel),
-                )
+    def get_album_by_id(self, session: Session, id: int):
+        statement = (
+            select(Album)
+            .where(Album.id == id)
+            .options(
+                selectinload(Album.tracks).selectinload(Track.links),
+                selectinload(Album.tracks).selectinload(Track.album),
+                selectinload(Album.artist_rel),
             )
-            track = session.exec(statement).first()
-            return track
+        )
+        track = session.exec(statement).first()
+        return track
 
-    def get_artist_by_id(self, id: int):
-        with Session(self.engine) as session:
-            statement = (
-                select(Artist)
-                .where(Artist.id == id)
-                .options(
-                    selectinload(Artist.albums).selectinload(Album.tracks),
-                    selectinload(Artist.albums).selectinload(Album.artist_rel),
-                )
+    def get_artist_by_id(self, session: Session, id: int):
+        statement = (
+            select(Artist)
+            .where(Artist.id == id)
+            .options(
+                selectinload(Artist.albums).selectinload(Album.tracks),
+                selectinload(Artist.albums).selectinload(Album.artist_rel),
             )
-            track = session.exec(statement).first()
-            return track
+        )
+        track = session.exec(statement).first()
+        return track

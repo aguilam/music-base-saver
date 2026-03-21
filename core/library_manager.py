@@ -1,6 +1,5 @@
 from pathlib import Path
 import tomllib
-
 from search.base import Search as BaseSearch
 from downloader.base import Downloader as BaseDownloader
 from storage.base import Storage as BaseStorage
@@ -212,12 +211,14 @@ class LibraryManager:
         return track
 
     def get_album_by_id(self, id: int):
-        album = self.db_manager.get_album_by_id(id)
-        return album
+        with self.db_manager.get_session() as session:
+            album = self.db_manager.get_album_by_id(session, id)
+            return album
 
     def get_artist_by_id(self, id: int):
-        artist = self.db_manager.get_artist_by_id(id)
-        return artist
+        with self.db_manager.get_session() as session:
+            artist = self.db_manager.get_artist_by_id(session, id)
+            return artist
 
     def get_playlist_by_id(self, id: int):
         with self.db_manager.get_session() as session:
@@ -319,15 +320,21 @@ class LibraryManager:
             ]
             deleted_count = self.db_manager.bulk_delete_by_links(tracks_for_deleting)
             tracks_to_adding = {}
-            added_count = 0
+            cover_to_adding = {}
+            track_added_count = 0
+            cover_added_count = 0
             for track in added_tracks_links:
                 k, v = track.split("///")
                 if any(ext in v for ext in ["jpeg", "jpg", "png"]):
-                    continue
-                if k in tracks_to_adding:
-                    tracks_to_adding[k].append(v)
+                    if k in cover_to_adding:
+                        cover_to_adding[k].append(v)
+                    else:
+                        cover_to_adding[k] = [v]
                 else:
-                    tracks_to_adding[k] = [v]
+                    if k in tracks_to_adding:
+                        tracks_to_adding[k].append(v)
+                    else:
+                        tracks_to_adding[k] = [v]
             for storage in self.storages:
                 params = storage["params"].copy()
                 params.update({"id": storage["id"], "name": storage["name"]})
@@ -351,7 +358,6 @@ class LibraryManager:
                                 db_album = Album(title=track_metadata["album"])
                                 db_artist.albums.append(db_album)
                                 session.flush()
-                                session.flush()
                         else:
                             db_album = None
 
@@ -367,11 +373,60 @@ class LibraryManager:
                         )
                         new_track.links.append(new_link)
                         session.add(new_track)
-                        added_count += 1
+                        session.flush()
+                        track_added_count += 1
+                if storage["id"] in cover_to_adding:
+                    for path in cover_to_adding[storage["id"]]:
+                        content_id = None
+                        content_type = None
+                        entity = None
+                        id_from_cover = current_storage.get_cover_metadata(path)
+                        if id_from_cover is None:
+                            file_name = Path(path).stem.split(":")[1]
+                            subject, subject_id = file_name.split("-")
+                            subject_id = int(subject_id)
+                            if subject == "al":
+                                album = self.db_manager.get_album_by_id(
+                                    session, subject_id
+                                )
+                                if album is None:
+                                    continue
+                                content_type = "al"
+                                content_id = album.id
+                            elif subject == "ar":
+                                artist = self.db_manager.get_artist_by_id(
+                                    session, subject_id
+                                )
+                                if artist is None:
+                                    continue
+                                content_type = "ar"
+                                content_id = artist.id
+                            current_storage.write_cover_metadata(
+                                path, f"{content_type}-{content_id}"
+                            )
+                        else:
+                            subject, subject_id = id_from_cover.split("-")
+                            content_type = subject
+                            content_id = int(subject_id)
+                        if content_id is None or content_type is None:
+                            continue
+                        if content_type == "al":
+                            entity = self.db_manager.get_album_by_id(
+                                session, content_id
+                            )
+                        elif content_type == "ar":
+                            entity = self.db_manager.get_artist_by_id(
+                                session, content_id
+                            )
+                        if entity is None:
+                            return
+                        entity.cover_path = f"{storage["id"]}///{path}"
+                        session.flush()
+                        cover_added_count += 1
             session.commit()
             return {
                 "deleted_count": deleted_count,
-                "added_count": added_count,
+                "added_count": track_added_count + cover_added_count,
             }
 
     def checks_status():
