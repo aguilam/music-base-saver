@@ -3,6 +3,7 @@ import tomllib
 from search.base import Search as BaseSearch
 from downloader.base import Downloader as BaseDownloader
 from storage.base import Storage as BaseStorage
+from importer.base import Importer as BaseImporter
 from .schemas import QueryType
 from utils.utils import compare_tracks, find_best_track, get_cover
 import shutil
@@ -51,6 +52,9 @@ class LibraryManager:
         self.storages = load_storages(config, import_modules("storage", BaseStorage))
         self.downloaders = load_modules(
             config["downloader"], import_modules("downloader", BaseDownloader)
+        )
+        self.importers = load_modules(
+            config["importer"], import_modules("importer", BaseImporter)
         )
         self.db_manager = DBManager()
 
@@ -233,9 +237,6 @@ class LibraryManager:
         track = self.db_manager.delete_track(track_id)
         return track
 
-    def import_tracks():
-        pass
-
     def star(self, user_id: int, object_id: int, object_type: str):
         factory = STAR_LINK_MAP.get(object_type)
         if not factory:
@@ -401,6 +402,14 @@ class LibraryManager:
                                     continue
                                 content_type = "ar"
                                 content_id = artist.id
+                            elif subject == "pl":
+                                playlist = self.db_manager.get_playlist_by_id(
+                                    session, subject_id
+                                )
+                                if playlist is None:
+                                    continue
+                                content_type = "pl"
+                                content_id = playlist.id
                             current_storage.write_cover_metadata(
                                 path, f"{content_type}-{content_id}"
                             )
@@ -418,6 +427,10 @@ class LibraryManager:
                             entity = self.db_manager.get_artist_by_id(
                                 session, content_id
                             )
+                        elif content_type == "pl":
+                            entity = self.db_manager.get_playlist_by_id(
+                                session, content_id
+                            )
                         if entity is None:
                             return
                         entity.cover_path = f"{storage["id"]}///{path}"
@@ -428,6 +441,22 @@ class LibraryManager:
                 "deleted_count": deleted_count,
                 "added_count": track_added_count + cover_added_count,
             }
+
+    def import_tracks(self, importer_tag: str):
+        importers = self.importers
+        selected_importer: BaseImporter | None = None
+        for importer in importers:
+            if importer["tag"] == importer_tag:
+                selected_importer = importer["class"](importer["params"])
+                break
+        with self.db_manager.get_session() as session:
+            (
+                favorited_tracks,
+                favorited_albums,
+                favorited_artists,
+                favorited_playlists,
+            ) = selected_importer.get_favorited()
+            playlists = selected_importer.get_playlist()
 
     def checks_status():
         pass
