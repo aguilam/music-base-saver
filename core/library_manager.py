@@ -442,7 +442,7 @@ class LibraryManager:
                 "added_count": track_added_count + cover_added_count,
             }
 
-    def import_tracks(self, importer_tag: str):
+    def import_tracks(self, importer_tag: str, user_id: int | None = None):
         importers = self.importers
         selected_importer: BaseImporter | None = None
         for importer in importers:
@@ -456,7 +456,34 @@ class LibraryManager:
                 favorited_artists,
                 favorited_playlists,
             ) = selected_importer.get_favorited()
-            playlists = selected_importer.get_playlist()
+            unique_tracks = {track["id"]: {} for track in favorited_tracks}
+            unique_albums = {album["id"]: {} for album in favorited_albums}
+            unique_artists = {artist["id"]: {} for artist in favorited_artists}
+            unique_playlists = {playlist["id"]: {} for playlist in favorited_playlists}
+
+            unique_playlists.update(
+                playlist["id"] for playlist in selected_importer.get_playlists()
+            )
+
+            for playlist in unique_playlists:
+                playlist_info = selected_importer.get_playlist(playlist["id"])
+                for track in playlist_info["tracks"]:
+                    unique_tracks[track["id"]] = track
+                playlist_cover = selected_importer.get_playlist_cover()
+
+            for track in unique_tracks:
+                try:
+                    track_info = selected_importer.get_tracks(track["id"])
+
+                    track_path = selected_importer.get_track_download(track["id"])
+
+                    for album in playlist_info["albums"]:
+                        unique_albums[album["id"]] = album
+                    for artist in playlist_info["artists"]:
+                        unique_artists[artist["id"]] = artist
+                except:
+                    pass
+            track_lyrics = selected_importer.get_lyrics()
 
     def checks_status():
         pass

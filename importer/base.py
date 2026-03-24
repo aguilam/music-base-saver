@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from core.db.models import Track, Album, Artist
 
 
 class Importer(ABC):
@@ -16,15 +17,15 @@ class Importer(ABC):
         pass
 
     @abstractmethod
-    def get_track(self):
+    def get_tracks(self) -> list[Track]:
         pass
 
     @abstractmethod
-    def get_album(self):
+    def get_albums(self):
         pass
 
     @abstractmethod
-    def get_artist(self):
+    def get_artists(self):
         pass
 
     @abstractmethod
