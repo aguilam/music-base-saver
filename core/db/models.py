@@ -32,6 +32,21 @@ class PlaylistTrackLink(SQLModel, table=True):
     )
 
 
+class TrackArtistsLink(SQLModel, table=True):
+    artist_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("artist.id", ondelete="CASCADE"), primary_key=True
+        ),
+    )
+    track_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("track.id", ondelete="CASCADE"), primary_key=True
+        ),
+    )
+
+
 class StarredTrack(SQLModel, table=True):
     user_id: int = Field(foreign_key="user.id", primary_key=True)
     track_id: int = Field(foreign_key="track.id", primary_key=True)
@@ -99,6 +114,9 @@ class Artist(SQLModel, table=True):
         back_populates="artist_rel",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
+    tracks: List["Track"] = Relationship(
+        back_populates="artists", link_model=TrackArtistsLink
+    )
     starred_artist_links: List[StarredArtist] = Relationship(back_populates="artist")
     starred_by: List["User"] = Relationship(
         back_populates="starred_artists",
@@ -160,7 +178,7 @@ class Track(SQLModel, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("album.id", ondelete="CASCADE")),
     )
-    album: Optional[Album] = Relationship(back_populates="tracks")
+    album: Optional["Album"] = Relationship(back_populates="tracks")
 
     lyrics: Optional["Lyrics"] = Relationship(
         back_populates="track",
@@ -175,7 +193,6 @@ class Track(SQLModel, table=True):
     playlists: List["Playlist"] = Relationship(
         back_populates="tracks", link_model=PlaylistTrackLink
     )
-
     starred_track_links: List[StarredTrack] = Relationship(back_populates="track")
     starred_by: List["User"] = Relationship(
         back_populates="starred_tracks",
@@ -183,6 +200,9 @@ class Track(SQLModel, table=True):
         sa_relationship_kwargs={
             "overlaps": "starred_track_links,starred_tracks_link,track,user"
         },
+    )
+    artists: List["Artist"] = Relationship(
+        back_populates="tracks", link_model=TrackArtistsLink
     )
 
 
@@ -219,6 +239,7 @@ class Playlist(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     owner: str
+    cover_path: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     public: bool = Field(default=False)
 

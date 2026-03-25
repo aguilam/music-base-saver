@@ -5,7 +5,14 @@ from downloader.base import Downloader as BaseDownloader
 from storage.base import Storage as BaseStorage
 from importer.base import Importer as BaseImporter
 from .schemas import QueryType
-from utils.utils import compare_tracks, find_best_track, get_cover
+from utils.utils import (
+    compare_tracks,
+    find_best_track,
+    full_track_save,
+    find_best_storage,
+    analyze_track,
+    save_url_file,
+)
 import shutil
 from .db.models import (
     DBManager,
@@ -17,6 +24,9 @@ from .db.models import (
     StarredArtist,
     StarredTrack,
     Playlist,
+    TrackArtistsLink,
+    Lyrics,
+    PlaylistTrackLink,
     User,
 )
 import mutagen
@@ -82,7 +92,6 @@ class LibraryManager:
         search_results = []
         tracks_dict = []
         searched_tracks = []
-        best_storage = None
 
         for engine in self.search_engines:
             search_engine = engine["class"](engine["params"])
@@ -118,39 +127,22 @@ class LibraryManager:
         track_path = downloader.download(best_track, progress_callback)
         downloaded_path = Path(track_path)
 
-        for storage in self.storages:
-            params = storage["params"].copy()
-            params.update({"id": storage["id"], "name": storage["name"]})
-            current_storage = storage["class"](params)
-            free_storage = current_storage.check_storage()
-            if free_storage > best_track["size"]:
-                best_storage = current_storage
-                break
-
         dst = Path("temp_tracks") / downloaded_path.name
 
         if downloaded_path.exists():
             shutil.copy2(downloaded_path, dst)
-            track_metadata = mutagen.File(dst, easy=True)
-            title = (track_metadata.get("title") or [downloaded_path.stem])[0]
-            artist_name = (track_metadata.get("artist") or ["Unknown"])[0]
-            album_title = (track_metadata.get("album") or [None])[0]
-            bpm = getattr(track_metadata.info, "bpm", None)
-            bitrate = getattr(track_metadata.info, "bitrate", None)
-            length = int(getattr(track_metadata.info, "length", 0))
+            track = analyze_track(dst, downloaded_path.stem)
+            title = track["title"]
+            artist_name = track["artist_name"]
+            album_title = track["album_title"]
+            length = track["length"]
             saving_path = Path(
                 (f"{artist_name}/{album_title}/{dst.name}").replace(" ", "-")
             )
-            cover = get_cover(dst)
-            if cover is not None:
-                bytes, ext = cover
-                cover_path = dst.parent / f"cover.{ext}"
-                cover_path.write_bytes(bytes)
-                cover_save_path = saving_path.parent / cover_path.name
-                cover_storage_path = best_storage.save_track(
-                    cover_path, cover_save_path
-                )
-            saved_path = best_storage.save_track(dst, saving_path)
+            best_storage = find_best_storage(self.storages, best_track["size"])
+            paths = full_track_save(best_storage, dst, saving_path)
+            cover_storage_path = paths["cover_path"]
+            saved_path = paths["track_path"]
             with self.db_manager.get_session() as session:
                 db_artist = self.db_manager.get_artist_by_name(session, artist_name)
                 if db_artist is None:
@@ -162,7 +154,7 @@ class LibraryManager:
                         db_album = Album(title=album_title)
                         db_artist.albums.append(db_album)
                         session.flush()
-                    if db_album.cover_path is None and cover is not None:
+                    if db_album.cover_path is None and cover_storage_path is not None:
                         db_album.cover_path = (
                             f"{best_storage.id}///{cover_storage_path}"
                         )
@@ -456,34 +448,232 @@ class LibraryManager:
                 favorited_artists,
                 favorited_playlists,
             ) = selected_importer.get_favorited()
-            unique_tracks = {track["id"]: {} for track in favorited_tracks}
-            unique_albums = {album["id"]: {} for album in favorited_albums}
-            unique_artists = {artist["id"]: {} for artist in favorited_artists}
-            unique_playlists = {playlist["id"]: {} for playlist in favorited_playlists}
+            user_id = 1 if user_id is None else user_id
+            unique_tracks = {
+                track["id"]: {"id": track["id"]} for track in favorited_tracks
+            }
+            unique_albums = {
+                album["id"]: {"id": album["id"]} for album in favorited_albums
+            }
+            unique_artists = {
+                artist["id"]: {"id": artist["id"]} for artist in favorited_artists
+            }
+            unique_playlists = {
+                playlist["id"]: {"id": playlist["id"]}
+                for playlist in favorited_playlists
+            }
+            favorited_tracks = favorited_tracks[:10]
+            favorited_albums = favorited_albums[:5]
+            favorited_artists = favorited_artists[:5]
+            favorited_playlists = favorited_playlists[:3]
+            playlists_to_add = []
+            tracks_to_add = []
+            artist_map: dict[int, int] = {}
+            album_map: dict[int, int] = {}
+            track_map: dict[int, int] = {}
 
             unique_playlists.update(
-                playlist["id"] for playlist in selected_importer.get_playlists()
+                {pid: {} for pid in selected_importer.get_playlists()}
             )
 
-            for playlist in unique_playlists:
-                playlist_info = selected_importer.get_playlist(playlist["id"])
+            dst = Path("temp_tracks")
+
+            for playlist_id, _ in unique_playlists.items():
+                playlist_info = selected_importer.get_playlist(playlist_id)
                 for track in playlist_info["tracks"]:
                     unique_tracks[track["id"]] = track
-                playlist_cover = selected_importer.get_playlist_cover()
-
-            for track in unique_tracks:
+                db_playlist = Playlist(
+                    name=playlist_info["title"], owner_id=user_id, public=False
+                )
+                session.add(db_playlist)
+                session.flush()
+                cover_path = save_url_file(
+                    playlist_info["cover_url"], dst / f"pl-{db_playlist.id}.jpg"
+                )
+                best_storage = find_best_storage(self.storages, 0)
+                best_storage.save_track(cover_path)
+                db_playlist.cover_path = f"{best_storage.id}///{cover_path}"
+                session.flush()
+                playlists_to_add.append(
+                    {
+                        "importer_id": playlist_id,
+                        "db_id": db_playlist.id,
+                        "name": playlist_info["title"],
+                    }
+                )
+            for track_id in list(unique_tracks.keys()):
                 try:
-                    track_info = selected_importer.get_tracks(track["id"])
+                    track_info = selected_importer.get_tracks(track_id)
+                    title = track_info.get("title", "Unknown")
+                    length = track_info.get("length", 0)
+                    has_lyrics = track_info.get("has_lyrics", False)
+                    album_id = track_info.get("album_id")
+                    artists_id = track_info.get("artists", [])
 
-                    track_path = selected_importer.get_track_download(track["id"])
+                    if album_id is not None and album_id not in unique_albums:
+                        unique_albums[album_id] = {"id": album_id}
 
-                    for album in playlist_info["albums"]:
-                        unique_albums[album["id"]] = album
-                    for artist in playlist_info["artists"]:
-                        unique_artists[artist["id"]] = artist
+                    for artist_id in artists_id:
+                        if artist_id not in unique_artists:
+                            unique_artists[artist_id] = {"id": artist_id}
+                    url, name = selected_importer.get_track_download(track_id, dst)
+                    saving_path = Path(
+                        (
+                            f"{track_info.get('artist_name', 'Unknown')[0]}/{track_info.get('album_title', 'Unknown')}/{name}"
+                        ).replace(" ", "-")
+                    )
+                    best_storage = find_best_storage(
+                        self.storages, track_info.get("size", 0)
+                    )
+                    saved_path = best_storage.save_track(url, saving_path)
+
+                    db_track = Track(
+                        title=title,
+                        length=length,
+                        album_id=album_map.get(album_id) if album_id else None,
+                    )
+                    track_link = TrackLink(
+                        link_type="storage",
+                        link_provider=best_storage.id,
+                        link=saved_path,
+                    )
+                    session.add(db_track)
+                    session.add(track_link)
+                    session.flush()
+
+                    track_map[track_id] = db_track.id
+                    tracks_to_add.append(
+                        {"id": track_id, "album_id": album_id, "artists_id": artists_id}
+                    )
                 except:
                     pass
-            track_lyrics = selected_importer.get_lyrics()
+            for artist_id in list(unique_artists.keys()):
+                try:
+                    artist = selected_importer.get_artists(artist_id)
+
+                    db_artist = Artist(name=artist["name"])
+                    session.add(db_artist)
+                    session.flush()
+
+                    cover_path = save_url_file(
+                        artist["cover_url"], dst / f"ar-{db_artist.id}.jpg"
+                    )
+
+                    best_storage = find_best_storage(self.storages, 0)
+                    saved_cover_path = best_storage.save_track(cover_path)
+                    db_artist.cover_path = f"{best_storage.id}///{saved_cover_path}"
+
+                    session.flush()
+                    artist_map[artist_id] = db_artist.id
+                except:
+                    pass
+
+            for album_id in list(unique_albums.keys()):
+                try:
+                    album = selected_importer.get_albums(album_id)
+
+                    album_artist_id = None
+                    if "artist_id" in album and album["artist_id"] in artist_map:
+                        album_artist_id = artist_map[album["artist_id"]]
+
+                    db_album = Album(
+                        title=album["title"],
+                        year=album.get("year"),
+                        artist_id=album_artist_id,
+                    )
+                    session.add(db_album)
+                    session.flush()
+
+                    cover_path = save_url_file(
+                        album["cover_url"], dst / f"al-{db_album.id}.jpg"
+                    )
+
+                    best_storage = find_best_storage(self.storages, 0)
+                    saved_cover_path = best_storage.save_track(cover_path)
+                    db_album.cover_path = f"{best_storage.id}///{saved_cover_path}"
+
+                    session.flush()
+                    album_map[album_id] = db_album.id
+                except:
+                    pass
+
+            for playlist_entry in playlists_to_add:
+                try:
+                    importer_pl_id = playlist_entry["importer_id"]
+                    db_pl_id = playlist_entry["db_id"]
+                    playlist_info = selected_importer.get_playlist(importer_pl_id)
+
+                    for track in playlist_info["tracks"]:
+                        t_id = track["id"]
+                        if t_id in track_map:
+                            link = PlaylistTrackLink(
+                                playlist_id=db_pl_id, track_id=track_map[t_id]
+                            )
+                            session.add(link)
+                            session.flush()
+                except:
+                    pass
+            for track_id in list(track_map.keys()):
+                try:
+                    lyrics_text = selected_importer.get_lyrics(track_id)
+                    if lyrics_text:
+                        db_lyrics = Lyrics(
+                            value=lyrics_text, track_id=track_map[track_id]
+                        )
+                        session.add(db_lyrics)
+                        session.flush()
+                except:
+                    pass
+            favorited_track_ids = {track["id"] for track in favorited_tracks}
+            favorited_album_ids = {album["id"] for album in favorited_albums}
+            favorited_artist_ids = {artist["id"] for artist in favorited_artists}
+
+            for track_entry in tracks_to_add:
+                try:
+                    importer_track_id = track_entry["id"]
+                    importer_album_id = track_entry["album_id"]
+                    importer_artists_id = track_entry["artists_id"]
+
+                    db_track_id = track_map.get(importer_track_id)
+                    if db_track_id is None:
+                        continue
+
+                    db_track = session.get(Track, db_track_id)
+                    if db_track is None:
+                        continue
+
+                    if importer_album_id is not None:
+                        db_track.album_id = album_map.get(importer_album_id)
+
+                    for importer_artist_id in importer_artists_id:
+                        db_artist_id = artist_map.get(importer_artist_id)
+                        if db_artist_id is None:
+                            continue
+
+                        session.add(
+                            TrackArtistsLink(
+                                artist_id=db_artist_id,
+                                track_id=db_track.id,
+                            )
+                        )
+                except:
+                    pass
+
+            for importer_track_id in favorited_track_ids:
+                db_track_id = track_map.get(importer_track_id)
+                if db_track_id is not None:
+                    session.add(StarredTrack(user_id=user_id, track_id=db_track_id))
+
+            for importer_album_id in favorited_album_ids:
+                db_album_id = album_map.get(importer_album_id)
+                if db_album_id is not None:
+                    session.add(StarredAlbum(user_id=user_id, album_id=db_album_id))
+
+            for importer_artist_id in favorited_artist_ids:
+                db_artist_id = artist_map.get(importer_artist_id)
+                if db_artist_id is not None:
+                    session.add(StarredArtist(user_id=user_id, artist_id=db_artist_id))
+            session.commit()
 
     def checks_status():
         pass

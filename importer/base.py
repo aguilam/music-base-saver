@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
 from core.db.models import Track, Album, Artist
+from pathlib import Path
 
 
 class Importer(ABC):
 
-    @abstractmethod
     @classmethod
+    @abstractmethod
     def TAG(cls) -> str:
         pass
 
@@ -37,19 +38,7 @@ class Importer(ABC):
         pass
 
     @abstractmethod
-    def get_album_cover(self):
-        pass
-
-    @abstractmethod
-    def get_artist_cover(self):
-        pass
-
-    @abstractmethod
-    def get_playlist_cover(self):
-        pass
-
-    @abstractmethod
-    def get_track_download(self):
+    def get_track_download(self) -> str:
         pass
 
     @abstractmethod

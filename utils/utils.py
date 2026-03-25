@@ -6,6 +6,9 @@ from mutagen.oggvorbis import OggVorbis
 from mutagen.oggopus import OggOpus
 from mutagen.mp4 import MP4
 import base64
+from storage.base import Storage
+import mutagen
+import requests
 
 
 def compare_tracks(original_metadata: dict, track_metadata: dict):
@@ -69,6 +72,55 @@ def find_best_track(
         artist.append(a[0])
     best_match_track = {"title": track, "artist": artist, "length": frequent_length}
     return best_match_track
+
+
+def find_best_storage(storages: list[Storage], file_size: int) -> Storage:
+    for storage in storages:
+        params = storage["params"].copy()
+        params.update({"id": storage["id"], "name": storage["name"]})
+        current_storage = storage["class"](params)
+        free_storage = current_storage.check_storage()
+        if free_storage > file_size:
+            return current_storage
+
+
+def analyze_track(track_path: Path, default_name: str):
+    track_metadata = mutagen.File(track_path, easy=True)
+    title = (track_metadata.get("title") or [default_name])[0]
+    artist_name = (track_metadata.get("artist") or ["Unknown"])[0]
+    album_title = (track_metadata.get("album") or [None])[0]
+    bpm = getattr(track_metadata.info, "bpm", None)
+    bitrate = getattr(track_metadata.info, "bitrate", None)
+    length = int(getattr(track_metadata.info, "length", 0))
+    return {
+        "title": title,
+        "artist": [artist_name],
+        "album": album_title,
+        "bpm": bpm,
+        "bitrate": bitrate,
+        "length": length,
+    }
+
+
+def full_track_save(best_storage: Storage, dst, saving_path):
+    cover = get_cover(dst)
+    if cover is not None:
+        bytes, ext = cover
+        cover_path = dst.parent / f"cover.{ext}"
+        cover_path.write_bytes(bytes)
+        cover_save_path = saving_path.parent / cover_path.name
+        cover_storage_path = best_storage.save_track(cover_path, cover_save_path)
+    saved_path = best_storage.save_track(dst, saving_path)
+    return {"cover_path": cover_storage_path, "track_path": saved_path}
+
+
+def save_url_file(url: str, dst: Path):
+    with requests.get(url, stream=True) as response:
+        response.raise_for_status()
+        with open(dst, "wb") as file:
+            for chunk in response.iter_content(chunk_size=16384):
+                if chunk:
+                    file.write(chunk)
 
 
 def get_cover(filepath: str | Path) -> tuple[bytes, str] | None:
