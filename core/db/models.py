@@ -204,6 +204,7 @@ class Track(SQLModel, table=True):
     artists: List["Artist"] = Relationship(
         back_populates="tracks", link_model=TrackArtistsLink
     )
+    music_videos: List["MusicVideo"] = Relationship(back_populates="track")
 
 
 class Lyrics(SQLModel, table=True):
@@ -219,6 +220,16 @@ class Lyrics(SQLModel, table=True):
         )
     )
     track: Optional[Track] = Relationship(back_populates="lyrics")
+
+
+class MusicVideo(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    isExternal_Link: bool
+    external_link: str
+    track_id: Optional[int] = Field(
+        sa_column=Column(Integer, ForeignKey("track.id", ondelete="CASCADE"))
+    )
+    track: Optional["Track"] = Relationship(back_populates="music_video")
 
 
 class TrackLink(SQLModel, table=True):
