@@ -63,27 +63,67 @@ class LibraryManager:
         self.downloaders = load_modules(
             config["downloader"], import_modules("downloader", BaseDownloader)
         )
-        self.importers = load_modules(
-            config["importer"], import_modules("importer", BaseImporter)
-        )
+        # self.importers = load_modules(
+        #    config["importer"], import_modules("importer", BaseImporter)
+        # )
         self.db_manager = DBManager()
 
-    def search(self, query: str, media_type: QueryType):
-        search_results = []
+    def local_search(
+        self,
+        query: str,
+        artistCount: int,
+        artistOffset: int,
+        albumCount: int,
+        albumOffset: int,
+        songCount: int,
+        songOffset: int,
+    ) -> dict:
+        with self.db_manager.get_session() as session:
+            return {
+                "tracks": self.db_manager.search_tracks(
+                    session, query, songCount, songOffset
+                ),
+                "albums": self.db_manager.search_albums(
+                    session, query, albumCount, albumOffset
+                ),
+                "tracks": self.db_manager.search_artists(
+                    session, query, artistCount, artistOffset
+                ),
+            }
+
+    def global_search(self, query: str):
+        search_results = {
+            "artists": [],
+            "albums": [],
+            "tracks": [],
+        }
         for engine in self.search_engines:
             search_engine = engine["class"](engine["params"])
-            if media_type == QueryType.TRACK or media_type == QueryType.ALL:
-                res = search_engine.search_tracks(query)
-                if res:
-                    search_results.extend(res)
-            if media_type == QueryType.ALBUM or media_type == QueryType.ALL:
-                res = search_engine.search_albums(query)
-                if res:
-                    search_results.extend(res)
-            if media_type == QueryType.ARTIST or media_type == QueryType.ALL:
-                res = search_engine.search_artists(query)
-                if res:
-                    search_results.extend(res)
+            res = search_engine.search_tracks(query)
+            if res:
+                search_results["tracks"].extend(res)
+            res = search_engine.search_albums(query)
+            if res:
+                search_results["albums"].extend(res)
+            res = search_engine.search_artists(query)
+            if res:
+                search_results["artists"].extend(res)
+        with self.db_manager.get_session() as session:
+            for artist in search_results["artists"]:
+                db_artist: Artist = self.db_manager.get_artist_by_name(
+                    session, artist["name"]
+                )
+                artist["db_id"] = db_artist.id if db_artist else None
+            for album in search_results["albums"]:
+                db_album: Album = self.db_manager.get_album_by_name(
+                    session, album["title"]
+                )
+                album["db_id"] = db_album.id if db_album else None
+            for track in search_results["tracks"]:
+                db_track: Track = self.db_manager.get_track_by_name(
+                    session, track["title"]
+                )
+                track["db_id"] = db_track.id if db_track else None
         return search_results
 
     def download(self, query: str, progress_callback: Callable[[int], None]):

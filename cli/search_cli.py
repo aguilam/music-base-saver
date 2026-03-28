@@ -11,7 +11,7 @@ search_app = typer.Typer(help="Поиск информации по источн
 @search_app.command("track")
 def search_track(query: str):
     library_manager = LibraryManager()
-    tracks = library_manager.search(query, QueryType.TRACK)
+    tracks = library_manager.global_search(query, QueryType.TRACK)
     table = Table(title="Треки")
     table.add_column("Title", style="magenta")
     table.add_column("Artist", style="magenta")

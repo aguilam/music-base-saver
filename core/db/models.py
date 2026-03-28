@@ -7,11 +7,12 @@ from sqlmodel import (
     Relationship,
     literal,
     delete,
+    col,
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from typing import ClassVar
 from typing import List, Optional
-from sqlalchemy import Column, Integer, ForeignKey, tuple_, func, UniqueConstraint
+from sqlalchemy import Column, Integer, ForeignKey, tuple_, func
 from sqlalchemy.orm import selectinload
 
 from datetime import datetime, timezone
@@ -226,10 +227,11 @@ class MusicVideo(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     isExternal_Link: bool
     external_link: str
+    local_link: str
     track_id: Optional[int] = Field(
         sa_column=Column(Integer, ForeignKey("track.id", ondelete="CASCADE"))
     )
-    track: Optional["Track"] = Relationship(back_populates="music_video")
+    track: Optional["Track"] = Relationship(back_populates="music_videos")
 
 
 class TrackLink(SQLModel, table=True):
@@ -320,7 +322,7 @@ class DBManager:
         return Session(self.engine)
 
     def get_artist_by_name(self, session: Session, name: str) -> Optional[Artist]:
-        return session.exec(select(Artist).where(Artist.name == name)).first()
+        return session.exec(select(Artist).where(col(Artist.name).ilike(name))).first()
 
     def get_album_by_name(self, session: Session, title: str) -> Optional[Album]:
         return session.exec(select(Album).where(Album.title == title)).first()
@@ -350,6 +352,38 @@ class DBManager:
 
     def get_user_by_apikey(self, session: Session, api_key: str) -> Optional[User]:
         return session.exec(select(User).where(User.api_key == api_key)).first()
+
+    def search_artists(self, session: Session, query: str, limit: int, offset: int):
+        return session.exec(
+            select(Artist)
+            .where(col(Artist.name).ilike(f"%{query}%"))
+            .limit(limit)
+            .offset(offset)
+        ).all()
+
+    def search_albums(self, session: Session, query: str, limit: int, offset: int):
+        return session.exec(
+            select(Album)
+            .where(col(Album.title).ilike(f"%{query}%"))
+            .limit(limit)
+            .offset(offset)
+        ).all()
+
+    def search_tracks(self, session: Session, query: str, limit: int, offset: int):
+        return session.exec(
+            select(Track)
+            .where(col(Track.title).ilike(f"%{query}%"))
+            .limit(limit)
+            .offset(offset)
+        ).all()
+
+    def search_playlists(self, session: Session, query: str, limit: int, offset: int):
+        return session.exec(
+            select(Playlist)
+            .where(col(Playlist.name).ilike(f"%{query}%"))
+            .limit(limit)
+            .offset(offset)
+        ).all()
 
     def get_all_user_starred(self, session: Session, user_id: int):
         user = self.get_user_by_id(session, user_id)

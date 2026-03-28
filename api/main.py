@@ -361,6 +361,69 @@ def get_music_directory():
     return {"hello world"}
 
 
+@subsonic_router.get("/search3")
+def local_serch(
+    query: str,
+    artistCount: int,
+    artistOffset: int,
+    albumCount: int,
+    albumOffset: int,
+    songCount: int,
+    songOffset: int,
+):
+    searched = library_manager.local_search(
+        query, artistCount, artistOffset, albumCount, albumOffset, songCount, songOffset
+    )
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "searchResult3": {
+                "artist": [
+                    to_subsonic_artist(artist) for artist in searched["artists"]
+                ],
+                "album": [to_subsonic_album(album) for album in searched["albums"]],
+                "song": [to_subsonic_song(track) for track in searched["tracks"]],
+            },
+        }
+    }
+
+
+@subsonic_router.get("/globalSearch")
+def global_search(
+    query: str,
+):
+    searched = library_manager.global_search(query)
+    artists = []
+    albums = []
+    tracks = []
+    for artist in searched["artists"]:
+        sub_artist = to_subsonic_artist(artist)
+        sub_artist["dbId"] = artist["db_id"]
+        artists.append(sub_artist)
+    for album in searched["albums"]:
+        sub_album = to_subsonic_artist(album)
+        sub_album["dbId"] = album["db_id"]
+        albums.append(sub_album)
+    for track in searched["tracks"]:
+        sub_track = to_subsonic_artist(track)
+        sub_track["dbId"] = track["db_id"]
+        tracks.append(sub_track)
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "globalSearchResult": {"artist": artists, "album": albums, "song": tracks},
+        }
+    }
+
+
 @subsonic_router.get("/getArtist")
 def get_artist(id: int):
     artist = library_manager.get_artist_by_id(id)
