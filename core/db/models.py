@@ -359,6 +359,7 @@ class DBManager:
             .where(col(Artist.name).ilike(f"%{query}%"))
             .limit(limit)
             .offset(offset)
+            .options(selectinload(Artist.albums))
         ).all()
 
     def search_albums(self, session: Session, query: str, limit: int, offset: int):
@@ -367,6 +368,11 @@ class DBManager:
             .where(col(Album.title).ilike(f"%{query}%"))
             .limit(limit)
             .offset(offset)
+            .options(
+                selectinload(Album.tracks).selectinload(Track.links),
+                selectinload(Album.tracks).selectinload(Track.album),
+                selectinload(Album.artist_rel),
+            )
         ).all()
 
     def search_tracks(self, session: Session, query: str, limit: int, offset: int):
@@ -375,6 +381,10 @@ class DBManager:
             .where(col(Track.title).ilike(f"%{query}%"))
             .limit(limit)
             .offset(offset)
+            .options(
+                selectinload(Track.links),
+                selectinload(Track.album).selectinload(Album.artist_rel),
+            )
         ).all()
 
     def search_playlists(self, session: Session, query: str, limit: int, offset: int):

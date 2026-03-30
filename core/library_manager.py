@@ -86,7 +86,7 @@ class LibraryManager:
                 "albums": self.db_manager.search_albums(
                     session, query, albumCount, albumOffset
                 ),
-                "tracks": self.db_manager.search_artists(
+                "artists": self.db_manager.search_artists(
                     session, query, artistCount, artistOffset
                 ),
             }

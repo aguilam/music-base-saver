@@ -18,7 +18,7 @@ class iTunes(Search):
             album = track.collection_name
             artist = [track.artist_name]
             length = int(track.track_time)
-            cover_url = track.artwork_url_512
+            cover_url = getattr(track, "artwork_url_100", None)
             normalized_tracks.append(
                 {
                     "id": id,
@@ -39,7 +39,7 @@ class iTunes(Search):
             id = album.collection_id
             title = album.collection_name
             artist = album.artist_name
-            cover_url = album.artwork_url_512
+            cover_url = getattr(album, "artwork_url_100", None)
             normalized_albums.append(
                 {
                     "id": id,
@@ -49,7 +49,7 @@ class iTunes(Search):
                     "source": self.TAG,
                 }
             )
-        return albums
+        return normalized_albums
 
     def search_artists(self, query: str) -> list[dict]:
         artists = itunespy.search_artist(query, country="RU")
@@ -57,7 +57,7 @@ class iTunes(Search):
         for artist in artists:
             id = artist.artist_id
             name = artist.artist_name
-            cover_url = artist.artwork_url_512
+            cover_url = getattr(artist, "artwork_url_100", None)
             normalized_artists.append(
                 {
                     "id": id,

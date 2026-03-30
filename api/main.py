@@ -16,6 +16,9 @@ from api.mappers import (
     to_subsonic_artist,
     to_subsonic_playlist,
     to_subsonic_song,
+    external_album_to_subsonic,
+    external_artist_to_subsonic,
+    external_track_to_subsonic,
 )
 
 
@@ -364,12 +367,12 @@ def get_music_directory():
 @subsonic_router.get("/search3")
 def local_serch(
     query: str,
-    artistCount: int,
-    artistOffset: int,
-    albumCount: int,
-    albumOffset: int,
-    songCount: int,
-    songOffset: int,
+    artistCount: int = 20,
+    artistOffset: int = 0,
+    albumCount: int = 20,
+    albumOffset: int = 0,
+    songCount: int = 20,
+    songOffset: int = 0,
 ):
     searched = library_manager.local_search(
         query, artistCount, artistOffset, albumCount, albumOffset, songCount, songOffset
@@ -401,15 +404,15 @@ def global_search(
     albums = []
     tracks = []
     for artist in searched["artists"]:
-        sub_artist = to_subsonic_artist(artist)
+        sub_artist = external_artist_to_subsonic(artist)
         sub_artist["dbId"] = artist["db_id"]
         artists.append(sub_artist)
     for album in searched["albums"]:
-        sub_album = to_subsonic_artist(album)
+        sub_album = external_album_to_subsonic(album)
         sub_album["dbId"] = album["db_id"]
         albums.append(sub_album)
     for track in searched["tracks"]:
-        sub_track = to_subsonic_artist(track)
+        sub_track = external_track_to_subsonic(track)
         sub_track["dbId"] = track["db_id"]
         tracks.append(sub_track)
     return {
