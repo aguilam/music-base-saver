@@ -21,3 +21,15 @@ class Search(ABC):
     @abstractmethod
     def search_artists(self, query: str) -> list[dict]:
         pass
+
+    @abstractmethod
+    def get_track(self, id: str) -> list[dict]:
+        pass
+
+    @abstractmethod
+    def get_album(self, id: str) -> list[dict]:
+        pass
+
+    @abstractmethod
+    def get_artist(self, id: str) -> list[dict]:
+        pass
