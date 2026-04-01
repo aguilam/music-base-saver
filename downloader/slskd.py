@@ -59,6 +59,7 @@ class Slskd(Downloader):
         search_get.raise_for_status()
         searchs = search_get.json()
         search_results = []
+        audio_extensions = {"mp3", "m4a", "flac", "opus", "ogg", "wav", "ape"}
         for search in searchs:
             if not search.get("hasFreeUploadSlot"):
                 continue
@@ -70,6 +71,16 @@ class Slskd(Downloader):
             for file in files:
                 if file.get("isLocked"):
                     continue
+                splitted_filename: list = file.get("filename", "").split("\\")
+                file_ext: str = file.get("extension")
+                if file_ext.lstrip(".") not in audio_extensions:
+                    continue
+                title = splitted_filename[-1].rsplit(".", 1)[0]
+                artist = (
+                    splitted_filename[-3]
+                    if len(splitted_filename) > 3
+                    else splitted_filename[-2]
+                )
                 search_results.append(
                     {
                         "id": uuid.uuid4(),
@@ -78,10 +89,10 @@ class Slskd(Downloader):
                         "bit_rate": file.get("bitRate"),
                         "size": file.get("size"),
                         "filename": file.get("filename"),
-                        "title": file.get("filename"),
-                        "artist": file.get("filename"),
+                        "title": title,
+                        "artist": artist,
                         "length": (file.get("length") or 0) * 1000,
-                        "extension": file.get("extension"),
+                        "extension": file_ext,
                     }
                 )
 

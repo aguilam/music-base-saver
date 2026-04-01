@@ -18,15 +18,13 @@ def compare_tracks(original_metadata: dict, track_metadata: dict):
         for orig in original_metadata["title"]
         for track in track_metadata["title"]
     ):
-        similarity += 0.4
-    if track_metadata["title"].split(".")[-1] in ["m4a", "flac", "mp4"]:
-        similarity += 0.25
+        similarity += 0.5
     if any(
         orig.lower() in track.lower()
         for orig in original_metadata["artist"]
         for track in track_metadata["artist"]
     ):
-        similarity += 0.3
+        similarity += 0.35
     if track_metadata["length"] in original_metadata["length"]:
         similarity += 0.15
 

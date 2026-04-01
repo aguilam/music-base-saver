@@ -395,6 +395,40 @@ def local_serch(
     }
 
 
+@subsonic_router.post("/globalDownload")
+def global_download(query: str = None, id: str = None):
+    task_id = library_manager.post_download(query=query, object_id=id)
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "taskId": task_id,
+        }
+    }
+
+
+@subsonic_router.get("/checkGlobalDownload")
+def check_global_download(download_id: str):
+    download = library_manager.checks_status(download_id)
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "download": {
+                "status": download["status"],
+                "progress": download["progress"],
+                "result": download.get("result"),
+            },
+        }
+    }
+
+
 @subsonic_router.get("/globalSearch")
 def global_search(
     query: str,

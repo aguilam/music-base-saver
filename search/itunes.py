@@ -27,7 +27,6 @@ class iTunes(Search):
                     "album": album,
                     "length": length,
                     "cover_url": cover_url,
-                    "source": self.TAG,
                 }
             )
         return normalized_tracks
@@ -46,7 +45,6 @@ class iTunes(Search):
                     "title": title,
                     "artist": artist,
                     "cover_url": cover_url,
-                    "source": self.TAG,
                 }
             )
         return normalized_albums
@@ -63,7 +61,15 @@ class iTunes(Search):
                     "id": id,
                     "name": name,
                     "cover_url": cover_url,
-                    "source": self.TAG,
                 }
             )
         return normalized_artists
+
+    def get_track(self, id: str) -> list[dict]:
+        pass
+
+    def get_album(self, id: str) -> list[dict]:
+        pass
+
+    def get_artist(self, id: str) -> list[dict]:
+        pass

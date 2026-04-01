@@ -4,7 +4,6 @@ from search.base import Search as BaseSearch
 from downloader.base import Downloader as BaseDownloader
 from storage.base import Storage as BaseStorage
 from importer.base import Importer as BaseImporter
-from .schemas import QueryType
 from utils.utils import (
     compare_tracks,
     find_best_track,
@@ -29,10 +28,10 @@ from .db.models import (
     PlaylistTrackLink,
     User,
 )
-import mutagen
 from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
-from typing import Callable
+from concurrent.futures import ThreadPoolExecutor
+from uuid import uuid4
 
 STAR_LINK_MAP = {
     "track": lambda user_id, obj_id: StarredTrack(user_id=user_id, track_id=obj_id),
@@ -55,7 +54,7 @@ class LibraryManager:
         with config_path.open("rb") as config_file:
             config = tomllib.load(config_file)
         self.config = config
-
+        self.download_queue = {}
         self.search_engines = load_modules(
             config["search"], import_modules("search", BaseSearch)
         )
@@ -67,6 +66,7 @@ class LibraryManager:
         #    config["importer"], import_modules("importer", BaseImporter)
         # )
         self.db_manager = DBManager()
+        self.executor = ThreadPoolExecutor(max_workers=5)
 
     def local_search(
         self,
@@ -101,12 +101,18 @@ class LibraryManager:
             search_engine = engine["class"](engine["params"])
             res = search_engine.search_tracks(query)
             if res:
+                for item in res:
+                    item["id"] = f"{search_engine.TAG}-{item['id']}"
                 search_results["tracks"].extend(res)
             res = search_engine.search_albums(query)
             if res:
+                for item in res:
+                    item["id"] = f"{search_engine.TAG}-{item['id']}"
                 search_results["albums"].extend(res)
             res = search_engine.search_artists(query)
             if res:
+                for item in res:
+                    item["id"] = f"{search_engine.TAG}-{item['id']}"
                 search_results["artists"].extend(res)
         with self.db_manager.get_session() as session:
             for artist in search_results["artists"]:
@@ -126,19 +132,52 @@ class LibraryManager:
                 track["db_id"] = db_track.id if db_track else None
         return search_results
 
-    def download(self, query: str, progress_callback: Callable[[int], None]):
+    def get_global_object(self, object_type: str, object_id: str):
+        search_tag = object_id.split("-")[0]
+        search_id = object_id.split("-")[1]
+        for engine in self.search_engines:
+            if engine["tag"] == search_tag:
+                search_engine = engine["class"](engine["params"])
+                if object_type == "track":
+                    return search_engine.get_track(search_id)
+                elif object_type == "album":
+                    return search_engine.get_album(search_id)
+                elif object_type == "artist":
+                    return search_engine.get_artist(search_id)
+
+    def get_download_task(self, task_id: str):
+        return self.download_queue.get(task_id)
+
+    def post_download(self, query: str = None, id: str = None):
+        task_id = str(uuid4())[:8]
+        self.download_queue[task_id] = {"status": "Processing", "progress": 0}
+        self.executor.submit(self.download, task_id, query, id)
+        return task_id
+
+    def _update_progress(self, task_id: str, progress: int):
+        self.download_queue[task_id]["progress"] = progress
+
+    def download(
+        self,
+        task_id: str,
+        query: str = None,
+        object_id: str = None,
+    ):
         downloaders = self.downloaders
 
-        search_results = []
         tracks_dict = []
         searched_tracks = []
-
-        for engine in self.search_engines:
-            search_engine = engine["class"](engine["params"])
-            results = search_engine.search_tracks(query)
-            for track in results:
-                track["searched_by"] = search_engine.TAG
-                search_results.append(track)
+        if query:
+            search_results = []
+            for engine in self.search_engines:
+                search_engine = engine["class"](engine["params"])
+                results = search_engine.search_tracks(query)
+                for track in results:
+                    track["searched_by"] = search_engine.TAG
+                    search_results.append(track)
+            original_track = find_best_track(search_results)
+        elif object_id:
+            original_track = self.get_global_object("track", object_id)
 
         for downloader in downloaders:
             current_downloader = downloader["class"](downloader["params"])
@@ -146,8 +185,6 @@ class LibraryManager:
             for file in downloader_search:
                 file["downloader"] = current_downloader.TAG
                 searched_tracks.append(file)
-
-        original_track = find_best_track(search_results)
 
         for track in searched_tracks:
             similarity = compare_tracks(original_track, track)
@@ -164,7 +201,9 @@ class LibraryManager:
         downloader = track_downloader["class"](
             self.config["downloader"][best_track["downloader"]]["params"]
         )
-        track_path = downloader.download(best_track, progress_callback)
+        track_path = downloader.download(
+            best_track, lambda progress: self._update_progress(task_id, progress)
+        )
         downloaded_path = Path(track_path)
 
         dst = Path("temp_tracks") / downloaded_path.name
@@ -173,8 +212,8 @@ class LibraryManager:
             shutil.copy2(downloaded_path, dst)
             track = analyze_track(dst, downloaded_path.stem)
             title = track["title"]
-            artist_name = track["artist_name"]
-            album_title = track["album_title"]
+            artist_name = track["artist"][0]
+            album_title = track["album"]
             length = track["length"]
             saving_path = Path(
                 (f"{artist_name}/{album_title}/{dst.name}").replace(" ", "-")
@@ -212,7 +251,7 @@ class LibraryManager:
                 session.add(new_track)
 
                 session.commit()
-            return {
+            self.download_queue[task_id]["result"] = {
                 "title": title,
                 "artist": [artist_name],
                 "length": length,
@@ -220,6 +259,7 @@ class LibraryManager:
                 "download_source": downloader.TAG,
                 "saved_path": saved_path,
             }
+            self.download_queue[task_id]["status"] = "Finished"
 
     def get_file(self, path: str, storage_id: str):
         for storage in self.storages:
