@@ -9,7 +9,6 @@ def to_subsonic_song(track: Track):
         "title": track.title,
         "album": track.album.title,
         "artist": track.album.artist_rel.name,
-        "coverArt": f"al-{track.album.id}",
         "duration": track.length,
         "created": track.created_at,
         "albumId": track.album_id,
@@ -69,7 +68,7 @@ def to_subsonic_playlist(playlist: Playlist):
 
 def external_track_to_subsonic(track: dict):
     song = {
-        "id": f"{track['source']}-{track['id']}",
+        "id": track["id"],
         "isDir": False,
         "title": track["title"],
         "album": track["album"],
@@ -86,7 +85,7 @@ def external_track_to_subsonic(track: dict):
         song["coverArt"] = track["cover_url"]
 
     if track.get("db_id"):
-        song["id"] = track["db_id"]
+        song["db_id"] = track["db_id"]
         song["parent"] = track.get("album_id")
         song["albumId"] = track.get("album_id")
         song["artistId"] = track.get("artist_id")
@@ -95,9 +94,8 @@ def external_track_to_subsonic(track: dict):
 
 
 def external_album_to_subsonic(album: dict):
-    """Конвертирует альбом из внешнего API в формат Subsonic"""
     sub_album = {
-        "id": f"{album['source']}-{album['id']}",
+        "id": album["id"],
         "album": album["title"],
         "title": album["title"],
         "name": album["title"],
@@ -109,7 +107,7 @@ def external_album_to_subsonic(album: dict):
         sub_album["coverArt"] = album["cover_url"]
 
     if album.get("db_id"):
-        sub_album["id"] = album["db_id"]
+        sub_album["db_id"] = album["db_id"]
         sub_album["parent"] = album.get("artist_id")
         sub_album["artistId"] = album.get("artist_id")
         if album.get("songCount"):
@@ -124,7 +122,7 @@ def external_album_to_subsonic(album: dict):
 
 def external_artist_to_subsonic(artist: dict):
     sub_artist = {
-        "id": f"{artist['source']}-{artist['id']}",
+        "id": artist["id"],
         "name": artist["name"],
     }
 
@@ -132,7 +130,7 @@ def external_artist_to_subsonic(artist: dict):
         sub_artist["coverArt"] = artist["cover_url"]
 
     if artist.get("db_id"):
-        sub_artist["id"] = artist["db_id"]
+        sub_artist["db_id"] = artist["db_id"]
         if artist.get("albumCount"):
             sub_artist["albumCount"] = artist["albumCount"]
 

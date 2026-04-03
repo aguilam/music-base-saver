@@ -114,6 +114,7 @@ class LibraryManager:
                 for item in res:
                     item["id"] = f"{search_engine.TAG}-{item['id']}"
                 search_results["artists"].extend(res)
+
         with self.db_manager.get_session() as session:
             for artist in search_results["artists"]:
                 db_artist: Artist = self.db_manager.get_artist_by_name(
@@ -177,15 +178,19 @@ class LibraryManager:
                     search_results.append(track)
             original_track = find_best_track(search_results)
         elif object_id:
-            original_track = self.get_global_object("track", object_id)
-
+            track = self.get_global_object("track", object_id)
+            original_track = {
+                "title": [track["title"]],
+                "artist": track["artist"],
+                "length": [track["length"]],
+            }
+        search_query = original_track.get("title", None)[0] if object_id else query
         for downloader in downloaders:
             current_downloader = downloader["class"](downloader["params"])
-            downloader_search = current_downloader.search(query)
+            downloader_search = current_downloader.search(search_query)
             for file in downloader_search:
                 file["downloader"] = current_downloader.TAG
                 searched_tracks.append(file)
-
         for track in searched_tracks:
             similarity = compare_tracks(original_track, track)
             tracks_dict.append({"id": track["id"], "similarity": similarity})
@@ -205,7 +210,6 @@ class LibraryManager:
             best_track, lambda progress: self._update_progress(task_id, progress)
         )
         downloaded_path = Path(track_path)
-
         dst = Path("temp_tracks") / downloaded_path.name
 
         if downloaded_path.exists():

@@ -4,18 +4,26 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress
 import time
+from typing import Annotated
 
 download_app = typer.Typer(help="Загрузить новый трек")
 
 
 @download_app.command("track")
-def search_track(query: str):
+def search_track(
+    query: Annotated[
+        str | None, typer.Option("--query", "-q", help="search by track name")
+    ] = None,
+    id: Annotated[
+        str | None, typer.Option("--id", "-i", help="search by external api id")
+    ] = None,
+):
+    if query is None and id is None:
+        raise typer.BadParameter("Give --id or --query parametr")
     library_manager = LibraryManager()
     console = Console()
     console.print(f"Начат поиск и загрузка трека - {query}", style="green")
-    track_id = library_manager.post_download(
-        query=query,
-    )
+    track_id = library_manager.post_download(query=query, id=id)
     track = None
     with Progress() as progress_bar:
         download_task = progress_bar.add_task("[green]Скачка", total=100)

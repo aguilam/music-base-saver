@@ -27,7 +27,6 @@ def compare_tracks(original_metadata: dict, track_metadata: dict):
         similarity += 0.35
     if track_metadata["length"] in original_metadata["length"]:
         similarity += 0.15
-
     return similarity
 
 
@@ -122,33 +121,35 @@ def save_url_file(url: str, dst: Path):
 
 
 def get_cover(filepath: str | Path) -> tuple[bytes, str] | None:
+    try:
+        audio = File(str(filepath))
 
-    audio = File(str(filepath))
+        if audio is None:
+            return None
 
-    if audio is None:
-        return None
+        if isinstance(audio, MP3) and audio.tags:
+            for key, tag in audio.tags.items():
+                if key.startswith("APIC"):
+                    return tag.data, tag.split("/")[1]
 
-    if isinstance(audio, MP3) and audio.tags:
-        for key, tag in audio.tags.items():
-            if key.startswith("APIC"):
-                return tag.data, tag.split("/")[1]
-
-    if isinstance(audio, FLAC) and audio.pictures:
-        pic = audio.pictures[0]
-        return pic.data, pic.mime.split("/")[1]
-
-    if isinstance(audio, (OggVorbis, OggOpus)):
-        for b64 in audio.get("metadata_block_picture", []):
-            pic = Picture(base64.b64decode(b64))
+        if isinstance(audio, FLAC) and audio.pictures:
+            pic = audio.pictures[0]
             return pic.data, pic.mime.split("/")[1]
 
-    if isinstance(audio, MP4) and audio.tags:
-        covers = audio.tags.get("covr", [])
-        if covers:
-            mime = "image/jpeg" if covers[0].imageformat == 13 else "image/png"
-            return bytes(covers[0]), mime.split("/")[1]
+        if isinstance(audio, (OggVorbis, OggOpus)):
+            for b64 in audio.get("metadata_block_picture", []):
+                pic = Picture(base64.b64decode(b64))
+                return pic.data, pic.mime.split("/")[1]
 
-    return None
+        if isinstance(audio, MP4) and audio.tags:
+            covers = audio.tags.get("covr", [])
+            if covers:
+                mime = "image/jpeg" if covers[0].imageformat == 13 else "image/png"
+                return bytes(covers[0]), mime.split("/")[1]
+
+        return None
+    except:
+        return None
 
 
 def image_mime(data: bytes) -> str:

@@ -83,7 +83,7 @@ class Slskd(Downloader):
                 )
                 search_results.append(
                     {
-                        "id": uuid.uuid4(),
+                        "id": str(uuid.uuid4())[:6],
                         "username": username,
                         "upload_speed": upload_speed,
                         "bit_rate": file.get("bitRate"),
@@ -91,7 +91,7 @@ class Slskd(Downloader):
                         "filename": file.get("filename"),
                         "title": title,
                         "artist": artist,
-                        "length": (file.get("length") or 0) * 1000,
+                        "length": (file.get("length") or 0),
                         "extension": file_ext,
                     }
                 )
