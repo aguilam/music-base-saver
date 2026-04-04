@@ -142,9 +142,15 @@ class LibraryManager:
                 if object_type == "track":
                     return search_engine.get_track(search_id)
                 elif object_type == "album":
-                    return search_engine.get_album(search_id)
+                    album = search_engine.get_album(search_id)
+                    for track in album["tracks"]:
+                        track["id"] = f"{engine["tag"]}-{track["id"]}"
+                    return album
                 elif object_type == "artist":
-                    return search_engine.get_artist(search_id)
+                    artist = search_engine.get_artist(search_id)
+                    for album in artist["albums"]:
+                        album["id"] = f"{engine["tag"]}-{album["id"]}"
+                    return artist
 
     def get_download_task(self, task_id: str):
         return self.download_queue.get(task_id)
@@ -460,6 +466,8 @@ class LibraryManager:
                         id_from_cover = current_storage.get_cover_metadata(path)
                         if id_from_cover is None:
                             file_name = Path(path).stem.split(":")[1]
+                            if "-" not in file_name:
+                                continue
                             subject, subject_id = file_name.split("-")
                             subject_id = int(subject_id)
                             if subject == "al":

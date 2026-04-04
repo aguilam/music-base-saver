@@ -56,7 +56,7 @@ class LocalStorage(Storage):
         title = title_list[0] if title_list else Path(path).stem
         artist_name = (track_metadata.get("artist") or ["Unknown"])[0]
         album_title = (track_metadata.get("album") or [None])[0]
-        length = int(track_metadata.info.length)
+        length = int(track_metadata.info.length * 1000)
         del track_metadata
         return {
             "title": title,

@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 import re
 from typing import Callable
+import string
 
 
 class Slskd(Downloader):
@@ -75,7 +76,8 @@ class Slskd(Downloader):
                 file_ext: str = file.get("extension")
                 if file_ext.lstrip(".") not in audio_extensions:
                     continue
-                title = splitted_filename[-1].rsplit(".", 1)[0]
+                title: str = splitted_filename[-1].rsplit(".", 1)[0]
+                title = title.lstrip("0123456789.- _")
                 artist = (
                     splitted_filename[-3]
                     if len(splitted_filename) > 3

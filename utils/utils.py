@@ -88,7 +88,7 @@ def analyze_track(track_path: Path, default_name: str):
     album_title = (track_metadata.get("album") or [None])[0]
     bpm = getattr(track_metadata.info, "bpm", None)
     bitrate = getattr(track_metadata.info, "bitrate", None)
-    length = int(getattr(track_metadata.info, "length", 0))
+    length = int(getattr(track_metadata.info, "length", 0) * 1000)
     return {
         "title": title,
         "artist": [artist_name],

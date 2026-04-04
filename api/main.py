@@ -466,6 +466,9 @@ def get_artist(id: str):
     if "-" in id:
         artist = library_manager.get_global_object("artist", id)
         parsed_artist = external_artist_to_subsonic(artist)
+        parsed_artist["album"] = [
+            external_album_to_subsonic(album) for album in artist["albums"]
+        ]
     else:
         artist = library_manager.get_artist_by_id(int(id))
         if artist is None:
@@ -565,7 +568,9 @@ def get_album(id: str):
     if "-" in id:
         album = library_manager.get_global_object("album", id)
         parsed_album = external_album_to_subsonic(album)
-        parsed_album["song"] = []
+        parsed_album["song"] = [
+            external_track_to_subsonic(track) for track in album["tracks"]
+        ]
     else:
         album = library_manager.get_album_by_id(int(id))
         if album is None:
