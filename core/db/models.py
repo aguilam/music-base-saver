@@ -12,13 +12,24 @@ from sqlmodel import (
 from sqlalchemy.ext.hybrid import hybrid_property
 from typing import ClassVar
 from typing import List, Optional
-from sqlalchemy import Column, Integer, ForeignKey, tuple_, func
+from sqlalchemy import (
+    Column,
+    Integer,
+    ForeignKey,
+    tuple_,
+    func,
+    UniqueConstraint,
+    CheckConstraint,
+)
 from sqlalchemy.orm import selectinload
-
 from datetime import datetime, timezone
 
 
 class PlaylistTrackLink(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("playlist_id", "position", name="uq_playlist_position"),
+        CheckConstraint("position > 0", name="ck_position_positive"),
+    )
     playlist_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
@@ -31,6 +42,16 @@ class PlaylistTrackLink(SQLModel, table=True):
             Integer, ForeignKey("track.id", ondelete="CASCADE"), primary_key=True
         ),
     )
+    track: "Track" = Relationship(back_populates="playlist_links")
+    playlist: "Playlist" = Relationship(back_populates="track_links")
+    position: int
+
+
+class ArtistAlias(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, Primary_key=True)
+    artist_id: int = Field(foreign_key="artist.id", ondelete="CASCADE")
+    name: str
+    artist: "Artist" = Relationship(back_populates="aliases")
 
 
 class TrackArtistsLink(SQLModel, table=True):
@@ -126,6 +147,10 @@ class Artist(SQLModel, table=True):
             "overlaps": "starred_artist_links,starred_artists_link,artist,user"
         },
     )
+    aliases: List["ArtistAlias"] = Relationship(
+        back_populates="artist",
+        sa_ralationship_kwargs={"cascade": "all, delete-oprhan"},
+    )
 
 
 class Album(SQLModel, table=True):
@@ -191,9 +216,7 @@ class Track(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
 
-    playlists: List["Playlist"] = Relationship(
-        back_populates="tracks", link_model=PlaylistTrackLink
-    )
+    playlist_links: List["PlaylistTrackLink"] = Relationship(back_populates="track")
     starred_track_links: List[StarredTrack] = Relationship(back_populates="track")
     starred_by: List["User"] = Relationship(
         back_populates="starred_tracks",
@@ -251,7 +274,6 @@ class TrackLink(SQLModel, table=True):
 class Playlist(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
-    owner: str
     cover_path: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     public: bool = Field(default=False)
@@ -260,11 +282,11 @@ class Playlist(SQLModel, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("user.id", ondelete="CASCADE")),
     )
-    owner: Optional[User] = Relationship(back_populates="playlists")
+    owner: Optional["User"] = Relationship(back_populates="playlists")
 
     @hybrid_property
     def song_count(self) -> int:
-        return len(self.tracks)
+        return len(self.track_links)
 
     song_count: ClassVar[hybrid_property]
 
@@ -279,7 +301,7 @@ class Playlist(SQLModel, table=True):
 
     @hybrid_property
     def duration(self) -> int:
-        return sum(t.length for t in self.tracks)
+        return sum(t.track.length for t in self.track_links)
 
     duration: ClassVar[hybrid_property]
 
@@ -292,9 +314,7 @@ class Playlist(SQLModel, table=True):
             .scalar_subquery()
         )
 
-    tracks: List[Track] = Relationship(
-        back_populates="playlists", link_model=PlaylistTrackLink
-    )
+    track_links: List["PlaylistTrackLink"] = Relationship(back_populates="playlist")
 
 
 def admin_create(engine):
@@ -322,7 +342,13 @@ class DBManager:
         return Session(self.engine)
 
     def get_artist_by_name(self, session: Session, name: str) -> Optional[Artist]:
-        return session.exec(select(Artist).where(col(Artist.name).ilike(name))).first()
+        return session.exec(
+            select(Artist)
+            .outerjoin(ArtistAlias)
+            .where(
+                (col(Artist.name).ilike(name)) or (col(ArtistAlias.name).ilike(name))
+            )
+        ).first()
 
     def get_album_by_name(self, session: Session, title: str) -> Optional[Album]:
         return session.exec(select(Album).where(Album.title == title)).first()
@@ -356,7 +382,11 @@ class DBManager:
     def search_artists(self, session: Session, query: str, limit: int, offset: int):
         return session.exec(
             select(Artist)
-            .where(col(Artist.name).ilike(f"%{query}%"))
+            .outerjoin(ArtistAlias)
+            .where(
+                (col(Artist.name).ilike(f"%{query}%"))
+                or (col(ArtistAlias.name).ilike(f"%{query}%"))
+            )
             .limit(limit)
             .offset(offset)
             .options(selectinload(Artist.albums))
