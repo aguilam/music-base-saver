@@ -195,11 +195,53 @@ class Album(SQLModel, table=True):
     )
 
 
+class TrackGenreLink(SQLModel, table=True):
+    track_id: Optional[int] = Field(
+        default=None, foreign_key="track.id", primary_key=True
+    )
+    genre_id: Optional[int] = Field(
+        default=None, foreign_key="genre.id", primary_key=True
+    )
+
+
+class TrackMoodLink(SQLModel, table=True):
+    track_id: Optional[int] = Field(
+        default=None, foreign_key="track.id", primary_key=True
+    )
+    mood_id: Optional[int] = Field(
+        default=None, foreign_key="mood.id", primary_key=True
+    )
+
+
+class Genre(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(unique=True)
+
+    tracks: List["Track"] = Relationship(
+        back_populates="genres", link_model=TrackGenreLink
+    )
+
+
+class Mood(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(unique=True)
+
+    tracks: List["Track"] = Relationship(
+        back_populates="moods", link_model=TrackMoodLink
+    )
+
+
 class Track(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
     length: int
+    bpm: Optional[int] = None
+    trackGain: Optional[float] = None
+    trackPeak: Optional[float] = None
+    discNumber: Optional[int] = None
+    year: Optional[int] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    album_position: Optional[int]
     album_id: Optional[int] = Field(
         default=None,
         sa_column=Column(Integer, ForeignKey("album.id", ondelete="CASCADE")),
@@ -217,7 +259,7 @@ class Track(SQLModel, table=True):
     )
 
     playlist_links: List["PlaylistTrackLink"] = Relationship(back_populates="track")
-    starred_track_links: List[StarredTrack] = Relationship(back_populates="track")
+    starred_track_links: List["StarredTrack"] = Relationship(back_populates="track")
     starred_by: List["User"] = Relationship(
         back_populates="starred_tracks",
         link_model=StarredTrack,
@@ -229,6 +271,12 @@ class Track(SQLModel, table=True):
         back_populates="tracks", link_model=TrackArtistsLink
     )
     music_videos: List["MusicVideo"] = Relationship(back_populates="track")
+    genres: List["Genre"] = Relationship(
+        back_populates="tracks", link_model=TrackGenreLink
+    )
+    moods: List["Mood"] = Relationship(
+        back_populates="tracks", link_model=TrackMoodLink
+    )
 
 
 class Lyrics(SQLModel, table=True):
