@@ -4,6 +4,7 @@ from search.base import Search as BaseSearch
 from downloader.base import Downloader as BaseDownloader
 from storage.base import Storage as BaseStorage
 from importer.base import Importer as BaseImporter
+from scrobbler.base import Scrobbler as BaseScrobbler
 from utils.utils import (
     compare_tracks,
     find_best_track,
@@ -32,6 +33,7 @@ from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
+import time
 
 STAR_LINK_MAP = {
     "track": lambda user_id, obj_id: StarredTrack(user_id=user_id, track_id=obj_id),
@@ -65,6 +67,9 @@ class LibraryManager:
         # self.importers = load_modules(
         #    config["importer"], import_modules("importer", BaseImporter)
         # )
+        self.scrobblers = load_modules(
+            config["scrobbler"], import_modules("scrobbler", BaseScrobbler)
+        )
         self.db_manager = DBManager()
         self.executor = ThreadPoolExecutor(max_workers=5)
 
@@ -296,6 +301,22 @@ class LibraryManager:
         track = self.db_manager.get_track_by_id(id)
         return track
 
+    def scrobble(self, id: int, listen_time: int | None = None):
+        with self.db_manager.get_session():
+            track = self.db_manager.get_track_by_id(id)
+        if listen_time is None:
+            listen_time = int(time.time())
+        for scrobbler in self.scrobblers:
+            scrobbler_class = scrobbler["class"](scrobbler["params"])
+            scrobbler_class.submit_listen(track, listen_time)
+
+    def post_now_playing(self, id: int):
+        with self.db_manager.get_session():
+            track = self.db_manager.get_track_by_id(id)
+        for scrobbler in self.scrobblers:
+            scrobbler_class = scrobbler["class"](scrobbler["params"])
+            scrobbler_class.post_playing_now(track)
+
     def get_album_by_id(self, id: int):
         with self.db_manager.get_session() as session:
             album = self.db_manager.get_album_by_id(session, id)
@@ -456,6 +477,11 @@ class LibraryManager:
                         )
                         new_track.links.append(new_link)
                         session.add(new_track)
+                        session.flush()
+                        track_artist = TrackArtistsLink(
+                            artist_id=db_artist.id, track_id=new_track.id
+                        )
+                        session.add(track_artist)
                         session.flush()
                         track_added_count += 1
                 if storage["id"] in cover_to_adding:

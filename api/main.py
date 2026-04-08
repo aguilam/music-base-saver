@@ -702,6 +702,23 @@ def unstar(
     }
 
 
+@subsonic_router.post("/scrobble")
+def unstar(id: int, time: int | None = None, submission: bool | None = True):
+    if submission:
+        library_manager.scrobble(id, time)
+    else:
+        library_manager.post_now_playing(id)
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "0.0.1",
+            "type": "Music Saver",
+            "serverVersion": "0.0.1 (tag)",
+            "openSubsonic": True,
+        }
+    }
+
+
 @subsonic_router.get("/getLyrics")
 def get_lyrics():
     return {"hello world"}

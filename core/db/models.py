@@ -20,6 +20,7 @@ from sqlalchemy import (
     func,
     UniqueConstraint,
     CheckConstraint,
+    JSON,
 )
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
@@ -48,7 +49,7 @@ class PlaylistTrackLink(SQLModel, table=True):
 
 
 class ArtistAlias(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, Primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
     artist_id: int = Field(foreign_key="artist.id", ondelete="CASCADE")
     name: str
     artist: "Artist" = Relationship(back_populates="aliases")
@@ -149,7 +150,7 @@ class Artist(SQLModel, table=True):
     )
     aliases: List["ArtistAlias"] = Relationship(
         back_populates="artist",
-        sa_ralationship_kwargs={"cascade": "all, delete-oprhan"},
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
 
 
@@ -280,8 +281,14 @@ class Track(SQLModel, table=True):
 
 
 class Lyrics(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    value: str
+    id: int | None = Field(default=None, primary_key=True)
+    is_synced: bool = False
+    language: str | None = None
+    plain_text: str | None = None
+    synced_text: list[dict] | None = Field(default=None, sa_column=Column(JSON))
+    type: str | None = None
+    offset: int = Field(default=0)
+    original_path: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     track_id: int = Field(
         sa_column=Column(
@@ -393,9 +400,7 @@ class DBManager:
         return session.exec(
             select(Artist)
             .outerjoin(ArtistAlias)
-            .where(
-                (col(Artist.name).ilike(name)) or (col(ArtistAlias.name).ilike(name))
-            )
+            .where((col(Artist.name).ilike(name)) | (col(ArtistAlias.name).ilike(name)))
         ).first()
 
     def get_album_by_name(self, session: Session, title: str) -> Optional[Album]:
@@ -433,7 +438,7 @@ class DBManager:
             .outerjoin(ArtistAlias)
             .where(
                 (col(Artist.name).ilike(f"%{query}%"))
-                or (col(ArtistAlias.name).ilike(f"%{query}%"))
+                | (col(ArtistAlias.name).ilike(f"%{query}%"))
             )
             .limit(limit)
             .offset(offset)
@@ -551,7 +556,9 @@ class DBManager:
     def get_track_by_id(self, id: int):
         with Session(self.engine) as session:
             statement = (
-                select(Track).where(Track.id == id).options(selectinload(Track.links))
+                select(Track)
+                .where(Track.id == id)
+                .options(selectinload(Track.links), selectinload(Track.artists))
             )
             track = session.exec(statement).first()
             return track
