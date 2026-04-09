@@ -407,7 +407,7 @@ class DBManager:
         return session.exec(select(Album).where(Album.title == title)).first()
 
     def get_track_by_name(self, session: Session, title: str) -> Optional[Track]:
-        return session.exec(select(Track).where(Track.title == title)).first()
+        return session.exec(select(Track).where(col(Track.title).ilike(title))).first()
 
     def get_user_by_name(self, session: Session, username: str) -> Optional[User]:
         return session.exec(select(User).where(User.username == username)).first()

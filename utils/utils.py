@@ -9,6 +9,47 @@ import base64
 from storage.base import Storage
 import mutagen
 import requests
+import re
+
+
+def analyze_lrc(lines: list[str]):
+    artist: str = ""
+    album: str = ""
+    title: str = ""
+    offset: int = 0
+    text_list = []
+    for line in lines:
+        content = re.search(r"\[([^\]]+)\]", line)
+        if content is None:
+            continue
+        text = content.group(1)
+        time = re.search(r"^(\d{2}):(\d{2}).(\d{2})$", text)
+        if "ar" in text:
+            artist = _get_tag_value(text)
+        elif "al" in text:
+            album = _get_tag_value(text)
+        elif "ti" in text:
+            title = _get_tag_value(text)
+        elif "offset" in text:
+            offset = _get_tag_value(text)
+        elif time:
+            mil_time = 0
+            text_line = line[time.end() + 2 :].strip()
+            mil_time += int(time.group(3))
+            mil_time += int(time.group(2)) * 1000
+            mil_time += int(time.group(1)) * 60 * 1000
+            text_list.append({"time": mil_time, "text": text_line})
+    return {
+        "artist": artist,
+        "album": album,
+        "title": title,
+        "offset": int(offset),
+        "text": text_list,
+    }
+
+
+def _get_tag_value(text: str):
+    return text.split(":")[1].strip()
 
 
 def compare_tracks(original_metadata: dict, track_metadata: dict):

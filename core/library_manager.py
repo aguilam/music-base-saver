@@ -11,6 +11,7 @@ from utils.utils import (
     full_track_save,
     find_best_storage,
     analyze_track,
+    analyze_lrc,
     save_url_file,
 )
 import shutil
@@ -34,6 +35,7 @@ from core.loader import import_modules, load_storages, load_modules
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 import time
+import re
 
 STAR_LINK_MAP = {
     "track": lambda user_id, obj_id: StarredTrack(user_id=user_id, track_id=obj_id),
@@ -425,6 +427,7 @@ class LibraryManager:
             deleted_count = self.db_manager.bulk_delete_by_links(tracks_for_deleting)
             tracks_to_adding = {}
             cover_to_adding = {}
+            lyrics_to_adding = {}
             track_added_count = 0
             cover_added_count = 0
             for track in added_tracks_links:
@@ -434,6 +437,11 @@ class LibraryManager:
                         cover_to_adding[k].append(v)
                     else:
                         cover_to_adding[k] = [v]
+                elif any(ext in v for ext in ["lrc"]):
+                    if k in lyrics_to_adding:
+                        lyrics_to_adding[k].append(v)
+                    else:
+                        lyrics_to_adding[k] = [v]
                 else:
                     if k in tracks_to_adding:
                         tracks_to_adding[k].append(v)
@@ -546,6 +554,25 @@ class LibraryManager:
                         entity.cover_path = f"{storage["id"]}///{path}"
                         session.flush()
                         cover_added_count += 1
+                if storage["id"] in lyrics_to_adding:
+                    for path in lyrics_to_adding[storage["id"]]:
+                        text_path = current_storage.get_track(path)
+                        if ".lrc" in path:
+                            with open(text_path, "r", encoding="utf-8") as file:
+                                file_content = analyze_lrc(file.readlines())
+                            track = self.db_manager.get_track_by_name(
+                                session, file_content["title"]
+                            )
+                            lyric = Lyrics(
+                                is_synced=True,
+                                language="und",
+                                synced_text=file_content["text"],
+                                offset=file_content["offset"],
+                                track_id=track.id,
+                                original_path=f"{storage["id"]}///{text_path}",
+                            )
+                            session.add(lyric)
+                            session.flush()
             session.commit()
             return {
                 "deleted_count": deleted_count,
