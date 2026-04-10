@@ -29,6 +29,7 @@ from .db.models import (
     Lyrics,
     PlaylistTrackLink,
     User,
+    MusicVideo,
 )
 from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
@@ -428,6 +429,7 @@ class LibraryManager:
             tracks_to_adding = {}
             cover_to_adding = {}
             lyrics_to_adding = {}
+            clips_to_adding = {}
             track_added_count = 0
             cover_added_count = 0
             for track in added_tracks_links:
@@ -442,7 +444,12 @@ class LibraryManager:
                         lyrics_to_adding[k].append(v)
                     else:
                         lyrics_to_adding[k] = [v]
-                else:
+                elif "mp4" in v:
+                    if k in clips_to_adding:
+                        clips_to_adding[k].append(v)
+                    else:
+                        clips_to_adding[k] = [v]
+                elif any(ext in v for ext in ["m4a", "flac", "mp3", "opus"]):
                     if k in tracks_to_adding:
                         tracks_to_adding[k].append(v)
                     else:
@@ -563,6 +570,8 @@ class LibraryManager:
                             track = self.db_manager.get_track_by_name(
                                 session, file_content["title"]
                             )
+                            if track is None:
+                                continue
                             lyric = Lyrics(
                                 is_synced=True,
                                 language="und",
@@ -573,6 +582,28 @@ class LibraryManager:
                             )
                             session.add(lyric)
                             session.flush()
+                if storage["id"] in clips_to_adding:
+                    for path in clips_to_adding[storage["id"]]:
+                        clip_metadata = current_storage.get_clip_metadata(path)
+                        clip_title = clip_metadata["title"]
+                        filename = Path(path).stem.rsplit(":", maxsplit=1)[1]
+                        if clip_title is None:
+                            clip_title = filename
+                        track = self.db_manager.get_track_by_name(session, clip_title)
+                        if track is None:
+                            id_parts = filename[1].rsplit("-")
+                            if len(id_parts) == 2 and id_parts[0] == "tr":
+                                track = self.db_manager.get_track_by_id(id_parts[1])
+
+                        if track is None:
+                            continue
+                        clip = MusicVideo(
+                            is_external_link=False,
+                            local_link=f"{storage["id"]}///{path}",
+                            track_id=track.id,
+                        )
+                        session.add(clip)
+                        session.flush()
             session.commit()
             return {
                 "deleted_count": deleted_count,

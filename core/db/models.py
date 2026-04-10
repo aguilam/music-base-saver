@@ -294,7 +294,6 @@ class Lyrics(SQLModel, table=True):
         sa_column=Column(
             Integer,
             ForeignKey("track.id", ondelete="CASCADE"),
-            unique=True,
             nullable=False,
         )
     )
@@ -303,9 +302,9 @@ class Lyrics(SQLModel, table=True):
 
 class MusicVideo(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    isExternal_Link: bool
-    external_link: str
-    local_link: str
+    is_external_link: bool
+    external_link: str | None = None
+    local_link: str | None = None
     track_id: Optional[int] = Field(
         sa_column=Column(Integer, ForeignKey("track.id", ondelete="CASCADE"))
     )

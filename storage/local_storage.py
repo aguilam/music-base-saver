@@ -1,3 +1,4 @@
+import mutagen.mp4
 from storage.base import Storage
 from pathlib import Path
 from shutil import disk_usage, move
@@ -64,6 +65,22 @@ class LocalStorage(Storage):
             "album": album_title,
             "length": length,
         }
+
+    def get_clip_metadata(self, path):
+        print(path)
+        clip_metadata = mutagen.mp4.MP4(Path(self._fix_windows_path(path)))
+        title = clip_metadata.get("\xa9nam")
+        artist = clip_metadata.get("\xa9ART")
+        album = clip_metadata.get("\xa9alb")
+        video_type = clip_metadata.get("stik")
+        return {"title": title, "artist": artist, "album": album}
+
+    def write_clip_metadata(self, artist, album, title, path):
+        clip_metadata = mutagen.mp4.MP4(Path(self._fix_windows_path(path)))
+        clip_metadata["\xa9nam"] = title
+        clip_metadata["\xa9ART"] = artist
+        clip_metadata["\xa9alb"] = album
+        clip_metadata["stik"] = 6
 
     def get_cover_metadata(self, path):
         norm_path = Path(self._fix_windows_path(path))
