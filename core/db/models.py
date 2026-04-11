@@ -249,9 +249,9 @@ class Track(SQLModel, table=True):
     )
     album: Optional["Album"] = Relationship(back_populates="tracks")
 
-    lyrics: Optional["Lyrics"] = Relationship(
+    lyrics: List["Lyrics"] = Relationship(
         back_populates="track",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan", "uselist": False},
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
 
     links: List["TrackLink"] = Relationship(
@@ -405,6 +405,22 @@ class DBManager:
     def get_album_by_name(self, session: Session, title: str) -> Optional[Album]:
         return session.exec(select(Album).where(Album.title == title)).first()
 
+    def get_moods(self, session: Session) -> List[Mood] | None:
+        moods = (
+            session.execute(select(Mood).options(selectinload(Mood.tracks)))
+            .scalars()
+            .all()
+        )
+        return moods
+
+    def get_genres(self, session: Session) -> List[Genre] | None:
+        genres = (
+            session.execute(select(Genre).options(selectinload(Genre.tracks)))
+            .scalars()
+            .all()
+        )
+        return genres
+
     def get_track_by_name(self, session: Session, title: str) -> Optional[Track]:
         return session.exec(select(Track).where(col(Track.title).ilike(title))).first()
 
@@ -413,6 +429,9 @@ class DBManager:
 
     def get_user_by_id(self, session: Session, id: int) -> Optional[User]:
         return session.exec(select(User).where(User.id == id)).first()
+
+    def get_video_by_id(self, session: Session, id: int):
+        return session.exec(select(MusicVideo).where(MusicVideo.id == id)).first()
 
     def get_playlist_by_id(self, session: Session, id: int) -> Optional[Playlist]:
         playlist = session.exec(
@@ -557,7 +576,11 @@ class DBManager:
             statement = (
                 select(Track)
                 .where(Track.id == id)
-                .options(selectinload(Track.links), selectinload(Track.artists))
+                .options(
+                    selectinload(Track.links),
+                    selectinload(Track.artists),
+                    selectinload(Track.lyrics),
+                )
             )
             track = session.exec(statement).first()
             return track

@@ -16,6 +16,7 @@ from api.mappers import (
     to_subsonic_artist,
     to_subsonic_playlist,
     to_subsonic_song,
+    to_subsonic_lyric,
     external_album_to_subsonic,
     external_artist_to_subsonic,
     external_track_to_subsonic,
@@ -173,7 +174,7 @@ def get_tracks():
 
 
 @subsonic_router.get("/stream", status_code=status.HTTP_206_PARTIAL_CONTENT)
-def stream_track(request: Request, id: int):
+def stream_track(request: Request, id: str):
     CHUNK_SIZE = 1024 * 1024
     range_header = request.headers.get("range")
     if not range_header:
@@ -719,9 +720,84 @@ def unstar(id: int, time: int | None = None, submission: bool | None = True):
     }
 
 
-@subsonic_router.get("/getLyrics")
-def get_lyrics():
-    return {"hello world"}
+@subsonic_router.get("/getLyricsBySongId")
+def get_lyrics(id: int, enhanced: bool | None = False):
+    lyrics = library_manager.get_lyrics(id)
+    sub_lyrics = [to_subsonic_lyric(lyric) for lyric in lyrics]
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "lyricsList": {"structuredLyrics": sub_lyrics},
+        }
+    }
+
+
+@subsonic_router.get("/getTopSongs")
+def get_artist_top_songs(artist: str, count: int | None = 50):
+    tracks = library_manager.get_artist_top_songs(artist, count)
+    artist_songs = [to_subsonic_song(track) for track in tracks]
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "topSongs": {"song": artist_songs},
+        }
+    }
+
+
+@subsonic_router.get("getGenres")
+def get_genres():
+    genres = library_manager.get_genres()
+    sub_genres = []
+    for genre in genres:
+        sub_genres.append(
+            {
+                "songCount": genre["track_count"],
+                "albumCount": genre["album_count"],
+                "value": genre["name"],
+            }
+        )
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "genres": {"genre": sub_genres},
+        }
+    }
+
+
+@subsonic_router.get("getMoods")
+def get_moods():
+    moods = library_manager.get_moods()
+    sub_moods = []
+    for genre in moods:
+        sub_moods.append(
+            {
+                "songCount": genre["track_count"],
+                "albumCount": genre["album_count"],
+                "value": genre["name"],
+            }
+        )
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "moods": {"mood": sub_moods},
+        }
+    }
 
 
 @subsonic_router.get("/download")

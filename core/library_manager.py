@@ -330,6 +330,42 @@ class LibraryManager:
             artist = self.db_manager.get_artist_by_id(session, id)
             return artist
 
+    def get_artist_top_songs(self, name: str, count: int):
+        with self.db_manager.get_session() as session:
+            artist = self.db_manager.get_artist_by_name(session, name)
+            artist_tracks = artist.tracks
+            return artist_tracks[:50]
+
+    def get_genres(self):
+        with self.db_manager.get_session() as session:
+            genres = self.db_manager.get_genres(session)
+            counted_genres = []
+            for genre in genres:
+                album_ids = {track.album_id for track in genre.tracks}
+                counted_genres.append(
+                    {
+                        "name": genre.name,
+                        "track_count": len(genre.tracks),
+                        "album_count": len(album_ids),
+                    }
+                )
+            return counted_genres
+
+    def get_moods(self):
+        with self.db_manager.get_session() as session:
+            moods = self.db_manager.get_moods(session)
+            counted_moods = []
+            for mood in moods:
+                album_ids = {track.album_id for track in mood.tracks}
+                counted_moods.append(
+                    {
+                        "name": mood.name,
+                        "track_count": len(mood.tracks),
+                        "album_count": len(album_ids),
+                    }
+                )
+            return counted_moods
+
     def get_playlist_by_id(self, id: int):
         with self.db_manager.get_session() as session:
             playlist = self.db_manager.get_playlist_by_id(session, id)
@@ -382,6 +418,24 @@ class LibraryManager:
             self.db_manager.get_session(), user_id
         )
 
+    def get_lyrics(self, track_id: int):
+        track = self.db_manager.get_track_by_id(track_id)
+        artists_name = ", ".join([artist.name for artist in track.artists])
+        lyrics_list = []
+        for lyric in track.lyrics:
+            print(lyric)
+            lyrics_list.append(
+                {
+                    "title": track.title,
+                    "artist": artists_name,
+                    "synced": lyric.is_synced,
+                    "language": lyric.language,
+                    "offset": lyric.offset,
+                    "lines": lyric.synced_text,
+                }
+            )
+        return lyrics_list
+
     def get_user(
         self, username: str | None = None, apiKey: str | None = None
     ) -> User | None:
@@ -393,20 +447,33 @@ class LibraryManager:
             else:
                 return None
 
-    def stream_track(self, track_id: int, start_bytes: int, end_bytes: int):
-        track = self.db_manager.get_track_by_id(track_id)
-        track_storage = next(
-            (links for links in track.links if links.link_type == "storage"), None
-        )
-        for storage in self.storages:
-            params = storage["params"].copy()
-            params.update({"id": storage["id"], "name": storage["name"]})
-            current_storage = storage["class"](params)
-            if current_storage.id == track_storage.link_provider:
-                track = current_storage.stream_track(
-                    track_storage.link, start_bytes, end_bytes
+    def stream_track(self, id: int, start_bytes: int, end_bytes: int):
+        with self.db_manager.get_session() as session:
+            if "cl-" in str(id):
+                video_id = str(id).split("-")[1]
+                video = self.db_manager.get_video_by_id(session, int(video_id))
+                if video.is_external_link == True:
+                    return
+                parts = video.local_link.split("///")
+                media_storage = parts[0]
+                media_link = parts[1]
+            else:
+                track = self.db_manager.get_track_by_id(int(id))
+                link_provider = next(
+                    (links for links in track.links if links.link_type == "storage"),
+                    None,
                 )
-                return track
+                media_storage = link_provider.link_provider
+                media_link = link_provider.link
+            for storage in self.storages:
+                params = storage["params"].copy()
+                params.update({"id": storage["id"], "name": storage["name"]})
+                current_storage = storage["class"](params)
+                if current_storage.id == media_storage:
+                    track = current_storage.stream_track(
+                        media_link, start_bytes, end_bytes
+                    )
+                    return track
 
     def sync(self):
         with self.db_manager.get_session() as session:

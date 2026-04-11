@@ -13,6 +13,7 @@ def to_subsonic_song(track: Track):
         "created": track.created_at,
         "albumId": track.album_id,
         "artistId": track.album.artist_id,
+        "musicVideo": "cl-" + track.music_videos,
         "type": "music",
         "mediaType": "song",
         "isVideo": False,
@@ -64,6 +65,20 @@ def to_subsonic_playlist(playlist: Playlist):
         "duration": int(playlist.durationint / 1000),
     }
     return sub_playlist
+
+
+def to_subsonic_lyric(lyric: dict):
+    sub_lyric = {
+        "displayArtist": lyric["artist"],
+        "displayTitle": lyric["title"],
+        "lang": lyric["language"],
+        "offset": lyric["offset"],
+        "synced": lyric["synced"],
+        "line": [],
+    }
+    for line in lyric["lines"]:
+        sub_lyric["line"].append({"start": line["time"], "value": line["text"]})
+    return sub_lyric
 
 
 def external_track_to_subsonic(track: dict):
