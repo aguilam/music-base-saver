@@ -2,7 +2,10 @@ import typer
 from core.library_manager import LibraryManager
 from rich.console import Console
 from rich.table import Table
-
+from rich.live import Live
+from rich.console import Group
+from rich.text import Text
+import time
 
 library_app = typer.Typer(help="Действия с музыкальной библиотекой")
 
@@ -31,11 +34,23 @@ def track_list():
 @library_app.command("del")
 def delete_track(track_id: int):
     library_manager = LibraryManager()
-
     track = library_manager.delete_track(track_id)
 
 
 @library_app.command("sync")
 def sync():
     library_manager = LibraryManager()
-    library_manager.sync()
+    task_id = library_manager.post_sync()
+    console = Console()
+    added_text = Text("Added: 0")
+    deleted_text = Text("Deleted: 0")
+    with Live(Group(added_text, deleted_text), auto_refresh=False) as live:
+        while True:
+            task = library_manager.get_sync_task(task_id)
+            added_text.plain = f"Added: {task["added"]}"
+            deleted_text.plain = f"Deleted: {task["deleted"]}"
+            live.refresh()
+            if task["status"] == "Finished":
+                break
+            time.sleep(0.2)
+    console.print("Scanning finished")

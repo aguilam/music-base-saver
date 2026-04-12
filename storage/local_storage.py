@@ -66,21 +66,20 @@ class LocalStorage(Storage):
             "length": length,
         }
 
-    def get_clip_metadata(self, path):
-        print(path)
-        clip_metadata = mutagen.mp4.MP4(Path(self._fix_windows_path(path)))
-        title = clip_metadata.get("\xa9nam")
-        artist = clip_metadata.get("\xa9ART")
-        album = clip_metadata.get("\xa9alb")
-        video_type = clip_metadata.get("stik")
+    def get_video_metadata(self, path):
+        video_metadata = mutagen.mp4.MP4(Path(self._fix_windows_path(path)))
+        title = video_metadata.get("\xa9nam")
+        artist = video_metadata.get("\xa9ART")
+        album = video_metadata.get("\xa9alb")
+        video_type = video_metadata.get("stik")
         return {"title": title, "artist": artist, "album": album}
 
-    def write_clip_metadata(self, artist, album, title, path):
-        clip_metadata = mutagen.mp4.MP4(Path(self._fix_windows_path(path)))
-        clip_metadata["\xa9nam"] = title
-        clip_metadata["\xa9ART"] = artist
-        clip_metadata["\xa9alb"] = album
-        clip_metadata["stik"] = 6
+    def write_video_metadata(self, artist, album, title, path):
+        video_metadata = mutagen.mp4.MP4(Path(self._fix_windows_path(path)))
+        video_metadata["\xa9nam"] = title
+        video_metadata["\xa9ART"] = artist
+        video_metadata["\xa9alb"] = album
+        video_metadata["stik"] = 6
 
     def get_cover_metadata(self, path):
         norm_path = Path(self._fix_windows_path(path))

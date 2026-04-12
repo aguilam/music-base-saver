@@ -60,6 +60,7 @@ class LibraryManager:
             config = tomllib.load(config_file)
         self.config = config
         self.download_queue = {}
+        self.sync_queue = {}
         self.search_engines = load_modules(
             config["search"], import_modules("search", BaseSearch)
         )
@@ -106,7 +107,7 @@ class LibraryManager:
             "tracks": [],
         }
         for engine in self.search_engines:
-            search_engine = engine["class"](engine["params"])
+            search_engine = engine.instance
             res = search_engine.search_tracks(query)
             if res:
                 for item in res:
@@ -146,18 +147,18 @@ class LibraryManager:
         search_id = object_id.split("-")[1]
         for engine in self.search_engines:
             if engine["tag"] == search_tag:
-                search_engine = engine["class"](engine["params"])
+                search_engine = engine.instance
                 if object_type == "track":
                     return search_engine.get_track(search_id)
                 elif object_type == "album":
                     album = search_engine.get_album(search_id)
                     for track in album["tracks"]:
-                        track["id"] = f"{engine["tag"]}-{track["id"]}"
+                        track["id"] = f"{engine.tag}-{track["id"]}"
                     return album
                 elif object_type == "artist":
                     artist = search_engine.get_artist(search_id)
                     for album in artist["albums"]:
-                        album["id"] = f"{engine["tag"]}-{album["id"]}"
+                        album["id"] = f"{engine.tag}-{album["id"]}"
                     return artist
 
     def get_download_task(self, task_id: str):
@@ -185,7 +186,7 @@ class LibraryManager:
         if query:
             search_results = []
             for engine in self.search_engines:
-                search_engine = engine["class"](engine["params"])
+                search_engine = engine.instance
                 results = search_engine.search_tracks(query)
                 for track in results:
                     track["searched_by"] = search_engine.TAG
@@ -200,7 +201,7 @@ class LibraryManager:
             }
         search_query = original_track.get("title", None)[0] if object_id else query
         for downloader in downloaders:
-            current_downloader = downloader["class"](downloader["params"])
+            current_downloader = downloader.instance
             downloader_search = current_downloader.search(search_query)
             for file in downloader_search:
                 file["downloader"] = current_downloader.TAG
@@ -215,7 +216,7 @@ class LibraryManager:
             (t for t in searched_tracks if t["id"] == tracks[0]["id"]), None
         )
         track_downloader = next(
-            (d for d in downloaders if d["tag"] == best_track["downloader"]), None
+            (d for d in downloaders if d.tag == best_track["downloader"]), None
         )
         downloader = track_downloader["class"](
             self.config["downloader"][best_track["downloader"]]["params"]
@@ -281,9 +282,7 @@ class LibraryManager:
 
     def get_file(self, path: str, storage_id: str):
         for storage in self.storages:
-            params = storage["params"].copy()
-            params.update({"id": storage["id"], "name": storage["name"]})
-            current_storage = storage["class"](params)
+            current_storage = storage.instance
             if current_storage.id == storage_id:
                 cover_path = current_storage.get_track(path)
                 return Path(cover_path).read_bytes()
@@ -310,14 +309,14 @@ class LibraryManager:
         if listen_time is None:
             listen_time = int(time.time())
         for scrobbler in self.scrobblers:
-            scrobbler_class = scrobbler["class"](scrobbler["params"])
+            scrobbler_class = scrobbler.instance
             scrobbler_class.submit_listen(track, listen_time)
 
     def post_now_playing(self, id: int):
         with self.db_manager.get_session():
             track = self.db_manager.get_track_by_id(id)
         for scrobbler in self.scrobblers:
-            scrobbler_class = scrobbler["class"](scrobbler["params"])
+            scrobbler_class = scrobbler.instance
             scrobbler_class.post_playing_now(track)
 
     def get_album_by_id(self, id: int):
@@ -423,7 +422,6 @@ class LibraryManager:
         artists_name = ", ".join([artist.name for artist in track.artists])
         lyrics_list = []
         for lyric in track.lyrics:
-            print(lyric)
             lyrics_list.append(
                 {
                     "title": track.title,
@@ -466,25 +464,39 @@ class LibraryManager:
                 media_storage = link_provider.link_provider
                 media_link = link_provider.link
             for storage in self.storages:
-                params = storage["params"].copy()
-                params.update({"id": storage["id"], "name": storage["name"]})
-                current_storage = storage["class"](params)
+                current_storage = storage.instance
                 if current_storage.id == media_storage:
                     track = current_storage.stream_track(
                         media_link, start_bytes, end_bytes
                     )
                     return track
 
-    def sync(self):
+    def get_sync_task(self, task_id: str):
+        return self.sync_queue.get(task_id)
+
+    def post_sync(self, storage_id: str | None = None, sync_id: str | None = None):
+        task_id = str(uuid4())[:8] if sync_id is None else sync_id
+        self.sync_queue[task_id] = {"status": "Processing", "deleted": 0, "added": 0}
+        self.executor.submit(self.sync, task_id)
+        return task_id
+
+    def _update_sync_progress(self, task_id: str, deleted: int = 0, added: int = 0):
+        self.sync_queue[task_id]["deleted"] += deleted
+        self.sync_queue[task_id]["added"] += added
+
+    def sync(self, task_id: str):
         with self.db_manager.get_session() as session:
             db_tracks = self.db_manager.get_all_tracks_storage_links()
             storaged_tracks = set()
             for storage in self.storages:
-                params = storage["params"].copy()
-                params.update({"id": storage["id"], "name": storage["name"]})
-                current_storage = storage["class"](params)
+                current_storage = storage.instance
                 tracks_path = current_storage.get_all_tracks_paths()
-                named_paths = [f"{storage["id"]}///{f}" for f in tracks_path]
+                named_paths = [f"{storage.id}///{f}" for f in tracks_path]
+                storaged_tracks.update(named_paths)
+            for storage in self.storages:
+                current_storage = storage.instance
+                tracks_path = current_storage.get_all_tracks_paths()
+                named_paths = [f"{storage.id}///{f}" for f in tracks_path]
                 storaged_tracks.update(named_paths)
             deleted_tracks_links = db_tracks - storaged_tracks
             added_tracks_links = storaged_tracks - db_tracks
@@ -493,10 +505,11 @@ class LibraryManager:
                 for track in deleted_tracks_links
             ]
             deleted_count = self.db_manager.bulk_delete_by_links(tracks_for_deleting)
+            self._update_sync_progress(task_id, deleted=deleted_count)
             tracks_to_adding = {}
             cover_to_adding = {}
             lyrics_to_adding = {}
-            clips_to_adding = {}
+            videos_to_adding = {}
             track_added_count = 0
             cover_added_count = 0
             for track in added_tracks_links:
@@ -512,21 +525,19 @@ class LibraryManager:
                     else:
                         lyrics_to_adding[k] = [v]
                 elif "mp4" in v:
-                    if k in clips_to_adding:
-                        clips_to_adding[k].append(v)
+                    if k in videos_to_adding:
+                        videos_to_adding[k].append(v)
                     else:
-                        clips_to_adding[k] = [v]
+                        videos_to_adding[k] = [v]
                 elif any(ext in v for ext in ["m4a", "flac", "mp3", "opus"]):
                     if k in tracks_to_adding:
                         tracks_to_adding[k].append(v)
                     else:
                         tracks_to_adding[k] = [v]
             for storage in self.storages:
-                params = storage["params"].copy()
-                params.update({"id": storage["id"], "name": storage["name"]})
-                current_storage = storage["class"](params)
-                if storage["id"] in tracks_to_adding:
-                    for path in tracks_to_adding[storage["id"]]:
+                current_storage = storage.instance
+                if storage.id in tracks_to_adding:
+                    for path in tracks_to_adding[storage.id]:
                         track_metadata = current_storage.get_track_metadata(path)
                         db_artist = self.db_manager.get_artist_by_name(
                             session, track_metadata["artist"]
@@ -566,8 +577,9 @@ class LibraryManager:
                         session.add(track_artist)
                         session.flush()
                         track_added_count += 1
-                if storage["id"] in cover_to_adding:
-                    for path in cover_to_adding[storage["id"]]:
+                        self._update_sync_progress(task_id, added=1)
+                if storage.id in cover_to_adding:
+                    for path in cover_to_adding[storage.id]:
                         content_id = None
                         content_type = None
                         entity = None
@@ -624,12 +636,13 @@ class LibraryManager:
                                 session, content_id
                             )
                         if entity is None:
-                            return
-                        entity.cover_path = f"{storage["id"]}///{path}"
+                            continue
+                        entity.cover_path = f"{storage.id}///{path}"
                         session.flush()
                         cover_added_count += 1
-                if storage["id"] in lyrics_to_adding:
-                    for path in lyrics_to_adding[storage["id"]]:
+                        self._update_sync_progress(task_id, added=1)
+                if storage.id in lyrics_to_adding:
+                    for path in lyrics_to_adding[storage.id]:
                         text_path = current_storage.get_track(path)
                         if ".lrc" in path:
                             with open(text_path, "r", encoding="utf-8") as file:
@@ -645,18 +658,18 @@ class LibraryManager:
                                 synced_text=file_content["text"],
                                 offset=file_content["offset"],
                                 track_id=track.id,
-                                original_path=f"{storage["id"]}///{text_path}",
+                                original_path=f"{storage.id}///{text_path}",
                             )
                             session.add(lyric)
                             session.flush()
-                if storage["id"] in clips_to_adding:
-                    for path in clips_to_adding[storage["id"]]:
-                        clip_metadata = current_storage.get_clip_metadata(path)
-                        clip_title = clip_metadata["title"]
+                if storage.id in videos_to_adding:
+                    for path in videos_to_adding[storage.id]:
+                        video_metadata = current_storage.get_video_metadata(path)
+                        video_title = video_metadata["title"]
                         filename = Path(path).stem.rsplit(":", maxsplit=1)[1]
-                        if clip_title is None:
-                            clip_title = filename
-                        track = self.db_manager.get_track_by_name(session, clip_title)
+                        if video_title is None:
+                            video_title = filename
+                        track = self.db_manager.get_track_by_name(session, video_title)
                         if track is None:
                             id_parts = filename[1].rsplit("-")
                             if len(id_parts) == 2 and id_parts[0] == "tr":
@@ -664,25 +677,22 @@ class LibraryManager:
 
                         if track is None:
                             continue
-                        clip = MusicVideo(
+                        music_video = MusicVideo(
                             is_external_link=False,
-                            local_link=f"{storage["id"]}///{path}",
+                            local_link=f"{storage.id}///{path}",
                             track_id=track.id,
                         )
-                        session.add(clip)
+                        session.add(music_video)
                         session.flush()
             session.commit()
-            return {
-                "deleted_count": deleted_count,
-                "added_count": track_added_count + cover_added_count,
-            }
+            self.sync_queue[task_id]["status"] = "Finished"
 
     def import_tracks(self, importer_tag: str, user_id: int | None = None):
         importers = self.importers
         selected_importer: BaseImporter | None = None
         for importer in importers:
-            if importer["tag"] == importer_tag:
-                selected_importer = importer["class"](importer["params"])
+            if importer.tag == importer_tag:
+                selected_importer = importer.instance
                 break
         with self.db_manager.get_session() as session:
             (

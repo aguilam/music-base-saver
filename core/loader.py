@@ -1,14 +1,37 @@
 from pathlib import Path
 from importlib.util import spec_from_file_location, module_from_spec
+from storage.base import Storage
 import inspect
+from dataclasses import dataclass
+from typing import TypeVar, Generic, Any
+
+T = TypeVar("T")
 
 
-def import_modules(module_folder: str, BaseClass):
+@dataclass(slots=True)
+class ModuleEntry(Generic[T]):
+    tag: str
+    priority: int
+    params: dict[str, Any]
+    instance: T
+
+
+@dataclass(slots=True)
+class StorageEntry:
+    id: str
+    name: str
+    tag: str
+    priority: int
+    params: dict[str, Any]
+    instance: Storage
+
+
+def import_modules(module_folder: str, BaseClass: type[T]) -> dict[str, type[T]]:
     path = Path.resolve(Path(__file__))
     searchs_path = (path.parents[1] / module_folder).glob("*.py")
     plugins_path = (path.parents[1] / "plugins" / module_folder).glob("*.py")
     searched_modules = [*searchs_path, *plugins_path]
-    modules: dict[str, type] = {}
+    modules: dict[str, type[T]] = {}
     for search in searched_modules:
         spec = spec_from_file_location(search.stem, str(search.resolve()))
         module = module_from_spec(spec)
@@ -23,39 +46,38 @@ def import_modules(module_folder: str, BaseClass):
     return modules
 
 
-def load_modules(config: dict, module_classes: dict):
-    modules = []
+def load_modules(config: dict, module_classes: dict[str, type[T]]):
+    modules: list[ModuleEntry[T]] = []
     for module, settings in config.items():
         cls = module_classes[module]
         if cls and settings.get("enabled", True):
+            params = settings.get("params", {})
             modules.append(
-                {
-                    "tag": module,
-                    "priority": settings.get("priority", 0),
-                    "params": settings.get("params", {}),
-                    "class": cls,
-                }
+                ModuleEntry(module, settings.get("priority", 0), params, cls(params))
             )
-    modules.sort(key=lambda x: x["priority"], reverse=True)
+    modules.sort(key=lambda x: x.priority, reverse=True)
     return modules
 
 
-def load_storages(config: dict, storage_classes: dict):
+def load_storages(config: dict, storage_classes: dict[str, Any]):
     storages = config["storage"]
-    active_storages = []
+    active_storages: list[StorageEntry] = []
     for storage in storages:
-        if storage["enabled"] == True:
+        if storage.get("enabled", True):
             storage_tag = storage["tag"]
+            instance_params = storage["params"]
+            instance_params["id"] = storage["id"]
+            instance_params["name"] = storage["name"]
             selected_storage = storage_classes[storage_tag]
             active_storages.append(
-                {
-                    "id": storage["id"],
-                    "name": storage["name"],
-                    "tag": storage_tag,
-                    "priority": storage["priority"],
-                    "params": storage["params"],
-                    "class": selected_storage,
-                }
+                StorageEntry(
+                    storage["id"],
+                    storage["name"],
+                    storage_tag,
+                    storage["priority"],
+                    storage["params"],
+                    selected_storage(instance_params),
+                )
             )
-    active_storages.sort(key=lambda x: x["priority"], reverse=True)
+    active_storages.sort(key=lambda x: x.priority, reverse=True)
     return active_storages

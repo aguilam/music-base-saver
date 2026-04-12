@@ -807,8 +807,7 @@ def download_to_user():
 
 @subsonic_router.get("/startScan")
 def start_scan():
-    scan = library_manager.sync()
-    all_objects = scan["deleted_count"] + scan["added_count"]
+    library_manager.post_sync(sync_id="sub")
     return {
         "subsonic-response": {
             "status": "ok",
@@ -816,14 +815,26 @@ def start_scan():
             "type": "AwesomeServerName",
             "serverVersion": "0.1.3 (tag)",
             "openSubsonic": True,
-            "scanStatus": {"scanning": False, "count": all_objects},
+            "scanStatus": {"scanning": True, "count": 0},
         }
     }
 
 
 @subsonic_router.get("/scanStatus")
 def scan_status():
-    return {"hello world"}
+    task = library_manager.get_sync_task("sub")
+    is_scanning = True if task["status"] == "Processing" else False
+    count = task["added"]
+    return {
+        "subsonic-response": {
+            "status": "ok",
+            "version": "1.16.1",
+            "type": "AwesomeServerName",
+            "serverVersion": "0.1.3 (tag)",
+            "openSubsonic": True,
+            "scanStatus": {"scanning": is_scanning, "count": count},
+        }
+    }
 
 
 @subsonic_router.get("/getLicense")

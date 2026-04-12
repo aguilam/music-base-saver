@@ -10,6 +10,7 @@ from storage.base import Storage
 import mutagen
 import requests
 import re
+from core.loader import StorageEntry
 
 
 def analyze_lrc(lines: list[str]):
@@ -112,11 +113,11 @@ def find_best_track(
     return best_match_track
 
 
-def find_best_storage(storages: list[Storage], file_size: int) -> Storage:
+def find_best_storage(storages: list[StorageEntry], file_size: int) -> Storage:
     for storage in storages:
-        params = storage["params"].copy()
-        params.update({"id": storage["id"], "name": storage["name"]})
-        current_storage = storage["class"](params)
+        params = storage.params.copy()
+        params.update({"id": storage.id, "name": storage.name})
+        current_storage = storage.instance
         free_storage = current_storage.check_storage()
         if free_storage > file_size:
             return current_storage
