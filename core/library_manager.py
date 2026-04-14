@@ -17,26 +17,26 @@ from utils.utils import (
 import shutil
 from .db.models import (
     DBManager,
-    Track,
+    TrackORM,
     TrackLink,
-    Album,
-    Artist,
+    AlbumORM,
+    ArtistORM,
     StarredAlbum,
     StarredArtist,
     StarredTrack,
-    Playlist,
+    PlaylistORM,
     TrackArtistsLink,
-    Lyrics,
+    LyricsORM,
     PlaylistTrackLink,
     User,
-    MusicVideo,
+    MusicVideoORM,
 )
+from schemas.schemas import Artist, Album, Playlist, Track, Lyrics, MusicVideo
 from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 import time
-import re
 
 STAR_LINK_MAP = {
     "track": lambda user_id, obj_id: StarredTrack(user_id=user_id, track_id=obj_id),
@@ -126,17 +126,17 @@ class LibraryManager:
 
         with self.db_manager.get_session() as session:
             for artist in search_results["artists"]:
-                db_artist: Artist = self.db_manager.get_artist_by_name(
+                db_artist: ArtistORM = self.db_manager.get_artist_by_name(
                     session, artist["name"]
                 )
                 artist["db_id"] = db_artist.id if db_artist else None
             for album in search_results["albums"]:
-                db_album: Album = self.db_manager.get_album_by_name(
+                db_album: AlbumORM = self.db_manager.get_album_by_name(
                     session, album["title"]
                 )
                 album["db_id"] = db_album.id if db_album else None
             for track in search_results["tracks"]:
-                db_track: Track = self.db_manager.get_track_by_name(
+                db_track: TrackORM = self.db_manager.get_track_by_name(
                     session, track["title"]
                 )
                 track["db_id"] = db_track.id if db_track else None
@@ -244,12 +244,14 @@ class LibraryManager:
             with self.db_manager.get_session() as session:
                 db_artist = self.db_manager.get_artist_by_name(session, artist_name)
                 if db_artist is None:
-                    db_artist = self.db_manager.add(session, Artist(name=artist_name))
+                    db_artist = self.db_manager.add(
+                        session, ArtistORM(name=artist_name)
+                    )
 
                 if album_title:
                     db_album = self.db_manager.get_album_by_name(session, album_title)
                     if db_album is None:
-                        db_album = Album(title=album_title)
+                        db_album = AlbumORM(title=album_title)
                         db_artist.albums.append(db_album)
                         session.flush()
                     if db_album.cover_path is None and cover_storage_path is not None:
@@ -260,7 +262,7 @@ class LibraryManager:
                 else:
                     db_album = None
 
-                new_track = Track(title=title, length=length, album=db_album)
+                new_track = TrackORM(title=title, length=length, album=db_album)
                 new_link = TrackLink(
                     link_type="storage",
                     link_provider=best_storage.id,
@@ -404,11 +406,11 @@ class LibraryManager:
                 session.delete(link)
                 session.commit()
 
-    def get_user_playlists(self, user_id: int) -> list[Playlist]:
+    def get_user_playlists(self, user_id: int) -> list[PlaylistORM]:
         with self.db_manager.get_session() as session:
             return self.db_manager.get_user_playlists(session, user_id)
 
-    def get_all_albums(self) -> list[Album]:
+    def get_all_albums(self) -> list[AlbumORM]:
         with self.db_manager.get_session() as session:
             return self.db_manager.get_all_albums(session)
 
@@ -544,7 +546,7 @@ class LibraryManager:
                         )
                         if db_artist is None:
                             db_artist = self.db_manager.add(
-                                session, Artist(name=track_metadata["artist"])
+                                session, ArtistORM(name=track_metadata["artist"])
                             )
 
                         if track_metadata["album"]:
@@ -552,13 +554,13 @@ class LibraryManager:
                                 session, track_metadata["album"]
                             )
                             if db_album is None:
-                                db_album = Album(title=track_metadata["album"])
+                                db_album = AlbumORM(title=track_metadata["album"])
                                 db_artist.albums.append(db_album)
                                 session.flush()
                         else:
                             db_album = None
 
-                        new_track = Track(
+                        new_track = TrackORM(
                             title=track_metadata["title"],
                             length=track_metadata["length"],
                             album=db_album,
@@ -652,7 +654,7 @@ class LibraryManager:
                             )
                             if track is None:
                                 continue
-                            lyric = Lyrics(
+                            lyric = LyricsORM(
                                 is_synced=True,
                                 language="und",
                                 synced_text=file_content["text"],
@@ -677,7 +679,7 @@ class LibraryManager:
 
                         if track is None:
                             continue
-                        music_video = MusicVideo(
+                        music_video = MusicVideoORM(
                             is_external_link=False,
                             local_link=f"{storage.id}///{path}",
                             track_id=track.id,
@@ -735,7 +737,7 @@ class LibraryManager:
                 playlist_info = selected_importer.get_playlist(playlist_id)
                 for track in playlist_info["tracks"]:
                     unique_tracks[track["id"]] = track
-                db_playlist = Playlist(
+                db_playlist = PlaylistORM(
                     name=playlist_info["title"], owner_id=user_id, public=False
                 )
                 session.add(db_playlist)
@@ -780,7 +782,7 @@ class LibraryManager:
                     )
                     saved_path = best_storage.save_track(url, saving_path)
 
-                    db_track = Track(
+                    db_track = TrackORM(
                         title=title,
                         length=length,
                         album_id=album_map.get(album_id) if album_id else None,
@@ -804,7 +806,7 @@ class LibraryManager:
                 try:
                     artist = selected_importer.get_artists(artist_id)
 
-                    db_artist = Artist(name=artist["name"])
+                    db_artist = ArtistORM(name=artist["name"])
                     session.add(db_artist)
                     session.flush()
 
@@ -829,7 +831,7 @@ class LibraryManager:
                     if "artist_id" in album and album["artist_id"] in artist_map:
                         album_artist_id = artist_map[album["artist_id"]]
 
-                    db_album = Album(
+                    db_album = AlbumORM(
                         title=album["title"],
                         year=album.get("year"),
                         artist_id=album_artist_id,
@@ -870,7 +872,7 @@ class LibraryManager:
                 try:
                     lyrics_text = selected_importer.get_lyrics(track_id)
                     if lyrics_text:
-                        db_lyrics = Lyrics(
+                        db_lyrics = LyricsORM(
                             value=lyrics_text, track_id=track_map[track_id]
                         )
                         session.add(db_lyrics)
@@ -891,7 +893,7 @@ class LibraryManager:
                     if db_track_id is None:
                         continue
 
-                    db_track = session.get(Track, db_track_id)
+                    db_track = session.get(TrackORM, db_track_id)
                     if db_track is None:
                         continue
 

@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 
 
 class PlaylistTrackLink(SQLModel, table=True):
+    __tablename__ = "playlist_track_link"
     __table_args__ = (
         UniqueConstraint("playlist_id", "position", name="uq_playlist_position"),
         CheckConstraint("position > 0", name="ck_position_positive"),
@@ -43,19 +44,21 @@ class PlaylistTrackLink(SQLModel, table=True):
             Integer, ForeignKey("track.id", ondelete="CASCADE"), primary_key=True
         ),
     )
-    track: "Track" = Relationship(back_populates="playlist_links")
-    playlist: "Playlist" = Relationship(back_populates="track_links")
+    track: "TrackORM" = Relationship(back_populates="playlist_links")
+    playlist: "PlaylistORM" = Relationship(back_populates="track_links")
     position: int
 
 
 class ArtistAlias(SQLModel, table=True):
+    __tablename__ = "artist_alias"
     id: Optional[int] = Field(default=None, primary_key=True)
     artist_id: int = Field(foreign_key="artist.id", ondelete="CASCADE")
     name: str
-    artist: "Artist" = Relationship(back_populates="aliases")
+    artist: "ArtistORM" = Relationship(back_populates="aliases")
 
 
 class TrackArtistsLink(SQLModel, table=True):
+    __tablename__ = "track_artist"
     artist_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
@@ -71,33 +74,37 @@ class TrackArtistsLink(SQLModel, table=True):
 
 
 class StarredTrack(SQLModel, table=True):
+    __tablename__ = "starred_track"
     user_id: int = Field(foreign_key="user.id", primary_key=True)
     track_id: int = Field(foreign_key="track.id", primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     user: "User" = Relationship(back_populates="starred_tracks_link")
-    track: "Track" = Relationship(back_populates="starred_track_links")
+    track: "TrackORM" = Relationship(back_populates="starred_track_links")
 
 
 class StarredAlbum(SQLModel, table=True):
+    __tablename__ = "starred_album"
     user_id: int = Field(foreign_key="user.id", primary_key=True)
     album_id: int = Field(foreign_key="album.id", primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     user: "User" = Relationship(back_populates="starred_albums_link")
-    album: "Album" = Relationship(back_populates="starred_album_links")
+    album: "AlbumORM" = Relationship(back_populates="starred_album_links")
 
 
 class StarredArtist(SQLModel, table=True):
+    __tablename__ = "starred_artist"
     user_id: int = Field(foreign_key="user.id", primary_key=True)
     artist_id: int = Field(foreign_key="artist.id", primary_key=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     user: "User" = Relationship(back_populates="starred_artists_link")
-    artist: "Artist" = Relationship(back_populates="starred_artist_links")
+    artist: "ArtistORM" = Relationship(back_populates="starred_artist_links")
 
 
 class User(SQLModel, table=True):
+    __tablename__ = "user"
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(unique=True)
     password: str
@@ -105,39 +112,40 @@ class User(SQLModel, table=True):
     api_key: Optional[str] = Field(default=None, unique=True, index=True)
     is_admin: bool
 
-    playlists: List["Playlist"] = Relationship(back_populates="owner")
+    playlists: List["PlaylistORM"] = Relationship(back_populates="owner")
 
     starred_tracks_link: List["StarredTrack"] = Relationship(back_populates="user")
     starred_albums_link: List["StarredAlbum"] = Relationship(back_populates="user")
     starred_artists_link: List["StarredArtist"] = Relationship(back_populates="user")
 
-    starred_tracks: List["Track"] = Relationship(
+    starred_tracks: List["TrackORM"] = Relationship(
         back_populates="starred_by",
         link_model=StarredTrack,
         sa_relationship_kwargs={"viewonly": True},
     )
-    starred_albums: List["Album"] = Relationship(
+    starred_albums: List["AlbumORM"] = Relationship(
         back_populates="starred_by",
         link_model=StarredAlbum,
         sa_relationship_kwargs={"viewonly": True},
     )
-    starred_artists: List["Artist"] = Relationship(
+    starred_artists: List["ArtistORM"] = Relationship(
         back_populates="starred_by",
         link_model=StarredArtist,
         sa_relationship_kwargs={"viewonly": True},
     )
 
 
-class Artist(SQLModel, table=True):
+class ArtistORM(SQLModel, table=True):
+    __tablename__ = "artist"
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     cover_path: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    albums: List["Album"] = Relationship(
+    albums: List["AlbumORM"] = Relationship(
         back_populates="artist_rel",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    tracks: List["Track"] = Relationship(
+    tracks: List["TrackORM"] = Relationship(
         back_populates="artists", link_model=TrackArtistsLink
     )
     starred_artist_links: List[StarredArtist] = Relationship(back_populates="artist")
@@ -154,7 +162,8 @@ class Artist(SQLModel, table=True):
     )
 
 
-class Album(SQLModel, table=True):
+class AlbumORM(SQLModel, table=True):
+    __tablename__ = "album"
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
     year: Optional[int] = Field(default=None)
@@ -164,9 +173,9 @@ class Album(SQLModel, table=True):
         sa_column=Column(Integer, ForeignKey("artist.id", ondelete="CASCADE")),
     )
     cover_path: Optional[str] = Field(default=None)
-    artist_rel: Optional[Artist] = Relationship(back_populates="albums")
+    artist_rel: Optional[ArtistORM] = Relationship(back_populates="albums")
 
-    tracks: List["Track"] = Relationship(
+    tracks: List["TrackORM"] = Relationship(
         back_populates="album",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
@@ -181,8 +190,23 @@ class Album(SQLModel, table=True):
     @duration.expression
     def duration(cls):
         return (
-            select(func.sum(Track.length))
-            .where(Track.album_id == cls.id)
+            select(func.sum(TrackORM.length))
+            .where(TrackORM.album_id == cls.id)
+            .scalar_subquery()
+        )
+
+    @hybrid_property
+    def track_count(self) -> int:
+        return len(self.tracks)
+
+    track_count: ClassVar[hybrid_property]
+
+    @track_count.expression
+    def track_count(cls):
+        return (
+            select(func.count(TrackORM.id))
+            .select_from(TrackORM)
+            .where(TrackORM.album_id == cls.id)
             .scalar_subquery()
         )
 
@@ -197,6 +221,7 @@ class Album(SQLModel, table=True):
 
 
 class TrackGenreLink(SQLModel, table=True):
+    __tablename__ = "track_genre"
     track_id: Optional[int] = Field(
         default=None, foreign_key="track.id", primary_key=True
     )
@@ -206,6 +231,7 @@ class TrackGenreLink(SQLModel, table=True):
 
 
 class TrackMoodLink(SQLModel, table=True):
+    __tablename__ = "track_mood"
     track_id: Optional[int] = Field(
         default=None, foreign_key="track.id", primary_key=True
     )
@@ -215,24 +241,27 @@ class TrackMoodLink(SQLModel, table=True):
 
 
 class Genre(SQLModel, table=True):
+    __tablename__ = "genre"
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
 
-    tracks: List["Track"] = Relationship(
+    tracks: List["TrackORM"] = Relationship(
         back_populates="genres", link_model=TrackGenreLink
     )
 
 
 class Mood(SQLModel, table=True):
+    __tablename__ = "mood"
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
 
-    tracks: List["Track"] = Relationship(
+    tracks: List["TrackORM"] = Relationship(
         back_populates="moods", link_model=TrackMoodLink
     )
 
 
-class Track(SQLModel, table=True):
+class TrackORM(SQLModel, table=True):
+    __tablename__ = "track"
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
     length: int
@@ -247,9 +276,9 @@ class Track(SQLModel, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("album.id", ondelete="CASCADE")),
     )
-    album: Optional["Album"] = Relationship(back_populates="tracks")
+    album: Optional["AlbumORM"] = Relationship(back_populates="tracks")
 
-    lyrics: List["Lyrics"] = Relationship(
+    lyrics: List["LyricsORM"] = Relationship(
         back_populates="track",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
@@ -268,10 +297,10 @@ class Track(SQLModel, table=True):
             "overlaps": "starred_track_links,starred_tracks_link,track,user"
         },
     )
-    artists: List["Artist"] = Relationship(
+    artists: List["ArtistORM"] = Relationship(
         back_populates="tracks", link_model=TrackArtistsLink
     )
-    music_videos: List["MusicVideo"] = Relationship(back_populates="track")
+    music_videos: List["MusicVideoORM"] = Relationship(back_populates="track")
     genres: List["Genre"] = Relationship(
         back_populates="tracks", link_model=TrackGenreLink
     )
@@ -280,7 +309,8 @@ class Track(SQLModel, table=True):
     )
 
 
-class Lyrics(SQLModel, table=True):
+class LyricsORM(SQLModel, table=True):
+    __tablename__ = "lyrics"
     id: int | None = Field(default=None, primary_key=True)
     is_synced: bool = False
     language: str | None = None
@@ -297,10 +327,11 @@ class Lyrics(SQLModel, table=True):
             nullable=False,
         )
     )
-    track: Optional[Track] = Relationship(back_populates="lyrics")
+    track: Optional[TrackORM] = Relationship(back_populates="lyrics")
 
 
-class MusicVideo(SQLModel, table=True):
+class MusicVideoORM(SQLModel, table=True):
+    __tablename__ = "music_video"
     id: Optional[int] = Field(default=None, primary_key=True)
     is_external_link: bool
     external_link: str | None = None
@@ -308,10 +339,11 @@ class MusicVideo(SQLModel, table=True):
     track_id: Optional[int] = Field(
         sa_column=Column(Integer, ForeignKey("track.id", ondelete="CASCADE"))
     )
-    track: Optional["Track"] = Relationship(back_populates="music_videos")
+    track: Optional["TrackORM"] = Relationship(back_populates="music_videos")
 
 
 class TrackLink(SQLModel, table=True):
+    __tablename__ = "track_link"
     id: Optional[int] = Field(default=None, primary_key=True)
     link_type: str
     link_provider: str
@@ -322,15 +354,16 @@ class TrackLink(SQLModel, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("track.id", ondelete="CASCADE")),
     )
-    track: Optional[Track] = Relationship(back_populates="links")
+    track: Optional[TrackORM] = Relationship(back_populates="links")
 
 
-class Playlist(SQLModel, table=True):
+class PlaylistORM(SQLModel, table=True):
+    __tablename__ = "playlist"
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     cover_path: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    public: bool = Field(default=False)
+    is_public: bool = Field(default=False)
 
     owner_id: Optional[int] = Field(
         default=None,
@@ -362,8 +395,8 @@ class Playlist(SQLModel, table=True):
     @duration.expression
     def duration(cls):
         return (
-            select(func.sum(Track.length))
-            .join(PlaylistTrackLink, PlaylistTrackLink.track_id == Track.id)
+            select(func.sum(TrackORM.length))
+            .join(PlaylistTrackLink, PlaylistTrackLink.track_id == TrackORM.id)
             .where(PlaylistTrackLink.playlist_id == cls.id)
             .scalar_subquery()
         )
@@ -395,15 +428,17 @@ class DBManager:
     def get_session(self) -> Session:
         return Session(self.engine)
 
-    def get_artist_by_name(self, session: Session, name: str) -> Optional[Artist]:
+    def get_artist_by_name(self, session: Session, name: str) -> Optional[ArtistORM]:
         return session.exec(
-            select(Artist)
+            select(ArtistORM)
             .outerjoin(ArtistAlias)
-            .where((col(Artist.name).ilike(name)) | (col(ArtistAlias.name).ilike(name)))
+            .where(
+                (col(ArtistORM.name).ilike(name)) | (col(ArtistAlias.name).ilike(name))
+            )
         ).first()
 
-    def get_album_by_name(self, session: Session, title: str) -> Optional[Album]:
-        return session.exec(select(Album).where(Album.title == title)).first()
+    def get_album_by_name(self, session: Session, title: str) -> Optional[AlbumORM]:
+        return session.exec(select(AlbumORM).where(AlbumORM.title == title)).first()
 
     def get_moods(self, session: Session) -> List[Mood] | None:
         moods = (
@@ -421,8 +456,10 @@ class DBManager:
         )
         return genres
 
-    def get_track_by_name(self, session: Session, title: str) -> Optional[Track]:
-        return session.exec(select(Track).where(col(Track.title).ilike(title))).first()
+    def get_track_by_name(self, session: Session, title: str) -> Optional[TrackORM]:
+        return session.exec(
+            select(TrackORM).where(col(TrackORM.title).ilike(title))
+        ).first()
 
     def get_user_by_name(self, session: Session, username: str) -> Optional[User]:
         return session.exec(select(User).where(User.username == username)).first()
@@ -431,18 +468,18 @@ class DBManager:
         return session.exec(select(User).where(User.id == id)).first()
 
     def get_video_by_id(self, session: Session, id: int):
-        return session.exec(select(MusicVideo).where(MusicVideo.id == id)).first()
+        return session.exec(select(MusicVideoORM).where(MusicVideoORM.id == id)).first()
 
-    def get_playlist_by_id(self, session: Session, id: int) -> Optional[Playlist]:
+    def get_playlist_by_id(self, session: Session, id: int) -> Optional[PlaylistORM]:
         playlist = session.exec(
-            select(Playlist)
-            .where(Playlist.id == id)
+            select(PlaylistORM)
+            .where(PlaylistORM.id == id)
             .options(
-                selectinload(Playlist.owner),
-                selectinload(Playlist.tracks).selectinload(Track.links),
-                selectinload(Playlist.tracks)
-                .selectinload(Track.album)
-                .selectinload(Album.artist_rel),
+                selectinload(PlaylistORM.owner),
+                selectinload(PlaylistORM.tracks).selectinload(TrackORM.links),
+                selectinload(PlaylistORM.tracks)
+                .selectinload(TrackORM.album)
+                .selectinload(AlbumORM.artist_rel),
             )
         ).first()
         return playlist
@@ -451,50 +488,53 @@ class DBManager:
         return session.exec(select(User).where(User.api_key == api_key)).first()
 
     def search_artists(self, session: Session, query: str, limit: int, offset: int):
-        return session.exec(
-            select(Artist)
+        artists = session.exec(
+            select(ArtistORM)
             .outerjoin(ArtistAlias)
             .where(
-                (col(Artist.name).ilike(f"%{query}%"))
+                (col(ArtistORM.name).ilike(f"%{query}%"))
                 | (col(ArtistAlias.name).ilike(f"%{query}%"))
             )
             .limit(limit)
             .offset(offset)
-            .options(selectinload(Artist.albums))
+            .options(selectinload(ArtistORM.albums))
         ).all()
+        return artists
 
     def search_albums(self, session: Session, query: str, limit: int, offset: int):
         return session.exec(
-            select(Album)
-            .where(col(Album.title).ilike(f"%{query}%"))
+            select(AlbumORM)
+            .where(col(AlbumORM.title).ilike(f"%{query}%"))
             .limit(limit)
             .offset(offset)
             .options(
-                selectinload(Album.tracks).selectinload(Track.links),
-                selectinload(Album.tracks).selectinload(Track.album),
-                selectinload(Album.artist_rel),
+                selectinload(AlbumORM.tracks).selectinload(TrackORM.links),
+                selectinload(AlbumORM.tracks).selectinload(TrackORM.album),
+                selectinload(AlbumORM.artist_rel),
             )
         ).all()
 
     def search_tracks(self, session: Session, query: str, limit: int, offset: int):
-        return session.exec(
-            select(Track)
-            .where(col(Track.title).ilike(f"%{query}%"))
+        tracks = session.exec(
+            select(TrackORM)
+            .where(col(TrackORM.title).ilike(f"%{query}%"))
             .limit(limit)
             .offset(offset)
             .options(
-                selectinload(Track.links),
-                selectinload(Track.album).selectinload(Album.artist_rel),
+                selectinload(TrackORM.links),
+                selectinload(TrackORM.album).selectinload(AlbumORM.artist_rel),
             )
         ).all()
+        return tracks
 
     def search_playlists(self, session: Session, query: str, limit: int, offset: int):
-        return session.exec(
-            select(Playlist)
-            .where(col(Playlist.name).ilike(f"%{query}%"))
+        playlists = session.exec(
+            select(PlaylistORM)
+            .where(col(PlaylistORM.name).ilike(f"%{query}%"))
             .limit(limit)
             .offset(offset)
         ).all()
+        return playlists
 
     def get_all_user_starred(self, session: Session, user_id: int):
         user = self.get_user_by_id(session, user_id)
@@ -505,9 +545,9 @@ class DBManager:
 
     def get_user_playlists(self, session: Session, user_id: int):
         playlists = session.exec(
-            select(Playlist)
-            .where(Playlist.owner_id == user_id)
-            .options(selectinload(Playlist.owner), selectinload(Playlist.tracks))
+            select(PlaylistORM)
+            .where(PlaylistORM.owner_id == user_id)
+            .options(selectinload(PlaylistORM.owner), selectinload(PlaylistORM.tracks))
         ).all()
         for p in playlists:
             session.expunge(p)
@@ -520,7 +560,7 @@ class DBManager:
 
     def delete_track(self, id: int):
         with Session(self.engine) as session:
-            statement = select(Track).where(Track.id == id)
+            statement = select(TrackORM).where(TrackORM.id == id)
             track = session.exec(statement).first()
             session.delete(track)
             return track
@@ -537,28 +577,28 @@ class DBManager:
                 TrackLink.id.in_(links_ids)
             )
             session.exec(delete_links_statement)
-            delete_tracks_statement = delete(Track).where(Track.id.in_(track_ids))
+            delete_tracks_statement = delete(TrackORM).where(TrackORM.id.in_(track_ids))
             tracks = session.exec(delete_tracks_statement)
             session.commit()
             return tracks.rowcount
 
     def get_all_tracks(self):
         with Session(self.engine) as session:
-            statement = select(Track).options(selectinload(Track.links))
+            statement = select(TrackORM).options(selectinload(TrackORM.links))
             tracks = session.exec(statement).all()
             return tracks
 
     def get_all_artists(self):
         with Session(self.engine) as session:
-            statement = select(Artist).options(selectinload(Artist.albums))
+            statement = select(ArtistORM).options(selectinload(ArtistORM.albums))
             tracks = session.exec(statement).all()
             return tracks
 
     def get_all_albums(self, session: Session):
-        statement = select(Album).options(
-            selectinload(Album.tracks).selectinload(Track.links),
-            selectinload(Album.tracks).selectinload(Track.album),
-            selectinload(Album.artist_rel),
+        statement = select(AlbumORM).options(
+            selectinload(AlbumORM.tracks).selectinload(TrackORM.links),
+            selectinload(AlbumORM.tracks).selectinload(TrackORM.album),
+            selectinload(AlbumORM.artist_rel),
         )
         albums = session.exec(statement).all()
         return albums
@@ -574,12 +614,12 @@ class DBManager:
     def get_track_by_id(self, id: int):
         with Session(self.engine) as session:
             statement = (
-                select(Track)
-                .where(Track.id == id)
+                select(TrackORM)
+                .where(TrackORM.id == id)
                 .options(
-                    selectinload(Track.links),
-                    selectinload(Track.artists),
-                    selectinload(Track.lyrics),
+                    selectinload(TrackORM.links),
+                    selectinload(TrackORM.artists),
+                    selectinload(TrackORM.lyrics),
                 )
             )
             track = session.exec(statement).first()
@@ -587,12 +627,12 @@ class DBManager:
 
     def get_album_by_id(self, session: Session, id: int):
         statement = (
-            select(Album)
-            .where(Album.id == id)
+            select(AlbumORM)
+            .where(AlbumORM.id == id)
             .options(
-                selectinload(Album.tracks).selectinload(Track.links),
-                selectinload(Album.tracks).selectinload(Track.album),
-                selectinload(Album.artist_rel),
+                selectinload(AlbumORM.tracks).selectinload(TrackORM.links),
+                selectinload(AlbumORM.tracks).selectinload(TrackORM.album),
+                selectinload(AlbumORM.artist_rel),
             )
         )
         track = session.exec(statement).first()
@@ -600,11 +640,11 @@ class DBManager:
 
     def get_artist_by_id(self, session: Session, id: int):
         statement = (
-            select(Artist)
-            .where(Artist.id == id)
+            select(ArtistORM)
+            .where(ArtistORM.id == id)
             .options(
-                selectinload(Artist.albums).selectinload(Album.tracks),
-                selectinload(Artist.albums).selectinload(Album.artist_rel),
+                selectinload(ArtistORM.albums).selectinload(AlbumORM.tracks),
+                selectinload(ArtistORM.albums).selectinload(AlbumORM.artist_rel),
             )
         )
         track = session.exec(statement).first()
