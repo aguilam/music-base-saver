@@ -780,12 +780,12 @@ def get_genres():
 def get_moods():
     moods = library_manager.get_moods()
     sub_moods = []
-    for genre in moods:
+    for mood in moods:
         sub_moods.append(
             {
-                "songCount": genre["track_count"],
-                "albumCount": genre["album_count"],
-                "value": genre["name"],
+                "songCount": mood["track_count"],
+                "albumCount": mood["album_count"],
+                "value": mood["name"],
             }
         )
     return {

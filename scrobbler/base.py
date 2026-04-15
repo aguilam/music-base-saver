@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from core.db.models import Track
+from core.schemas.schemas import Track
 
 
 class Scrobbler(ABC):

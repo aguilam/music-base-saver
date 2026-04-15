@@ -1,18 +1,25 @@
-from core.db.models import Playlist, Album, Artist, Track
+from core.schemas.schemas import (
+    Artist,
+    Album,
+    Playlist,
+    Track,
+    LyricsResponse,
+    MusicVideo,
+)
 
 
 def to_subsonic_song(track: Track):
     song = {
         "id": track.id,
-        "parent": track.album_id,
+        "parent": track.album.id,
         "isDir": False,
         "title": track.title,
         "album": track.album.title,
-        "artist": track.album.artist_rel.name,
+        "artist": track.album.artist.name,
         "duration": int(track.length / 1000),
         "created": track.created_at,
-        "albumId": track.album_id,
-        "artistId": track.album.artist_id,
+        "albumId": track.album.id,
+        "artistId": track.album.artist.id,
         "musicVideo": "cl-" + track.music_videos,
         "type": "music",
         "mediaType": "song",
@@ -26,7 +33,7 @@ def to_subsonic_song(track: Track):
 def to_subsonic_album(album: Album):
     sub_album = {
         "id": album.id,
-        "parent": album.artist_id,
+        "parent": album.artist.id,
         "album": album.title,
         "title": album.title,
         "name": album.title,
@@ -34,8 +41,8 @@ def to_subsonic_album(album: Album):
         "songCount": len(album.tracks),
         "created": album.created_at,
         "duration": int(album.duration / 1000),
-        "artistId": album.artist_id,
-        "artist": album.artist_rel.name,
+        "artistId": album.artist.id,
+        "artist": album.artist.name,
     }
     if album.cover_path:
         sub_album["coverArt"] = f"al-{album.id}"
@@ -56,95 +63,88 @@ def to_subsonic_artist(artist: Artist):
 def to_subsonic_playlist(playlist: Playlist):
     sub_playlist = {
         "id": playlist.id,
-        "name": playlist.name,
+        "name": playlist.title,
         "owner": playlist.owner.username,
-        "public": playlist.public,
+        "public": playlist.is_public,
         "created": playlist.created_at,
         "changed": playlist.created_at,
-        "songCount": playlist.song_count,
-        "duration": int(playlist.durationint / 1000),
+        "songCount": playlist.tracks_count,
+        "duration": int(playlist.duration / 1000),
     }
     return sub_playlist
 
 
-def to_subsonic_lyric(lyric: dict):
-    sub_lyric = {
-        "displayArtist": lyric["artist"],
-        "displayTitle": lyric["title"],
-        "lang": lyric["language"],
-        "offset": lyric["offset"],
-        "synced": lyric["synced"],
+def to_subsonic_lyric(lyrics: LyricsResponse):
+    sub_lyrics = {
+        "displayArtist": lyrics.artist,
+        "displayTitle": lyrics.title,
+        "lang": lyrics.language,
+        "offset": lyrics.offset,
+        "synced": lyrics.is_synced,
         "line": [],
     }
-    for line in lyric["lines"]:
-        sub_lyric["line"].append({"start": line["time"], "value": line["text"]})
-    return sub_lyric
+    for line in lyrics.synced_text:
+        sub_lyrics["line"].append({"start": line["time"], "value": line["text"]})
+    return sub_lyrics
 
 
-def external_track_to_subsonic(track: dict):
+def external_track_to_subsonic(track: Track):
     song = {
-        "id": track["id"],
+        "id": track.external_id,
         "isDir": False,
-        "title": track["title"],
-        "album": track["album"],
-        "artist": (
-            track["artist"][0] if isinstance(track["artist"], list) else track["artist"]
-        ),
-        "duration": track["length"],
+        "title": track.title,
+        "album": track.album,
+        "artist": (track.artists[0]),
+        "duration": track.length,
         "type": "music",
         "mediaType": "song",
         "isVideo": False,
     }
 
-    if track.get("cover_url"):
-        song["coverArt"] = track["cover_url"]
+    if track.cover_path:
+        song["coverArt"] = track.cover_path
 
-    if track.get("db_id"):
-        song["db_id"] = track["db_id"]
-        song["parent"] = track.get("album_id")
-        song["albumId"] = track.get("album_id")
-        song["artistId"] = track.get("artist_id")
+    if track.id:
+        song["db_id"] = track.id
 
     return song
 
 
-def external_album_to_subsonic(album: dict):
+def external_album_to_subsonic(album: Album):
     sub_album = {
-        "id": album["id"],
-        "album": album["title"],
-        "title": album["title"],
-        "name": album["title"],
+        "id": album.external_id,
+        "album": album.title,
+        "title": album.title,
+        "name": album.title,
         "isDir": True,
-        "artist": album["artist"],
+        "artist": album.artist,
+        "songCount": album.tracks_count,
+        "created": album.created_at,
     }
-    if album.get("cover_url"):
-        sub_album["coverArt"] = album["cover_url"]
+    if album.cover_path:
+        sub_album["coverArt"] = album.cover_path
 
-    if album.get("db_id"):
-        sub_album["db_id"] = album["db_id"]
-        sub_album["parent"] = album.get("artist_id")
-        sub_album["artistId"] = album.get("artist_id")
-        if album.get("created_at"):
-            sub_album["created"] = album["created_at"]
-    if album.get("tracks"):
-        sub_album["songCount"] = len(album["tracks"])
-        if album.get("duration"):
-            sub_album["duration"] = album["duration"]
+    if album.id:
+        sub_album["db_id"] = album.id
+        # sub_album["parent"] = album.get("artist_id")
+        # sub_album["artistId"] = album.get("artist_id")
+    if album.tracks:
+        if album.duration:
+            sub_album["duration"] = album.duration
     return sub_album
 
 
-def external_artist_to_subsonic(artist: dict):
+def external_artist_to_subsonic(artist: Artist):
     sub_artist = {
-        "id": artist["id"],
-        "name": artist["name"],
+        "id": artist.external_id,
+        "name": artist.name,
+        "albumCount": len(artist["albums"]),
     }
 
-    if artist.get("cover_url"):
-        sub_artist["coverArt"] = artist["cover_url"]
+    if artist.cover_path:
+        sub_artist["coverArt"] = artist.cover_path
 
-    if artist.get("db_id"):
-        sub_artist["db_id"] = artist["db_id"]
-    if artist.get("albums"):
-        sub_artist["albumCount"] = len(artist["albums"])
+    if artist.id:
+        sub_artist["db_id"] = artist.id
 
     return sub_artist

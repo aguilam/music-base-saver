@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from core.schemas.schemas import Track, Album, Artist
 
 
 class Search(ABC):
@@ -11,15 +12,15 @@ class Search(ABC):
         self.config = config
 
     @abstractmethod
-    def search_tracks(self, query: str) -> list[dict]:
+    def search_tracks(self, query: str) -> list[Track]:
         pass
 
     @abstractmethod
-    def search_albums(self, query: str) -> list[dict]:
+    def search_albums(self, query: str) -> list[Album]:
         pass
 
     @abstractmethod
-    def search_artists(self, query: str) -> list[dict]:
+    def search_artists(self, query: str) -> list[Artist]:
         pass
 
     @abstractmethod

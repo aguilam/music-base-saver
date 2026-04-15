@@ -1,74 +1,108 @@
-from models import TrackORM, ArtistORM, AlbumORM, PlaylistORM, MusicVideoORM, LyricsORM
-from schemas.schemas import Track, Artist, Album, Playlist, MusicVideo, Lyrics
+from core.db.models import (
+    TrackORM,
+    ArtistORM,
+    AlbumORM,
+    PlaylistORM,
+    MusicVideoORM,
+    LyricsORM,
+    UserORM,
+)
+from core.schemas.schemas import (
+    Track,
+    Artist,
+    Album,
+    Playlist,
+    MusicVideo,
+    Lyrics,
+    User,
+)
 
 
-def artist_from_orm(db_artist: ArtistORM) -> Artist:
+def artist_from_orm(artist: ArtistORM) -> Artist:
     return Artist(
-        id=db_artist.id,
-        name=db_artist.name,
-        cover_path=db_artist.cover_path,
+        id=artist.id,
+        name=artist.name,
+        cover_path=artist.cover_path,
+        albums=[album_from_orm(album) for album in artist.albums],
     )
 
 
-def album_from_orm(db_album: AlbumORM) -> Album:
+def album_from_orm(album: AlbumORM) -> Album:
     return Album(
-        id=db_album.id,
-        title=db_album.title,
-        cover_path=db_album.cover_path,
-        duration=db_album.duration,
-        tracks_count=db_album.track_count,
-        artist=artist_from_orm(db_album.artist_rel),
-        tracks=[track_from_orm(track) for track in db_album.tracks],
+        id=album.id,
+        title=album.title,
+        cover_path=album.cover_path,
+        duration=album.duration,
+        tracks_count=album.track_count,
+        artist=artist_from_orm(album.artist_rel),
+        tracks=[track_from_orm(track) for track in album.tracks],
+        created_at=album.created_at,
     )
 
 
-def playlist_from_orm(db_playlist: PlaylistORM) -> Playlist:
+def playlist_from_orm(playlist: PlaylistORM) -> Playlist:
     return Playlist(
-        id=db_playlist.id,
-        title=db_playlist.title,
-        cover_path=db_playlist.cover_path,
-        is_public=db_playlist.public,
-        duration=db_playlist.duration,
-        tracks_count=db_playlist.track_count,
-        tracks=[track_from_orm(track) for track in db_playlist.tracks],
+        id=playlist.id,
+        title=playlist.title,
+        cover_path=playlist.cover_path,
+        is_public=playlist.is_public,
+        owner=user_from_orm(playlist.owner),
+        duration=playlist.duration,
+        tracks_count=playlist.track_count,
+        tracks=[track_from_orm(track) for track in playlist.tracks],
+        created_at=playlist.created_at,
     )
 
 
-def track_from_orm(db_track: TrackORM) -> Track:
+def track_from_orm(track: TrackORM) -> Track:
     return Track(
-        id=db_track.id,
-        title=db_track.title,
-        length=db_track.length,
-        artists_id=[artist.id for artist in db_track.artists],
-        artists_names=[artist.name for artist in db_track.artists],
-        album_id=db_track.album_id,
-        album_name=db_track.album.title,
-        album_position=db_track.album_position,
-        cover_path=db_track.album.cover_path,
-        path=next(link for link in db_track.links),
-        bpm=db_track.bpm,
-        track_gain=db_track.trackGain,
-        track_peak=db_track.trackPeak,
-        year=db_track.year,
-        disc_number=db_track.discNumber,
+        id=track.id,
+        title=track.title,
+        length=track.length,
+        artists=[artist_from_orm(artist) for artist in track.artists],
+        album=album_from_orm(track.album),
+        album_position=track.album_position,
+        cover_path=track.album.cover_path,
+        path=next(link for link in track.links),
+        bpm=track.bpm,
+        track_gain=track.trackGain,
+        track_peak=track.trackPeak,
+        year=track.year,
+        disc_number=track.discNumber,
+        lyrics=[lyrics_from_orm(lyrics) for lyrics in track.lyrics],
+        music_videos=[music_video_from_orm(video) for video in track.music_videos],
+        created_at=track.created_at,
     )
 
 
-def lyrics_from_orm(db_lyrics: LyricsORM) -> Lyrics:
+def lyrics_from_orm(lyrics: LyricsORM) -> Lyrics:
     return Lyrics(
-        id=db_lyrics.id,
-        is_synced=db_lyrics.is_synced,
-        synced_text=db_lyrics.synced_text,
-        plain_text=db_lyrics.plain_text,
-        language=db_lyrics.language,
-        path=db_lyrics.original_path,
-        type=db_lyrics.type,
-        offset=db_lyrics.offset,
-        track_id=db_lyrics.track_id,
+        id=lyrics.id,
+        is_synced=lyrics.is_synced,
+        synced_text=lyrics.synced_text,
+        plain_text=lyrics.plain_text,
+        language=lyrics.language,
+        path=lyrics.original_path,
+        type=lyrics.type,
+        offset=lyrics.offset,
+        track_id=lyrics.track_id,
     )
 
 
-def music_video_from_orm(db_video: MusicVideoORM) -> MusicVideo:
+def music_video_from_orm(music_video: MusicVideoORM) -> MusicVideo:
     return MusicVideo(
-        id=db_video.id, local_link=db_video.local_link, track_id=db_video.track_id
+        id=music_video.id,
+        local_link=music_video.local_link,
+        track_id=music_video.track_id,
+    )
+
+
+def user_from_orm(user: UserORM) -> User:
+    return User(
+        id=user.id,
+        username=user.username,
+        password=user.password,
+        email=user.email,
+        api_key=user.api_key,
+        is_admin=user.is_admin,
     )

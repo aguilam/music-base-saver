@@ -15,8 +15,8 @@ from utils.utils import (
     save_url_file,
 )
 import shutil
+from .db.manager import DBManager
 from .db.models import (
-    DBManager,
     TrackORM,
     TrackLink,
     AlbumORM,
@@ -28,10 +28,18 @@ from .db.models import (
     TrackArtistsLink,
     LyricsORM,
     PlaylistTrackLink,
-    User,
+    UserORM as User,
     MusicVideoORM,
 )
-from schemas.schemas import Artist, Album, Playlist, Track, Lyrics, MusicVideo
+from .schemas.schemas import (
+    Artist,
+    Album,
+    Playlist,
+    Track,
+    Lyrics,
+    MusicVideo,
+    LyricsResponse,
+)
 from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
 from concurrent.futures import ThreadPoolExecutor
@@ -108,38 +116,41 @@ class LibraryManager:
         }
         for engine in self.search_engines:
             search_engine = engine.instance
+
             res = search_engine.search_tracks(query)
             if res:
                 for item in res:
-                    item["id"] = f"{search_engine.TAG}-{item['id']}"
+                    item.external_id = f"{search_engine.TAG}-{item.external_id}"
                 search_results["tracks"].extend(res)
+
             res = search_engine.search_albums(query)
             if res:
                 for item in res:
-                    item["id"] = f"{search_engine.TAG}-{item['id']}"
+                    item.external_id = f"{search_engine.TAG}-{item.external_id}"
                 search_results["albums"].extend(res)
+
             res = search_engine.search_artists(query)
             if res:
                 for item in res:
-                    item["id"] = f"{search_engine.TAG}-{item['id']}"
+                    item.external_id = f"{search_engine.TAG}-{item.external_id}"
                 search_results["artists"].extend(res)
 
         with self.db_manager.get_session() as session:
             for artist in search_results["artists"]:
                 db_artist: ArtistORM = self.db_manager.get_artist_by_name(
-                    session, artist["name"]
+                    session, artist.name
                 )
-                artist["db_id"] = db_artist.id if db_artist else None
+                artist.id = db_artist.id if db_artist else None
             for album in search_results["albums"]:
                 db_album: AlbumORM = self.db_manager.get_album_by_name(
-                    session, album["title"]
+                    session, album.title
                 )
-                album["db_id"] = db_album.id if db_album else None
+                album.id = db_album.id if db_album else None
             for track in search_results["tracks"]:
                 db_track: TrackORM = self.db_manager.get_track_by_name(
-                    session, track["title"]
+                    session, track.title
                 )
-                track["db_id"] = db_track.id if db_track else None
+                track.id = db_track.id if db_track else None
         return search_results
 
     def get_global_object(self, object_type: str, object_id: str):
@@ -377,8 +388,9 @@ class LibraryManager:
             return playlist
 
     def delete_track(self, track_id: int):
-        track = self.db_manager.delete_track(track_id)
-        return track
+        with self.db_manager.get_session() as session:
+            track = self.db_manager.delete_track(session, track_id)
+            return track
 
     def star(self, user_id: int, object_id: int, object_type: str):
         factory = STAR_LINK_MAP.get(object_type)
@@ -406,39 +418,41 @@ class LibraryManager:
                 session.delete(link)
                 session.commit()
 
-    def get_user_playlists(self, user_id: int) -> list[PlaylistORM]:
+    def get_user_playlists(self, user_id: int):
         with self.db_manager.get_session() as session:
             return self.db_manager.get_user_playlists(session, user_id)
 
-    def get_all_albums(self) -> list[AlbumORM]:
+    def get_all_albums(self):
         with self.db_manager.get_session() as session:
             return self.db_manager.get_all_albums(session)
 
     def get_all_user_starred(self, user_id: int):
-        return self.db_manager.get_all_user_starred(
-            self.db_manager.get_session(), user_id
-        )
+        with self.db_manager.get_session() as session:
+            return self.db_manager.get_all_user_starred(session, user_id)
 
     def get_lyrics(self, track_id: int):
-        track = self.db_manager.get_track_by_id(track_id)
-        artists_name = ", ".join([artist.name for artist in track.artists])
-        lyrics_list = []
-        for lyric in track.lyrics:
-            lyrics_list.append(
-                {
-                    "title": track.title,
-                    "artist": artists_name,
-                    "synced": lyric.is_synced,
-                    "language": lyric.language,
-                    "offset": lyric.offset,
-                    "lines": lyric.synced_text,
-                }
-            )
-        return lyrics_list
+        with self.db_manager.get_session() as session:
+            track = self.db_manager.get_track_by_id(session, track_id)
+            if track is None:
+                return None
+            artists_name = ", ".join([artist.name for artist in track.artists])
+            lyrics_list: list[LyricsResponse] = []
+            for lyrics in track.lyrics:
+                lyrics_list.append(
+                    LyricsResponse(
+                        lyrics.id,
+                        artists_name,
+                        track.title,
+                        lyrics.is_synced,
+                        lyrics.synced_text,
+                        lyrics.plain_text,
+                        lyrics.language,
+                        lyrics.offset,
+                    )
+                )
+            return lyrics_list
 
-    def get_user(
-        self, username: str | None = None, apiKey: str | None = None
-    ) -> User | None:
+    def get_user(self, username: str | None = None, apiKey: str | None = None):
         with self.db_manager.get_session() as session:
             if username is not None:
                 return self.db_manager.get_user_by_name(session, username)

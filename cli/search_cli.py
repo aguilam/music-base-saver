@@ -1,6 +1,5 @@
 import typer
 from core.library_manager import LibraryManager
-from core.schemas import QueryType
 from rich.console import Console
 from rich.table import Table
 
@@ -11,7 +10,7 @@ search_app = typer.Typer(help="Поиск информации по источн
 @search_app.command("track")
 def search_track(query: str):
     library_manager = LibraryManager()
-    tracks = library_manager.global_search(query, QueryType.TRACK)
+    tracks = library_manager.global_search(query)
     table = Table(title="Треки")
     table.add_column("Title", style="magenta")
     table.add_column("Artist", style="magenta")

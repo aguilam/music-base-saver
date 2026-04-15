@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
-from core.db.models import Track, Album, Artist
-from pathlib import Path
+from core.schemas.schemas import Track, Album, Artist, Playlist
 
 
 class Importer(ABC):
@@ -22,19 +21,19 @@ class Importer(ABC):
         pass
 
     @abstractmethod
-    def get_albums(self):
+    def get_albums(self) -> list[Album]:
         pass
 
     @abstractmethod
-    def get_artists(self):
+    def get_artists(self) -> list[Artist]:
         pass
 
     @abstractmethod
-    def get_playlists(self):
+    def get_playlists(self) -> list[Playlist]:
         pass
 
     @abstractmethod
-    def get_playlist(self):
+    def get_playlist(self) -> Playlist:
         pass
 
     @abstractmethod

@@ -1,6 +1,6 @@
 from search.base import Search
 import musicbrainzngs
-from core.schemas import Track
+from core.schemas.schemas import Track
 import uuid
 
 
