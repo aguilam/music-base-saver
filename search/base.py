@@ -24,13 +24,13 @@ class Search(ABC):
         pass
 
     @abstractmethod
-    def get_track(self, id: str) -> list[dict]:
+    def get_track(self, id: str) -> Track:
         pass
 
     @abstractmethod
-    def get_album(self, id: str) -> list[dict]:
+    def get_album(self, id: str) -> Album:
         pass
 
     @abstractmethod
-    def get_artist(self, id: str) -> list[dict]:
+    def get_artist(self, id: str) -> Artist:
         pass

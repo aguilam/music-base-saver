@@ -60,7 +60,7 @@ def load_modules(config: dict, module_classes: dict[str, type[T]]):
 
 
 def load_storages(config: dict, storage_classes: dict[str, Any]):
-    storages = config["storage"]
+    storages = config.get("storage", {})
     active_storages: list[StorageEntry] = []
     for storage in storages:
         if storage.get("enabled", True):

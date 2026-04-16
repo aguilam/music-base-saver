@@ -70,17 +70,17 @@ class LibraryManager:
         self.download_queue = {}
         self.sync_queue = {}
         self.search_engines = load_modules(
-            config["search"], import_modules("search", BaseSearch)
+            config.get("search", {}), import_modules("search", BaseSearch)
         )
         self.storages = load_storages(config, import_modules("storage", BaseStorage))
         self.downloaders = load_modules(
-            config["downloader"], import_modules("downloader", BaseDownloader)
+            config.get("downloader", {}), import_modules("downloader", BaseDownloader)
         )
-        # self.importers = load_modules(
-        #    config["importer"], import_modules("importer", BaseImporter)
-        # )
+        self.importers = load_modules(
+            config.get("importer", {}), import_modules("importer", BaseImporter)
+        )
         self.scrobblers = load_modules(
-            config["scrobbler"], import_modules("scrobbler", BaseScrobbler)
+            config.get("scrobbler", {}), import_modules("scrobbler", BaseScrobbler)
         )
         self.db_manager = DBManager()
         self.executor = ThreadPoolExecutor(max_workers=5)
@@ -157,19 +157,19 @@ class LibraryManager:
         search_tag = object_id.split("-")[0]
         search_id = object_id.split("-")[1]
         for engine in self.search_engines:
-            if engine["tag"] == search_tag:
+            if engine.tag == search_tag:
                 search_engine = engine.instance
                 if object_type == "track":
                     return search_engine.get_track(search_id)
                 elif object_type == "album":
                     album = search_engine.get_album(search_id)
-                    for track in album["tracks"]:
-                        track["id"] = f"{engine.tag}-{track["id"]}"
+                    for track in album.tracks:
+                        track.external_id = f"{engine.tag}-{track.external_id}"
                     return album
                 elif object_type == "artist":
                     artist = search_engine.get_artist(search_id)
-                    for album in artist["albums"]:
-                        album["id"] = f"{engine.tag}-{album["id"]}"
+                    for album in artist.albums:
+                        album.external_id = f"{engine.tag}-{album.external_id}"
                     return artist
 
     def get_download_task(self, task_id: str):
@@ -501,207 +501,235 @@ class LibraryManager:
         self.sync_queue[task_id]["added"] += added
 
     def sync(self, task_id: str):
-        with self.db_manager.get_session() as session:
-            db_tracks = self.db_manager.get_all_tracks_storage_links()
-            storaged_tracks = set()
-            for storage in self.storages:
-                current_storage = storage.instance
-                tracks_path = current_storage.get_all_tracks_paths()
-                named_paths = [f"{storage.id}///{f}" for f in tracks_path]
-                storaged_tracks.update(named_paths)
-            for storage in self.storages:
-                current_storage = storage.instance
-                tracks_path = current_storage.get_all_tracks_paths()
-                named_paths = [f"{storage.id}///{f}" for f in tracks_path]
-                storaged_tracks.update(named_paths)
-            deleted_tracks_links = db_tracks - storaged_tracks
-            added_tracks_links = storaged_tracks - db_tracks
-            tracks_for_deleting = [
-                (track.split("///")[0], track.split("///")[1])
-                for track in deleted_tracks_links
-            ]
-            deleted_count = self.db_manager.bulk_delete_by_links(tracks_for_deleting)
-            self._update_sync_progress(task_id, deleted=deleted_count)
-            tracks_to_adding = {}
-            cover_to_adding = {}
-            lyrics_to_adding = {}
-            videos_to_adding = {}
-            track_added_count = 0
-            cover_added_count = 0
-            for track in added_tracks_links:
-                k, v = track.split("///")
-                if any(ext in v for ext in ["jpeg", "jpg", "png"]):
-                    if k in cover_to_adding:
-                        cover_to_adding[k].append(v)
-                    else:
-                        cover_to_adding[k] = [v]
-                elif any(ext in v for ext in ["lrc"]):
-                    if k in lyrics_to_adding:
-                        lyrics_to_adding[k].append(v)
-                    else:
-                        lyrics_to_adding[k] = [v]
-                elif "mp4" in v:
-                    if k in videos_to_adding:
-                        videos_to_adding[k].append(v)
-                    else:
-                        videos_to_adding[k] = [v]
-                elif any(ext in v for ext in ["m4a", "flac", "mp3", "opus"]):
-                    if k in tracks_to_adding:
-                        tracks_to_adding[k].append(v)
-                    else:
-                        tracks_to_adding[k] = [v]
-            for storage in self.storages:
-                current_storage = storage.instance
-                if storage.id in tracks_to_adding:
-                    for path in tracks_to_adding[storage.id]:
-                        track_metadata = current_storage.get_track_metadata(path)
-                        db_artist = self.db_manager.get_artist_by_name(
-                            session, track_metadata["artist"]
-                        )
-                        if db_artist is None:
-                            db_artist = self.db_manager.add(
-                                session, ArtistORM(name=track_metadata["artist"])
-                            )
-
-                        if track_metadata["album"]:
-                            db_album = self.db_manager.get_album_by_name(
-                                session, track_metadata["album"]
-                            )
-                            if db_album is None:
-                                db_album = AlbumORM(title=track_metadata["album"])
-                                db_artist.albums.append(db_album)
-                                session.flush()
+        try:
+            with self.db_manager.get_session() as session:
+                db_tracks = self.db_manager.get_all_tracks_storage_links(session)
+                storaged_tracks = set()
+                for storage in self.storages:
+                    current_storage = storage.instance
+                    tracks_path = current_storage.get_all_tracks_paths()
+                    named_paths = [f"{storage.id}///{f}" for f in tracks_path]
+                    storaged_tracks.update(named_paths)
+                for storage in self.storages:
+                    current_storage = storage.instance
+                    tracks_path = current_storage.get_all_tracks_paths()
+                    named_paths = [f"{storage.id}///{f}" for f in tracks_path]
+                    storaged_tracks.update(named_paths)
+                deleted_tracks_links = db_tracks - storaged_tracks
+                added_tracks_links = storaged_tracks - db_tracks
+                tracks_for_deleting = [
+                    (track.split("///")[0], track.split("///")[1])
+                    for track in deleted_tracks_links
+                ]
+                deleted_count = self.db_manager.bulk_delete_by_links(
+                    session, tracks_for_deleting
+                )
+                self._update_sync_progress(task_id, deleted=deleted_count)
+                tracks_to_adding = {}
+                cover_to_adding = {}
+                lyrics_to_adding = {}
+                videos_to_adding = {}
+                track_added_count = 0
+                cover_added_count = 0
+                for track in added_tracks_links:
+                    k, v = track.split("///")
+                    if any(ext in v for ext in ["jpeg", "jpg", "png"]):
+                        if k in cover_to_adding:
+                            cover_to_adding[k].append(v)
                         else:
-                            db_album = None
+                            cover_to_adding[k] = [v]
+                    elif any(ext in v for ext in ["lrc", "txt"]):
+                        if k in lyrics_to_adding:
+                            lyrics_to_adding[k].append(v)
+                        else:
+                            lyrics_to_adding[k] = [v]
+                    elif "mp4" in v:
+                        if k in videos_to_adding:
+                            videos_to_adding[k].append(v)
+                        else:
+                            videos_to_adding[k] = [v]
+                    elif any(ext in v for ext in ["m4a", "flac", "mp3", "opus"]):
+                        if k in tracks_to_adding:
+                            tracks_to_adding[k].append(v)
+                        else:
+                            tracks_to_adding[k] = [v]
+                for storage in self.storages:
+                    current_storage = storage.instance
+                    if storage.id in tracks_to_adding:
+                        for path in tracks_to_adding[storage.id]:
+                            track_metadata = current_storage.get_track_metadata(path)
+                            db_artist = self.db_manager.get_artist_by_name(
+                                session, track_metadata["artist"]
+                            )
+                            if db_artist is None:
+                                db_artist = self.db_manager.add(
+                                    session, ArtistORM(name=track_metadata["artist"])
+                                )
 
-                        new_track = TrackORM(
-                            title=track_metadata["title"],
-                            length=track_metadata["length"],
-                            album=db_album,
-                        )
-                        new_link = TrackLink(
-                            link_type="storage",
-                            link_provider=current_storage.id,
-                            link=str(path),
-                        )
-                        new_track.links.append(new_link)
-                        session.add(new_track)
-                        session.flush()
-                        track_artist = TrackArtistsLink(
-                            artist_id=db_artist.id, track_id=new_track.id
-                        )
-                        session.add(track_artist)
-                        session.flush()
-                        track_added_count += 1
-                        self._update_sync_progress(task_id, added=1)
-                if storage.id in cover_to_adding:
-                    for path in cover_to_adding[storage.id]:
-                        content_id = None
-                        content_type = None
-                        entity = None
-                        id_from_cover = current_storage.get_cover_metadata(path)
-                        if id_from_cover is None:
-                            file_name = Path(path).stem.split(":")[1]
-                            if "-" not in file_name:
+                            if track_metadata["album"]:
+                                db_album = self.db_manager.get_album_by_name(
+                                    session, track_metadata["album"]
+                                )
+                                if db_album is None:
+                                    db_album = AlbumORM(title=track_metadata["album"])
+                                    db_artist.albums.append(db_album)
+                                    session.flush()
+                            else:
+                                db_album = None
+
+                            new_track = TrackORM(
+                                title=track_metadata["title"],
+                                length=track_metadata["length"],
+                                album=db_album,
+                            )
+                            new_link = TrackLink(
+                                link_type="storage",
+                                link_provider=current_storage.id,
+                                link=str(path),
+                            )
+                            new_track.links.append(new_link)
+                            session.add(new_track)
+                            session.flush()
+                            track_artist = TrackArtistsLink(
+                                artist_id=db_artist.id, track_id=new_track.id
+                            )
+                            session.add(track_artist)
+                            session.flush()
+                            track_added_count += 1
+                            self._update_sync_progress(task_id, added=1)
+                    if storage.id in cover_to_adding:
+                        for path in cover_to_adding[storage.id]:
+                            content_id = None
+                            content_type = None
+                            entity = None
+                            id_from_cover = current_storage.get_cover_metadata(path)
+                            if id_from_cover is None:
+                                file_name = Path(path).stem.split(":")[1]
+                                if "-" not in file_name:
+                                    continue
+                                subject, subject_id = file_name.split("-")
+                                subject_id = int(subject_id)
+                                if subject == "al":
+                                    album = self.db_manager.get_album_by_id(
+                                        session, subject_id
+                                    )
+                                    if album is None:
+                                        continue
+                                    content_type = "al"
+                                    content_id = album.id
+                                elif subject == "ar":
+                                    artist = self.db_manager.get_artist_by_id(
+                                        session, subject_id
+                                    )
+                                    if artist is None:
+                                        continue
+                                    content_type = "ar"
+                                    content_id = artist.id
+                                elif subject == "pl":
+                                    playlist = self.db_manager.get_playlist_by_id(
+                                        session, subject_id
+                                    )
+                                    if playlist is None:
+                                        continue
+                                    content_type = "pl"
+                                    content_id = playlist.id
+                                current_storage.write_cover_metadata(
+                                    path, f"{content_type}-{content_id}"
+                                )
+                            else:
+                                subject, subject_id = id_from_cover.split("-")
+                                content_type = subject
+                                content_id = int(subject_id)
+                            if content_id is None or content_type is None:
                                 continue
-                            subject, subject_id = file_name.split("-")
-                            subject_id = int(subject_id)
-                            if subject == "al":
-                                album = self.db_manager.get_album_by_id(
-                                    session, subject_id
+                            if content_type == "al":
+                                entity = self.db_manager.get_album_by_id(
+                                    session, content_id
                                 )
-                                if album is None:
-                                    continue
-                                content_type = "al"
-                                content_id = album.id
-                            elif subject == "ar":
-                                artist = self.db_manager.get_artist_by_id(
-                                    session, subject_id
+                            elif content_type == "ar":
+                                entity = self.db_manager.get_artist_by_id(
+                                    session, content_id
                                 )
-                                if artist is None:
-                                    continue
-                                content_type = "ar"
-                                content_id = artist.id
-                            elif subject == "pl":
-                                playlist = self.db_manager.get_playlist_by_id(
-                                    session, subject_id
+                            elif content_type == "pl":
+                                entity = self.db_manager.get_playlist_by_id(
+                                    session, content_id
                                 )
-                                if playlist is None:
+                            if entity is None:
+                                continue
+                            entity.cover_path = f"{storage.id}///{path}"
+                            session.flush()
+                            cover_added_count += 1
+                            self._update_sync_progress(task_id, added=1)
+                    if storage.id in lyrics_to_adding:
+                        for path in lyrics_to_adding[storage.id]:
+                            text_path = current_storage.get_track(path)
+                            if ".lrc" in path:
+                                with open(text_path, "r", encoding="utf-8") as file:
+                                    file_content = analyze_lrc(file.readlines())
+                                track = self.db_manager.get_track_by_name(
+                                    session, file_content["title"]
+                                )
+                                if track is None:
                                     continue
-                                content_type = "pl"
-                                content_id = playlist.id
-                            current_storage.write_cover_metadata(
-                                path, f"{content_type}-{content_id}"
-                            )
-                        else:
-                            subject, subject_id = id_from_cover.split("-")
-                            content_type = subject
-                            content_id = int(subject_id)
-                        if content_id is None or content_type is None:
-                            continue
-                        if content_type == "al":
-                            entity = self.db_manager.get_album_by_id(
-                                session, content_id
-                            )
-                        elif content_type == "ar":
-                            entity = self.db_manager.get_artist_by_id(
-                                session, content_id
-                            )
-                        elif content_type == "pl":
-                            entity = self.db_manager.get_playlist_by_id(
-                                session, content_id
-                            )
-                        if entity is None:
-                            continue
-                        entity.cover_path = f"{storage.id}///{path}"
-                        session.flush()
-                        cover_added_count += 1
-                        self._update_sync_progress(task_id, added=1)
-                if storage.id in lyrics_to_adding:
-                    for path in lyrics_to_adding[storage.id]:
-                        text_path = current_storage.get_track(path)
-                        if ".lrc" in path:
-                            with open(text_path, "r", encoding="utf-8") as file:
-                                file_content = analyze_lrc(file.readlines())
+                                lyrics = LyricsORM(
+                                    is_synced=True,
+                                    language="und",
+                                    synced_text=file_content["text"],
+                                    offset=file_content["offset"],
+                                    track_id=track.id,
+                                    original_path=f"{storage.id}///{text_path}",
+                                )
+                                session.add(lyrics)
+                                session.flush()
+                            elif ".txt" in path:
+                                track = self.db_manager.get_track_by_name(
+                                    session, Path(path).stem.split(":")[1]
+                                )
+                                if track is None:
+                                    continue
+                                lines = []
+                                with open(text_path, "r", encoding="utf-8") as file:
+                                    for line in file.readlines():
+                                        lines.append(line)
+                                lyrics = LyricsORM(
+                                    is_synced=True,
+                                    language="und",
+                                    plain_text="\n".join(lines),
+                                    track_id=track.id,
+                                    original_path=f"{storage.id}///{text_path}",
+                                )
+                                session.add(lyrics)
+                                session.flush()
+                    if storage.id in videos_to_adding:
+                        for path in videos_to_adding[storage.id]:
+                            video_metadata = current_storage.get_video_metadata(path)
+                            video_title = video_metadata["title"]
+                            filename = Path(path).stem.rsplit(":", maxsplit=1)[1]
+                            if video_title is None:
+                                video_title = filename
                             track = self.db_manager.get_track_by_name(
-                                session, file_content["title"]
+                                session, video_title
                             )
                             if track is None:
-                                continue
-                            lyric = LyricsORM(
-                                is_synced=True,
-                                language="und",
-                                synced_text=file_content["text"],
-                                offset=file_content["offset"],
-                                track_id=track.id,
-                                original_path=f"{storage.id}///{text_path}",
-                            )
-                            session.add(lyric)
-                            session.flush()
-                if storage.id in videos_to_adding:
-                    for path in videos_to_adding[storage.id]:
-                        video_metadata = current_storage.get_video_metadata(path)
-                        video_title = video_metadata["title"]
-                        filename = Path(path).stem.rsplit(":", maxsplit=1)[1]
-                        if video_title is None:
-                            video_title = filename
-                        track = self.db_manager.get_track_by_name(session, video_title)
-                        if track is None:
-                            id_parts = filename[1].rsplit("-")
-                            if len(id_parts) == 2 and id_parts[0] == "tr":
-                                track = self.db_manager.get_track_by_id(id_parts[1])
+                                id_parts = filename[1].rsplit("-")
+                                if len(id_parts) == 2 and id_parts[0] == "tr":
+                                    track = self.db_manager.get_track_by_id(id_parts[1])
 
-                        if track is None:
-                            continue
-                        music_video = MusicVideoORM(
-                            is_external_link=False,
-                            local_link=f"{storage.id}///{path}",
-                            track_id=track.id,
-                        )
-                        session.add(music_video)
-                        session.flush()
-            session.commit()
-            self.sync_queue[task_id]["status"] = "Finished"
+                            if track is None:
+                                continue
+                            music_video = MusicVideoORM(
+                                is_external_link=False,
+                                local_link=f"{storage.id}///{path}",
+                                track_id=track.id,
+                            )
+                            session.add(music_video)
+                            session.flush()
+                session.commit()
+                self.sync_queue[task_id]["status"] = "Finished"
+        except Exception as e:
+            import traceback
+
+            traceback.print_exc()
 
     def import_tracks(self, importer_tag: str, user_id: int | None = None):
         importers = self.importers

@@ -8,9 +8,13 @@ from core.db.models import (
     UserORM,
 )
 from core.schemas.schemas import (
+    TrackShort,
     Track,
+    ArtistShort,
     Artist,
+    AlbumShort,
     Album,
+    AlbumShort,
     Playlist,
     MusicVideo,
     Lyrics,
@@ -27,6 +31,14 @@ def artist_from_orm(artist: ArtistORM) -> Artist:
     )
 
 
+def artist_short_from_orm(artist: ArtistORM) -> ArtistShort:
+    return ArtistShort(
+        id=artist.id,
+        name=artist.name,
+        cover_path=artist.cover_path,
+    )
+
+
 def album_from_orm(album: AlbumORM) -> Album:
     return Album(
         id=album.id,
@@ -34,8 +46,21 @@ def album_from_orm(album: AlbumORM) -> Album:
         cover_path=album.cover_path,
         duration=album.duration,
         tracks_count=album.track_count,
-        artist=artist_from_orm(album.artist_rel),
+        artist=artist_short_from_orm(album.artist_rel),
         tracks=[track_from_orm(track) for track in album.tracks],
+        created_at=album.created_at,
+    )
+
+
+def album_short_from_orm(album: AlbumORM) -> AlbumShort:
+    return AlbumShort(
+        id=album.id,
+        title=album.title,
+        cover_path=album.cover_path,
+        duration=album.duration,
+        tracks_count=album.track_count,
+        artist=artist_short_from_orm(album.artist_rel),
+        tracks=[track_short_from_orm(track) for track in album.tracks],
         created_at=album.created_at,
     )
 
@@ -59,11 +84,11 @@ def track_from_orm(track: TrackORM) -> Track:
         id=track.id,
         title=track.title,
         length=track.length,
-        artists=[artist_from_orm(artist) for artist in track.artists],
-        album=album_from_orm(track.album),
+        artists=[artist_short_from_orm(artist) for artist in track.artists],
+        album=album_short_from_orm(track.album),
         album_position=track.album_position,
         cover_path=track.album.cover_path,
-        path=next(link for link in track.links),
+        path=next((link.link for link in track.links), None),
         bpm=track.bpm,
         track_gain=track.trackGain,
         track_peak=track.trackPeak,
@@ -71,6 +96,23 @@ def track_from_orm(track: TrackORM) -> Track:
         disc_number=track.discNumber,
         lyrics=[lyrics_from_orm(lyrics) for lyrics in track.lyrics],
         music_videos=[music_video_from_orm(video) for video in track.music_videos],
+        created_at=track.created_at,
+    )
+
+
+def track_short_from_orm(track: TrackORM) -> TrackShort:
+    return TrackShort(
+        id=track.id,
+        title=track.title,
+        length=track.length,
+        album_position=track.album_position,
+        cover_path=track.album.cover_path,
+        path=next((link.link for link in track.links), None),
+        bpm=track.bpm,
+        track_gain=track.trackGain,
+        track_peak=track.trackPeak,
+        year=track.year,
+        disc_number=track.discNumber,
         created_at=track.created_at,
     )
 

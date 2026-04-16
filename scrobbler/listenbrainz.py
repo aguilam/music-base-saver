@@ -1,5 +1,5 @@
 from scrobbler.base import Scrobbler
-from core.db.models import Track
+from core.schemas.schemas import Track
 import liblistenbrainz
 
 
@@ -9,7 +9,7 @@ class ListenBrainz(Scrobbler):
     def __init__(self, config):
         self.config = config
         self.client = liblistenbrainz.ListenBrainz()
-        self.client.set_auth_token(config["token"])
+        self.client.set_auth_token(config.get("token", ""))
 
     def post_playing_now(self, track: Track):
         artists_names = [artist.name for artist in track.artists]

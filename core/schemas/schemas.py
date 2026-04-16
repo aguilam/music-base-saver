@@ -6,16 +6,23 @@ from datetime import datetime
 @dataclass(slots=True)
 class Artist:
     id: int | None
-    external_id: int | None
     name: str
     cover_path: str | None
     albums: list[Album]
+    external_id: int | None = None
+
+
+@dataclass(slots=True)
+class ArtistShort:
+    id: int | None
+    name: str
+    cover_path: str | None
+    external_id: int | None = None
 
 
 @dataclass(slots=True)
 class Album:
     id: int | None
-    external_id: int | None
     title: str
     cover_path: str | None
     duration: int
@@ -23,6 +30,20 @@ class Album:
     artist: Artist
     tracks: list[Track]
     created_at: datetime
+    external_id: int | None = None
+
+
+@dataclass(slots=True)
+class AlbumShort:
+    id: int | None
+    title: str
+    cover_path: str | None
+    duration: int
+    tracks_count: int
+    artist: ArtistShort
+    tracks: list[Track]
+    created_at: datetime
+    external_id: int | None = None
 
 
 @dataclass(slots=True)
@@ -41,12 +62,11 @@ class Playlist:
 @dataclass(slots=True)
 class Track:
     id: int | None
-    external_id: int | None
     title: str
-    artists: list[Artist]
+    artists: list[ArtistShort]
     album: Album | None
     cover_path: str | None
-    path: str
+    path: str | None
     length: int
     album_position: int | None
     bpm: int | None
@@ -57,6 +77,24 @@ class Track:
     lyrics: list[Lyrics]
     music_videos: list[MusicVideo]
     created_at: datetime
+    external_id: int | None = None
+
+
+@dataclass(slots=True)
+class TrackShort:
+    id: int | None
+    title: str
+    cover_path: str | None
+    path: str | None
+    length: int
+    album_position: int | None
+    bpm: int | None
+    track_gain: float | None
+    track_peak: float | None
+    disc_number: int | None
+    year: int | None
+    created_at: datetime
+    external_id: int | None = None
 
 
 @dataclass(slots=True)
