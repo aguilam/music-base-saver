@@ -1,6 +1,6 @@
 from search.base import Search
 import itunespy
-from core.schemas.schemas import Track, Album, Artist
+from core.schemas.schemas import Track, Album, Artist, ArtistShort
 
 
 class iTunes(Search):
@@ -25,7 +25,7 @@ class iTunes(Search):
                     title=title,
                     length=length,
                     cover_path=cover_url,
-                    artists=[Artist(name=artist)],
+                    artists=[ArtistShort(name=artist)],
                     album=Album(title=album),
                 )
             )

@@ -1,6 +1,6 @@
 from search.base import Search
 import musicbrainzngs
-from core.schemas.schemas import Track
+from core.schemas.schemas import Track, Album, Artist, ArtistShort
 import uuid
 
 
@@ -18,26 +18,34 @@ class MusicBrainz(Search):
         tracks = musicbrainzngs.search_recordings(query)
         normalized_tracks = []
         for track in tracks["recording-list"]:
-            artists = [track["artist-credit"][0]["name"]]
+            track_artists = [ArtistShort(name=track["artist-credit"][0]["name"])]
             for alias in track["artist-credit"][0]["artist"].get("alias-list", []):
-                artists.append(alias.get("alias"))
+                track_artists.append(ArtistShort(name=alias.get("alias")))
             normalized_tracks.append(
-                {
-                    "id": str(uuid.uuid4()),
-                    "title": track["title"],
-                    "artist": artists,
-                    "length": int(track.get("length", 0)),
-                    "source": self.TAG,
-                }
+                Track(
+                    external_id=track["id"],
+                    title=track["title"],
+                    artists=track_artists,
+                    length=int(track.get("length", 0)),
+                )
             )
         return normalized_tracks
 
-    def search_albums(self, query: str) -> list[dict]:
+    def search_albums(self, query: str) -> list[Album]:
         albums = musicbrainzngs.search_releases(query)
 
         return albums["release-list"]
 
-    def search_artists(self, query: str) -> list[dict]:
+    def search_artists(self, query: str) -> list[Artist]:
         artists = musicbrainzngs.search_artists(query)
 
         return artists["artist-list"]
+
+    def get_track(self, id: str) -> Track:
+        pass
+
+    def get_album(self, id: str) -> Album:
+        pass
+
+    def get_artist(self, id: str) -> Artist:
+        pass
