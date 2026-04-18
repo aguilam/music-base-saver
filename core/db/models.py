@@ -6,7 +6,7 @@ from sqlmodel import (
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from typing import ClassVar
-from typing import List, Optional
+from typing import Optional
 from sqlalchemy import (
     Column,
     Integer,
@@ -102,26 +102,29 @@ class UserORM(SQLModel, table=True):
     username: str = Field(unique=True)
     password: str
     email: str
-    api_key: Optional[str] = Field(default=None, unique=True, index=True)
     is_admin: bool
 
-    playlists: List["PlaylistORM"] = Relationship(back_populates="owner")
+    api_keys: list["ApiKeyORM"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"passive_deletes": True},
+    )
+    playlists: list["PlaylistORM"] = Relationship(back_populates="owner")
 
-    starred_tracks_link: List["StarredTrack"] = Relationship(back_populates="user")
-    starred_albums_link: List["StarredAlbum"] = Relationship(back_populates="user")
-    starred_artists_link: List["StarredArtist"] = Relationship(back_populates="user")
+    starred_tracks_link: list["StarredTrack"] = Relationship(back_populates="user")
+    starred_albums_link: list["StarredAlbum"] = Relationship(back_populates="user")
+    starred_artists_link: list["StarredArtist"] = Relationship(back_populates="user")
 
-    starred_tracks: List["TrackORM"] = Relationship(
+    starred_tracks: list["TrackORM"] = Relationship(
         back_populates="starred_by",
         link_model=StarredTrack,
         sa_relationship_kwargs={"viewonly": True},
     )
-    starred_albums: List["AlbumORM"] = Relationship(
+    starred_albums: list["AlbumORM"] = Relationship(
         back_populates="starred_by",
         link_model=StarredAlbum,
         sa_relationship_kwargs={"viewonly": True},
     )
-    starred_artists: List["ArtistORM"] = Relationship(
+    starred_artists: list["ArtistORM"] = Relationship(
         back_populates="starred_by",
         link_model=StarredArtist,
         sa_relationship_kwargs={"viewonly": True},
@@ -134,22 +137,22 @@ class ArtistORM(SQLModel, table=True):
     name: str
     cover_path: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    albums: List["AlbumORM"] = Relationship(
+    albums: list["AlbumORM"] = Relationship(
         back_populates="artist_rel",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    tracks: List["TrackORM"] = Relationship(
+    tracks: list["TrackORM"] = Relationship(
         back_populates="artists", link_model=TrackArtistsLink
     )
-    starred_artist_links: List[StarredArtist] = Relationship(back_populates="artist")
-    starred_by: List["UserORM"] = Relationship(
+    starred_artist_links: list[StarredArtist] = Relationship(back_populates="artist")
+    starred_by: list["UserORM"] = Relationship(
         back_populates="starred_artists",
         link_model=StarredArtist,
         sa_relationship_kwargs={
             "overlaps": "starred_artist_links,starred_artists_link,artist,user"
         },
     )
-    aliases: List["ArtistAlias"] = Relationship(
+    aliases: list["ArtistAlias"] = Relationship(
         back_populates="artist",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
@@ -168,7 +171,7 @@ class AlbumORM(SQLModel, table=True):
     cover_path: Optional[str] = Field(default=None)
     artist_rel: Optional[ArtistORM] = Relationship(back_populates="albums")
 
-    tracks: List["TrackORM"] = Relationship(
+    tracks: list["TrackORM"] = Relationship(
         back_populates="album",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
@@ -203,8 +206,8 @@ class AlbumORM(SQLModel, table=True):
             .scalar_subquery()
         )
 
-    starred_album_links: List[StarredAlbum] = Relationship(back_populates="album")
-    starred_by: List["UserORM"] = Relationship(
+    starred_album_links: list[StarredAlbum] = Relationship(back_populates="album")
+    starred_by: list["UserORM"] = Relationship(
         back_populates="starred_albums",
         link_model=StarredAlbum,
         sa_relationship_kwargs={
@@ -238,7 +241,7 @@ class Genre(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
 
-    tracks: List["TrackORM"] = Relationship(
+    tracks: list["TrackORM"] = Relationship(
         back_populates="genres", link_model=TrackGenreLink
     )
 
@@ -248,7 +251,7 @@ class Mood(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
 
-    tracks: List["TrackORM"] = Relationship(
+    tracks: list["TrackORM"] = Relationship(
         back_populates="moods", link_model=TrackMoodLink
     )
 
@@ -271,33 +274,33 @@ class TrackORM(SQLModel, table=True):
     )
     album: Optional["AlbumORM"] = Relationship(back_populates="tracks")
 
-    lyrics: List["LyricsORM"] = Relationship(
+    lyrics: list["LyricsORM"] = Relationship(
         back_populates="track",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
 
-    links: List["TrackLink"] = Relationship(
+    links: list["TrackLink"] = Relationship(
         back_populates="track",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
 
-    playlist_links: List["PlaylistTrackLink"] = Relationship(back_populates="track")
-    starred_track_links: List["StarredTrack"] = Relationship(back_populates="track")
-    starred_by: List["UserORM"] = Relationship(
+    playlist_links: list["PlaylistTrackLink"] = Relationship(back_populates="track")
+    starred_track_links: list["StarredTrack"] = Relationship(back_populates="track")
+    starred_by: list["UserORM"] = Relationship(
         back_populates="starred_tracks",
         link_model=StarredTrack,
         sa_relationship_kwargs={
             "overlaps": "starred_track_links,starred_tracks_link,track,user"
         },
     )
-    artists: List["ArtistORM"] = Relationship(
+    artists: list["ArtistORM"] = Relationship(
         back_populates="tracks", link_model=TrackArtistsLink
     )
-    music_videos: List["MusicVideoORM"] = Relationship(back_populates="track")
-    genres: List["Genre"] = Relationship(
+    music_videos: list["MusicVideoORM"] = Relationship(back_populates="track")
+    genres: list["Genre"] = Relationship(
         back_populates="tracks", link_model=TrackGenreLink
     )
-    moods: List["Mood"] = Relationship(
+    moods: list["Mood"] = Relationship(
         back_populates="tracks", link_model=TrackMoodLink
     )
 
@@ -394,4 +397,22 @@ class PlaylistORM(SQLModel, table=True):
             .scalar_subquery()
         )
 
-    track_links: List["PlaylistTrackLink"] = Relationship(back_populates="playlist")
+    track_links: list["PlaylistTrackLink"] = Relationship(back_populates="playlist")
+
+
+class ProviderKeyORM(SQLModel, table=True):
+    __tablename__ = "provider_key"
+    id: int | None = Field(default=None, primary_key=True)
+    provider: str
+    key: str
+    user_id: int = Field(foreign_key="user.id", ondelete="CASCADE")
+
+
+class ApiKeyORM(SQLModel, table=True):
+    __tablename__ = "api_key"
+    id: int | None = Field(default=None, primary_key=True)
+    key: str = Field(default=None, unique=True)
+    user_id: int = Field(foreign_key="user.id", ondelete="CASCADE")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    revoked: bool = False
+    user: "UserORM" = Relationship(back_populates="api_keys")

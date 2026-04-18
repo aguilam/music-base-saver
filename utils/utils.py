@@ -11,6 +11,7 @@ import mutagen
 import requests
 import re
 from core.loader import StorageEntry
+from core.schemas.schemas import Track
 
 
 def analyze_lrc(lines: list[str]):
@@ -73,30 +74,30 @@ def compare_tracks(original_metadata: dict, track_metadata: dict):
 
 
 def find_best_track(
-    searched_tracks: list[dict],
+    searched_tracks: list[Track],
 ):
     frequent_title: list[list] = []
     frequent_artists: list[list] = []
     frequent_length = []
     for track in searched_tracks:
         title_added = False
-        for artist in track["artist"]:
+        for artist in track.artists:
             artist_added = False
             for i in range(0, len(frequent_artists)):
-                if frequent_artists[i][0].lower() == artist.lower():
-                    frequent_artists[i].append(artist.lower())
+                if frequent_artists[i][0].lower() == artist.name.lower():
+                    frequent_artists[i].append(artist.name.lower())
                     artist_added = True
                     break
             if artist_added == False:
-                frequent_artists.append([artist.lower()])
+                frequent_artists.append([artist.name.lower()])
         for i in range(0, len(frequent_title)):
-            if frequent_title[i][0].lower() == track["title"].lower():
-                frequent_title[i].append(track["title"].lower())
+            if frequent_title[i][0].lower() == track.title.lower():
+                frequent_title[i].append(track.title.lower())
                 title_added = True
                 break
         if title_added == False:
-            frequent_title.append([track["title"].lower()])
-        frequent_length.append(track["length"])
+            frequent_title.append([track.title.lower()])
+        frequent_length.append(track.length)
     best_match_title = list(
         sorted(frequent_title, key=lambda titles: len(titles), reverse=True)
     )

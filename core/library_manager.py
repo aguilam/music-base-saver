@@ -44,6 +44,7 @@ from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
+from typing import Literal, overload
 import time
 
 STAR_LINK_MAP = {
@@ -153,7 +154,22 @@ class LibraryManager:
                 track.id = db_track.id if db_track else None
         return search_results
 
-    def get_global_object(self, object_type: str, object_id: str):
+    @overload
+    def get_global_object(
+        self, object_type: Literal["track"], object_id: str
+    ) -> Track: ...
+    @overload
+    def get_global_object(
+        self, object_type: Literal["album"], object_id: str
+    ) -> Album: ...
+    @overload
+    def get_global_object(
+        self, object_type: Literal["artist"], object_id: str
+    ) -> Artist: ...
+
+    def get_global_object(
+        self, object_type: Literal["track", "album", "artist"], object_id: str
+    ):
         search_tag = object_id.split("-")[0]
         search_id = object_id.split("-")[1]
         for engine in self.search_engines:
@@ -187,30 +203,33 @@ class LibraryManager:
     def download(
         self,
         task_id: str,
-        query: str = None,
-        object_id: str = None,
+        query: str | None = None,
+        object_id: str | None = None,
     ):
+        if query is None and object_id is None:
+            return None
         downloaders = self.downloaders
+        original_track: Track | None = None
 
         tracks_dict = []
         searched_tracks = []
         if query:
+            self.global_search()
             search_results = []
             for engine in self.search_engines:
                 search_engine = engine.instance
                 results = search_engine.search_tracks(query)
                 for track in results:
-                    track["searched_by"] = search_engine.TAG
-                    search_results.append(track)
+                    track.external_id = f"{search_engine.TAG}-{track.external_id}"
+            if len(search_results) < 1:
+                return None
             original_track = find_best_track(search_results)
         elif object_id:
             track = self.get_global_object("track", object_id)
-            original_track = {
-                "title": [track["title"]],
-                "artist": track["artist"],
-                "length": [track["length"]],
-            }
-        search_query = original_track.get("title", None)[0] if object_id else query
+            original_track = track
+        if original_track is None:
+            return None
+        search_query = original_track.title if object_id else query
         for downloader in downloaders:
             current_downloader = downloader.instance
             downloader_search = current_downloader.search(search_query)
@@ -229,9 +248,7 @@ class LibraryManager:
         track_downloader = next(
             (d for d in downloaders if d.tag == best_track["downloader"]), None
         )
-        downloader = track_downloader["class"](
-            self.config["downloader"][best_track["downloader"]]["params"]
-        )
+        downloader = track_downloader.instance
         track_path = downloader.download(
             best_track, lambda progress: self._update_progress(task_id, progress)
         )
@@ -301,36 +318,50 @@ class LibraryManager:
                 return Path(cover_path).read_bytes()
 
     def get_all_tracks(self):
-        tracks = self.db_manager.get_all_tracks()
-        return tracks
+        with self.db_manager.get_session() as session:
+            tracks = self.db_manager.get_all_tracks(session)
+            return tracks
 
     def get_all_artists(self):
-        artists = self.db_manager.get_all_artists()
-        return artists
+        with self.db_manager.get_session() as session:
+            artists = self.db_manager.get_all_artists(session)
+            return artists
 
     def get_all_albums(self):
-        albums = self.db_manager.get_all_albums()
-        return albums
+        with self.db_manager.get_session() as session:
+            albums = self.db_manager.get_all_albums(session)
+            return albums
 
     def get_track_by_id(self, id: int):
-        track = self.db_manager.get_track_by_id(id)
-        return track
+        with self.db_manager.get_session() as session:
+            track = self.db_manager.get_track_by_id(session, id)
+            return track
 
-    def scrobble(self, id: int, listen_time: int | None = None):
-        with self.db_manager.get_session():
-            track = self.db_manager.get_track_by_id(id)
-        if listen_time is None:
-            listen_time = int(time.time())
-        for scrobbler in self.scrobblers:
-            scrobbler_class = scrobbler.instance
-            scrobbler_class.submit_listen(track, listen_time)
+    def scrobble(self, id: int, user_id: str, listen_time: int | None = None):
+        with self.db_manager.get_session() as session:
+            track = self.db_manager.get_track_by_id(session, id)
+            if listen_time is None:
+                listen_time = int(time.time())
+            for scrobbler in self.scrobblers:
+                provider_key = self.db_manager.get_provider_key(
+                    session, scrobbler.tag, user_id
+                )
+                if provider_key is None:
+                    continue
+                scrobbler_class = scrobbler.instance
+                scrobbler_class.submit_listen(track, provider_key, listen_time)
 
-    def post_now_playing(self, id: int):
-        with self.db_manager.get_session():
-            track = self.db_manager.get_track_by_id(id)
-        for scrobbler in self.scrobblers:
-            scrobbler_class = scrobbler.instance
-            scrobbler_class.post_playing_now(track)
+    def post_now_playing(self, id: int, user_id: str):
+        with self.db_manager.get_session() as session:
+            track = self.db_manager.get_track_by_id(session, id)
+            for scrobbler in self.scrobblers:
+                provider_key = self.db_manager.get_provider_key(
+                    session, scrobbler.tag, user_id
+                )
+                if provider_key is None:
+                    continue
+                scrobbler_class = scrobbler.instance
+                scrobbler_class.post_playing_now(track, provider_key)
 
     def get_album_by_id(self, id: int):
         with self.db_manager.get_session() as session:

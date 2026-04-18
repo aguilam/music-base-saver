@@ -74,7 +74,7 @@ def playlist_from_orm(playlist: PlaylistORM) -> Playlist:
         owner=user_from_orm(playlist.owner),
         duration=playlist.duration,
         tracks_count=playlist.track_count,
-        tracks=[track_from_orm(track) for track in playlist.tracks],
+        tracks=[track_from_orm(link.track) for link in playlist.track_links],
         created_at=playlist.created_at,
     )
 

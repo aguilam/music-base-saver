@@ -3,11 +3,10 @@ from pathlib import Path
 from fastapi import FastAPI, status, Request, APIRouter, Depends
 from fastapi.responses import Response, JSONResponse
 from core.library_manager import LibraryManager
-from core.schemas import QueryType
 from collections import defaultdict
 import hashlib
 from typing import Annotated
-from core.db.models import User
+from core.schemas.schemas import User
 from hmac import compare_digest
 from utils.utils import image_mime
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +20,31 @@ from api.mappers import (
     external_artist_to_subsonic,
     external_track_to_subsonic,
 )
+import json
+
+
+class SubsonicException(Exception):
+    def __init__(self, code: int, message: str):
+        self.code = code
+        self.message = message
+
+
+opensubsonic_error = {
+    0: "A generic error.",
+    10: "Required parameter is missing.",
+    20: "Incompatible Subsonic REST protocol version. Client must upgrade.",
+    40: "Wrong username or password.",
+    42: "Provided authentication mechanism not supported.",
+    43: "Multiple conflicting authentication mechanisms provided.",
+    44: "Invalid API key.",
+    50: "User is not authorized for the given operation.",
+    70: "The requested data was not found.",
+}
+
+
+def raise_subsonic_error(code: int):
+    message = opensubsonic_error.get(code, "Error")
+    raise SubsonicException(code, message)
 
 
 async def get_user(
@@ -34,36 +58,11 @@ async def get_user(
     token = t
     salt = s
     if username is not None and api_key is not None:
-        return JSONResponse(
-            {
-                "subsonic-response": {
-                    "status": "failed",
-                    "version": "1.16.1",
-                    "type": "AwesomeServerName",
-                    "serverVersion": "0.1.3 (tag)",
-                    "openSubsonic": True,
-                    "error": {
-                        "code": 43,
-                        "message": "Multiple conflicting authentication mechanisms provided",
-                    },
-                }
-            }
-        )
+        raise_subsonic_error(43)
     if api_key is not None and username is None:
         user = library_manager.get_user(apiKey=api_key)
         if user is None:
-            return JSONResponse(
-                {
-                    "subsonic-response": {
-                        "status": "failed",
-                        "version": "1.16.1",
-                        "type": "AwesomeServerName",
-                        "serverVersion": "0.1.3 (tag)",
-                        "openSubsonic": True,
-                        "error": {"code": 44, "message": "Invalid API key"},
-                    }
-                }
-            )
+            raise_subsonic_error(44)
         return user
     elif (
         username is not None
@@ -78,35 +77,10 @@ async def get_user(
             )
             and compare_digest(username, user.username)
         ):
-            return JSONResponse(
-                {
-                    "subsonic-response": {
-                        "status": "failed",
-                        "version": "1.16.1",
-                        "type": "AwesomeServerName",
-                        "serverVersion": "0.1.3 (tag)",
-                        "openSubsonic": True,
-                        "error": {"code": 40, "message": "Wrong username or password"},
-                    }
-                }
-            )
+            raise_subsonic_error(40)
         return user
     else:
-        return JSONResponse(
-            {
-                "subsonic-response": {
-                    "status": "failed",
-                    "version": "1.16.1",
-                    "type": "AwesomeServerName",
-                    "serverVersion": "0.1.3 (tag)",
-                    "openSubsonic": True,
-                    "error": {
-                        "code": 10,
-                        "message": "Required parameter is missing",
-                    },
-                }
-            }
-        )
+        raise_subsonic_error(10)
 
 
 app = FastAPI()
@@ -118,11 +92,57 @@ app.add_middleware(
     allow_headers=["*"],
 )
 subsonic_router = APIRouter(prefix="/rest", dependencies=[Depends(get_user)])
-toml_file_path = Path("config.toml")
-with toml_file_path.open("rb") as config_file:
-    config = tomllib.load(config_file)
-
 library_manager = LibraryManager()
+
+
+@app.exception_handler(SubsonicException)
+async def subsonic_exception_handler(request: Request, exc: SubsonicException):
+    return JSONResponse(
+        status_code=200,
+        content={
+            "error": {"code": exc.code, "message": exc.message},
+        },
+    )
+
+
+@app.middleware("http")
+async def subsonic_middleware(request: Request, call_next):
+    response: Response = await call_next(request)
+    if not request.url.path.startswith("/rest"):
+        return response
+    content_type = response.headers.get("content-type", "")
+    if not content_type.startswith("application/json"):
+        return response
+
+    body = b""
+    async for chunk in response.body_iterator:
+        body += chunk
+    try:
+        response_body = json.loads(body)
+
+    except json.JSONDecodeError:
+        return response
+    status = "failed" if response_body.get("error") else "ok"
+    wrapped_body = {
+        "subsonic-response": {
+            "status": status,
+            "version": "1.16.1",
+            "type": "MusicSaver",
+            "serverVersion": "0.0.1 (tag)",
+            "openSubsonic": True,
+            **response_body,
+        }
+    }
+    headers = dict(response.headers)
+    headers.pop("content-length", None)
+    new_response = JSONResponse(
+        content=wrapped_body,
+        status_code=response.status_code,
+        background=response.background,
+        headers=headers,
+    )
+
+    return new_response
 
 
 @app.get("/")
@@ -146,7 +166,7 @@ def change_configuration():
 
 
 @app.get("/search")
-def search(query: str, type: QueryType):
+def search(query: str, type: str):
     search_results = library_manager.search(query, type)
     return search_results
 
@@ -203,14 +223,7 @@ def get_user_playlists(user: Annotated[User, Depends(get_user)]):
     user_playlists = library_manager.get_user_playlists(user.id)
     subsonic_playlists = [to_subsonic_playlist(playlist) for playlist in user_playlists]
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "playlists": {"playlist": subsonic_playlists},
-        }
+        "playlists": {"playlist": subsonic_playlists},
     }
 
 
@@ -218,19 +231,7 @@ def get_user_playlists(user: Annotated[User, Depends(get_user)]):
 def get_playlist(id: int, user: Annotated[User, Depends(get_user)]):
     playlist = library_manager.get_playlist_by_id(id)
     if playlist is None:
-        return {
-            "subsonic-response": {
-                "status": "failed",
-                "version": "1.16.1",
-                "type": "AwesomeServerName",
-                "serverVersion": "0.1.3 (tag)",
-                "openSubsonic": True,
-                "error": {
-                    "code": 70,
-                    "message": "The requested data was not found",
-                },
-            }
-        }
+        raise_subsonic_error(70)
     subsonic_playlist = to_subsonic_playlist(playlist)
     tracks = []
     for track in playlist.tracks:
@@ -245,14 +246,7 @@ def get_playlist(id: int, user: Annotated[User, Depends(get_user)]):
         tracks.append(subsonic_track)
     subsonic_playlist["entry"] = tracks
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "playlist": subsonic_playlist,
-        }
+        "playlist": subsonic_playlist,
     }
 
 
@@ -263,18 +257,11 @@ def get_user_starred(user: Annotated[User, Depends(get_user)]):
     parsed_albums = [to_subsonic_album(album) for album in albums]
     parsed_artist = [to_subsonic_artist(artist) for artist in artists]
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "starred2": {
-                "artist": parsed_artist,
-                "album": parsed_albums,
-                "song": parsed_tracks,
-            },
-        }
+        "starred2": {
+            "artist": parsed_artist,
+            "album": parsed_albums,
+            "song": parsed_tracks,
+        },
     }
 
 
@@ -283,67 +270,19 @@ def get_cover_art(id: str):
     splited_id = id.split("-")
     cover_path = ""
     if len(splited_id) != 2:
-        return {
-            "subsonic-response": {
-                "status": "failed",
-                "version": "1.16.1",
-                "type": "AwesomeServerName",
-                "serverVersion": "0.1.3 (tag)",
-                "openSubsonic": True,
-                "error": {
-                    "code": 70,
-                    "message": "The requested data was not found",
-                },
-            }
-        }
+        raise_subsonic_error(70)
     if splited_id[0] == "al":
         album = library_manager.get_album_by_id(splited_id[1])
         if album is None or album.cover_path is None:
-            return {
-                "subsonic-response": {
-                    "status": "failed",
-                    "version": "1.16.1",
-                    "type": "AwesomeServerName",
-                    "serverVersion": "0.1.3 (tag)",
-                    "openSubsonic": True,
-                    "error": {
-                        "code": 70,
-                        "message": "The requested data was not found",
-                    },
-                }
-            }
+            raise_subsonic_error(70)
         cover_path = album.cover_path
     elif splited_id[0] == "ar":
         artist = library_manager.get_artist_by_id(splited_id[1])
         if artist is None or artist.cover_path is None:
-            return {
-                "subsonic-response": {
-                    "status": "failed",
-                    "version": "1.16.1",
-                    "type": "AwesomeServerName",
-                    "serverVersion": "0.1.3 (tag)",
-                    "openSubsonic": True,
-                    "error": {
-                        "code": 70,
-                        "message": "The requested data was not found",
-                    },
-                }
-            }
+            raise_subsonic_error(70)
         cover_path = artist.cover_path
     else:
-        return {
-            "subsonic-response": {
-                "status": "failed",
-                "version": "1.16.1",
-                "type": "AwesomeServerName",
-                "serverVersion": "0.1.3 (tag)",
-                "openSubsonic": True,
-                "error": {
-                    "code": 70,
-                    "message": "The requested data was not found",
-                },
-            }
-        }
+        raise_subsonic_error(70)
     splited_path = cover_path.split("///")
     cover_art = library_manager.get_file(splited_path[1], splited_path[0])
     mime = image_mime(cover_art)
@@ -379,20 +318,11 @@ def local_serch(
         query, artistCount, artistOffset, albumCount, albumOffset, songCount, songOffset
     )
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "searchResult3": {
-                "artist": [
-                    to_subsonic_artist(artist) for artist in searched["artists"]
-                ],
-                "album": [to_subsonic_album(album) for album in searched["albums"]],
-                "song": [to_subsonic_song(track) for track in searched["tracks"]],
-            },
-        }
+        "searchResult3": {
+            "artist": [to_subsonic_artist(artist) for artist in searched["artists"]],
+            "album": [to_subsonic_album(album) for album in searched["albums"]],
+            "song": [to_subsonic_song(track) for track in searched["tracks"]],
+        },
     }
 
 
@@ -400,14 +330,7 @@ def local_serch(
 def global_download(query: str = None, id: str = None):
     task_id = library_manager.post_download(query=query, id=id)
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "taskId": task_id,
-        }
+        "taskId": task_id,
     }
 
 
@@ -415,18 +338,11 @@ def global_download(query: str = None, id: str = None):
 def check_global_download(id: str):
     download = library_manager.checks_status(id)
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "download": {
-                "status": download["status"],
-                "progress": download["progress"],
-                "result": download.get("result"),
-            },
-        }
+        "download": {
+            "status": download["status"],
+            "progress": download["progress"],
+            "result": download.get("result"),
+        },
     }
 
 
@@ -451,14 +367,7 @@ def global_search(
         sub_track["dbId"] = track["db_id"]
         tracks.append(sub_track)
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "globalSearchResult": {"artist": artists, "album": albums, "song": tracks},
-        }
+        "globalSearchResult": {"artist": artists, "album": albums, "song": tracks},
     }
 
 
@@ -473,30 +382,11 @@ def get_artist(id: str):
     else:
         artist = library_manager.get_artist_by_id(int(id))
         if artist is None:
-            return {
-                "subsonic-response": {
-                    "status": "failed",
-                    "version": "1.16.1",
-                    "type": "AwesomeServerName",
-                    "serverVersion": "0.1.3 (tag)",
-                    "openSubsonic": True,
-                    "error": {
-                        "code": 70,
-                        "message": "The requested data was not found",
-                    },
-                }
-            }
+            raise_subsonic_error(70)
         parsed_artist = to_subsonic_artist(artist)
         parsed_artist["album"] = [to_subsonic_album(album) for album in artist.albums]
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "artist": parsed_artist,
-        }
+        "artist": parsed_artist,
     }
 
 
@@ -512,17 +402,10 @@ def get_artists():
     for k, v in sorted_artists.items():
         index.append({"name": k, "artist": v})
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "artists": {
-                "ignoredArticles": "The An A Die Das Ein Eine Les Le La",
-                "index": index,
-            },
-        }
+        "artists": {
+            "ignoredArticles": "The An A Die Das Ein Eine Les Le La",
+            "index": index,
+        },
     }
 
 
@@ -534,33 +417,14 @@ def get_song(id: str):
     else:
         track = library_manager.get_track_by_id(int(id))
         if track is None:
-            return {
-                "subsonic-response": {
-                    "status": "failed",
-                    "version": "1.16.1",
-                    "type": "AwesomeServerName",
-                    "serverVersion": "0.1.3 (tag)",
-                    "openSubsonic": True,
-                    "error": {
-                        "code": 70,
-                        "message": "The requested data was not found",
-                    },
-                }
-            }
+            raise_subsonic_error(70)
         song_link = next(
             (link.link for link in track.links if link.link_type == "storage"), None
         )
         song = to_subsonic_song(track)
         song["path"] = song_link
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "song": song,
-        }
+        "song": song,
     }
 
 
@@ -575,19 +439,7 @@ def get_album(id: str):
     else:
         album = library_manager.get_album_by_id(int(id))
         if album is None:
-            return {
-                "subsonic-response": {
-                    "status": "failed",
-                    "version": "1.16.1",
-                    "type": "AwesomeServerName",
-                    "serverVersion": "0.1.3 (tag)",
-                    "openSubsonic": True,
-                    "error": {
-                        "code": 70,
-                        "message": "The requested data was not found",
-                    },
-                }
-            }
+            raise_subsonic_error(70)
         parsed_album = to_subsonic_album(album)
         tracks = []
         for track in album.tracks:
@@ -601,14 +453,7 @@ def get_album(id: str):
             tracks.append(subsonic_track)
         parsed_album["song"] = tracks
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "album": parsed_album,
-        }
+        "album": parsed_album,
     }
 
 
@@ -616,43 +461,16 @@ def get_album(id: str):
 def get_albums():
     albums = library_manager.get_all_albums()
     if albums is None:
-        return {
-            "subsonic-response": {
-                "status": "failed",
-                "version": "1.16.1",
-                "type": "AwesomeServerName",
-                "serverVersion": "0.1.3 (tag)",
-                "openSubsonic": True,
-                "error": {
-                    "code": 70,
-                    "message": "The requested data was not found",
-                },
-            }
-        }
+        raise_subsonic_error(70)
     parsed_albums = [to_subsonic_album(album) for album in albums]
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "albumList2": {"album": parsed_albums},
-        }
+        "albumList2": {"album": parsed_albums},
     }
 
 
 @subsonic_router.get("/ping")
 def ping():
-    return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "0.0.1",
-            "type": "Music Saver",
-            "serverVersion": "0.0.1 (tag)",
-            "openSubsonic": True,
-        }
-    }
+    return {}
 
 
 @subsonic_router.post("/star")
@@ -668,15 +486,7 @@ def star(
         library_manager.star(user.id, albumId, "album")
     if artistId is not None:
         library_manager.star(user.id, artistId, "artist")
-    return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "0.0.1",
-            "type": "Music Saver",
-            "serverVersion": "0.0.1 (tag)",
-            "openSubsonic": True,
-        }
-    }
+    return {}
 
 
 @subsonic_router.post("/unstar")
@@ -692,15 +502,7 @@ def unstar(
         library_manager.unstar(user.id, albumId, "album")
     if artistId is not None:
         library_manager.unstar(user.id, artistId, "artist")
-    return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "0.0.1",
-            "type": "Music Saver",
-            "serverVersion": "0.0.1 (tag)",
-            "openSubsonic": True,
-        }
-    }
+    return {}
 
 
 @subsonic_router.post("/scrobble")
@@ -709,15 +511,7 @@ def unstar(id: int, time: int | None = None, submission: bool | None = True):
         library_manager.scrobble(id, time)
     else:
         library_manager.post_now_playing(id)
-    return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "0.0.1",
-            "type": "Music Saver",
-            "serverVersion": "0.0.1 (tag)",
-            "openSubsonic": True,
-        }
-    }
+    return {}
 
 
 @subsonic_router.get("/getLyricsBySongId")
@@ -725,14 +519,7 @@ def get_lyrics(id: int, enhanced: bool | None = False):
     lyrics = library_manager.get_lyrics(id)
     sub_lyrics = [to_subsonic_lyric(lyric) for lyric in lyrics]
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "lyricsList": {"structuredLyrics": sub_lyrics},
-        }
+        "lyricsList": {"structuredLyrics": sub_lyrics},
     }
 
 
@@ -741,14 +528,7 @@ def get_artist_top_songs(artist: str, count: int | None = 50):
     tracks = library_manager.get_artist_top_songs(artist, count)
     artist_songs = [to_subsonic_song(track) for track in tracks]
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "topSongs": {"song": artist_songs},
-        }
+        "topSongs": {"song": artist_songs},
     }
 
 
@@ -765,14 +545,7 @@ def get_genres():
             }
         )
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "genres": {"genre": sub_genres},
-        }
+        "genres": {"genre": sub_genres},
     }
 
 
@@ -789,14 +562,7 @@ def get_moods():
             }
         )
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "moods": {"mood": sub_moods},
-        }
+        "moods": {"mood": sub_moods},
     }
 
 
@@ -809,14 +575,7 @@ def download_to_user():
 def start_scan():
     library_manager.post_sync(sync_id="sub")
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "scanStatus": {"scanning": True, "count": 0},
-        }
+        "scanStatus": {"scanning": True, "count": 0},
     }
 
 
@@ -826,32 +585,18 @@ def scan_status():
     is_scanning = True if task["status"] == "Processing" else False
     count = task["added"]
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "AwesomeServerName",
-            "serverVersion": "0.1.3 (tag)",
-            "openSubsonic": True,
-            "scanStatus": {"scanning": is_scanning, "count": count},
-        }
+        "scanStatus": {"scanning": is_scanning, "count": count},
     }
 
 
 @subsonic_router.get("/getLicense")
 def get_license():
     return {
-        "subsonic-response": {
-            "status": "ok",
-            "version": "1.16.1",
-            "type": "Music Saver",
-            "serverVersion": "0.0.1 (tag)",
-            "openSubsonic": True,
-            "license": {
-                "valid": True,
-                "email": "demo@demo.org",
-                "licenseExpires": "2099-01-01T00:00:00",
-                "trialExpires": "2099-01-01T00:00:00",
-            },
+        "license": {
+            "valid": True,
+            "email": "demo@demo.org",
+            "licenseExpires": "2099-01-01T00:00:00",
+            "trialExpires": "2099-01-01T00:00:00",
         }
     }
 

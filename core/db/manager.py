@@ -28,6 +28,9 @@ from core.db.models import (
     TrackORM,
     PlaylistORM,
     MusicVideoORM,
+    ApiKeyORM,
+    ProviderKeyORM,
+    PlaylistTrackLink,
 )
 
 
@@ -70,6 +73,18 @@ class DBManager:
 
     def get_album_by_name(self, session: Session, title: str):
         return session.exec(select(AlbumORM).where(AlbumORM.title == title)).first()
+
+    def get_provider_key(self, session: Session, provider: str, user_id: int):
+        statement = select(ProviderKeyORM.key).where(
+            ProviderKeyORM.provider == provider, ProviderKeyORM.user_id == user_id
+        )
+        key = session.exec(statement).first()
+        return key
+
+    def get_api_key(self, session: Session, user_id: int):
+        statement = select(ApiKeyORM.key).where(ApiKeyORM.user_id == user_id)
+        keys = session.exec(statement).all()
+        return keys
 
     def get_moods(self, session: Session) -> list[Mood] | None:
         moods = (
@@ -115,8 +130,11 @@ class DBManager:
             .where(PlaylistORM.id == id)
             .options(
                 selectinload(PlaylistORM.owner),
-                selectinload(PlaylistORM.tracks).selectinload(TrackORM.links),
-                selectinload(PlaylistORM.tracks)
+                selectinload(PlaylistORM.track_links)
+                .selectinload(PlaylistTrackLink.track)
+                .selectinload(TrackORM.links),
+                selectinload(PlaylistORM.track_links)
+                .selectinload(PlaylistTrackLink.track)
                 .selectinload(TrackORM.album)
                 .selectinload(AlbumORM.artist_rel),
             )
@@ -124,8 +142,11 @@ class DBManager:
         orm_playlist = session.exec(statement).first()
         return playlist_from_orm(orm_playlist) if orm_playlist else None
 
-    def get_user_by_apikey(self, session: Session, api_key: str) -> UserORM | None:
-        return session.exec(select(UserORM).where(UserORM.api_key == api_key)).first()
+    def get_user_by_apikey(self, session: Session, api_key: str):
+        orm_user = session.exec(
+            select(UserORM).where(UserORM.api_key == api_key)
+        ).first()
+        return user_from_orm(orm_user) if orm_user else None
 
     def search_artists(self, session: Session, query: str, limit: int, offset: int):
         statement = (
