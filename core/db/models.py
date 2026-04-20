@@ -133,9 +133,9 @@ class UserORM(SQLModel, table=True):
 
 class ArtistORM(SQLModel, table=True):
     __tablename__ = "artist"
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     name: str
-    cover_path: Optional[str] = Field(default=None)
+    cover_path: int | None = Field(default=None, foreign_key="object_storage.id")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     albums: list["AlbumORM"] = Relationship(
         back_populates="artist_rel",
@@ -168,7 +168,7 @@ class AlbumORM(SQLModel, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("artist.id", ondelete="CASCADE")),
     )
-    cover_path: Optional[str] = Field(default=None)
+    cover_path: int | None = Field(default=None, foreign_key="object_storage.id")
     artist_rel: Optional[ArtistORM] = Relationship(back_populates="albums")
 
     tracks: list["TrackORM"] = Relationship(
@@ -279,7 +279,7 @@ class TrackORM(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
 
-    links: list["TrackLink"] = Relationship(
+    links: list["ObjectStorage"] = Relationship(
         back_populates="track",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
@@ -331,37 +331,34 @@ class MusicVideoORM(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     is_external_link: bool
     external_link: str | None = None
-    local_link: str | None = None
+    local_link: list["ObjectStorage"]
     track_id: Optional[int] = Field(
         sa_column=Column(Integer, ForeignKey("track.id", ondelete="CASCADE"))
     )
     track: Optional["TrackORM"] = Relationship(back_populates="music_videos")
 
 
-class TrackLink(SQLModel, table=True):
-    __tablename__ = "track_link"
-    id: Optional[int] = Field(default=None, primary_key=True)
+class ObjectStorage(SQLModel, table=True):
+    __tablename__ = "object_storage"
+    id: int | None = Field(default=None, primary_key=True)
     link_type: str
     link_provider: str
     link: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-    track_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(Integer, ForeignKey("track.id", ondelete="CASCADE")),
-    )
-    track: Optional[TrackORM] = Relationship(back_populates="links")
+    track_id: int | None = Field(default=None, foreign_key="track.id")
+    music_video_id: int | None = Field(default=None, foreign_key="music_video.id")
+    lyrics_id: int | None = Field(default=None, foreign_key="lyrics.id")
 
 
 class PlaylistORM(SQLModel, table=True):
     __tablename__ = "playlist"
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     name: str
-    cover_path: Optional[str] = Field(default=None)
+    cover_path: int | None = Field(default=None, foreign_key="object_storage.id")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_public: bool = Field(default=False)
 
-    owner_id: Optional[int] = Field(
+    owner_id: int | None = Field(
         default=None,
         sa_column=Column(Integer, ForeignKey("user.id", ondelete="CASCADE")),
     )
