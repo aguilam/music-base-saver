@@ -6,6 +6,7 @@ from core.db.models import (
     MusicVideoORM,
     LyricsORM,
     UserORM,
+    ObjectStorageORM,
 )
 from core.schemas.schemas import (
     TrackShort,
@@ -19,6 +20,7 @@ from core.schemas.schemas import (
     MusicVideo,
     Lyrics,
     User,
+    ObjectStorage,
 )
 
 
@@ -46,7 +48,7 @@ def album_from_orm(album: AlbumORM) -> Album:
         cover_path=album.cover_path,
         duration=album.duration,
         tracks_count=album.track_count,
-        artist=artist_short_from_orm(album.artist_rel),
+        artist=artist_short_from_orm(album.artist_rel) if album.artist_rel else None,
         tracks=[track_from_orm(track) for track in album.tracks],
         created_at=album.created_at,
     )
@@ -59,7 +61,7 @@ def album_short_from_orm(album: AlbumORM) -> AlbumShort:
         cover_path=album.cover_path,
         duration=album.duration,
         tracks_count=album.track_count,
-        artist=artist_short_from_orm(album.artist_rel),
+        artist=artist_short_from_orm(album.artist_rel) if album.artist_rel else None,
         tracks=[track_short_from_orm(track) for track in album.tracks],
         created_at=album.created_at,
     )
@@ -88,7 +90,7 @@ def track_from_orm(track: TrackORM) -> Track:
         album=album_short_from_orm(track.album),
         album_position=track.album_position,
         cover_path=track.album.cover_path,
-        path=next((link.link for link in track.links), None),
+        path=next((link.id for link in track.links), None),
         bpm=track.bpm,
         track_gain=track.trackGain,
         track_peak=track.trackPeak,
@@ -107,7 +109,7 @@ def track_short_from_orm(track: TrackORM) -> TrackShort:
         length=track.length,
         album_position=track.album_position,
         cover_path=track.album.cover_path,
-        path=next((link.link for link in track.links), None),
+        path=next((link.id for link in track.links), None),
         bpm=track.bpm,
         track_gain=track.trackGain,
         track_peak=track.trackPeak,
@@ -124,7 +126,7 @@ def lyrics_from_orm(lyrics: LyricsORM) -> Lyrics:
         synced_text=lyrics.synced_text,
         plain_text=lyrics.plain_text,
         language=lyrics.language,
-        path=lyrics.original_path,
+        path=next((path.id for path in lyrics.path), None),
         type=lyrics.type,
         offset=lyrics.offset,
         track_id=lyrics.track_id,
@@ -134,7 +136,7 @@ def lyrics_from_orm(lyrics: LyricsORM) -> Lyrics:
 def music_video_from_orm(music_video: MusicVideoORM) -> MusicVideo:
     return MusicVideo(
         id=music_video.id,
-        local_link=music_video.local_link,
+        local_link=next((link.id for link in music_video.local_link), None),
         track_id=music_video.track_id,
     )
 
@@ -145,6 +147,18 @@ def user_from_orm(user: UserORM) -> User:
         username=user.username,
         password=user.password,
         email=user.email,
-        api_key=user.api_key,
         is_admin=user.is_admin,
+    )
+
+
+def object_storage_from_orm(storage: ObjectStorageORM) -> ObjectStorage:
+    return ObjectStorage(
+        link_type=storage.link_type,
+        link_provider=storage.link_provider,
+        link=storage.link,
+        id=storage.id,
+        created_at=storage.created_at,
+        track_id=storage.track_idd,
+        music_video_id=storage.music_video_id,
+        lyrics_id=storage.lyrics_id,
     )

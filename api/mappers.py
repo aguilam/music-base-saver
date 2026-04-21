@@ -26,7 +26,7 @@ def to_subsonic_song(track: Track):
         "isVideo": False,
     }
     if track.album.cover_path:
-        song["coverArt"] = f"al-{track.album.id}"
+        song["coverArt"] = f"{track.album.cover_path}"
     return song
 
 
@@ -45,7 +45,7 @@ def to_subsonic_album(album: Album):
         "artist": album.artist.name,
     }
     if album.cover_path:
-        sub_album["coverArt"] = f"al-{album.id}"
+        sub_album["coverArt"] = f"{album.cover_path}"
     return sub_album
 
 
@@ -56,7 +56,7 @@ def to_subsonic_artist(artist: Artist):
         "albumCount": len(artist.albums),
     }
     if artist.cover_path:
-        sub_artist["coverArt"] = f"ar-{artist.id}"
+        sub_artist["coverArt"] = f"{artist.cover_path}"
     return sub_artist
 
 

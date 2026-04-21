@@ -279,9 +279,11 @@ class TrackORM(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
 
-    links: list["ObjectStorage"] = Relationship(
-        back_populates="track",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    links: list["ObjectStorageORM"] = Relationship(
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan",
+            "foreign_keys": "ObjectStorageORM.track_id",
+        },
     )
 
     playlist_links: list["PlaylistTrackLink"] = Relationship(back_populates="track")
@@ -314,7 +316,9 @@ class LyricsORM(SQLModel, table=True):
     synced_text: list[dict] | None = Field(default=None, sa_column=Column(JSON))
     type: str | None = None
     offset: int = Field(default=0)
-    original_path: str | None = None
+    path: list["ObjectStorageORM"] = Relationship(
+        sa_relationship_kwargs={"foreign_keys": "ObjectStorageORM.lyrics_id"},
+    )
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     track_id: int = Field(
         sa_column=Column(
@@ -323,7 +327,7 @@ class LyricsORM(SQLModel, table=True):
             nullable=False,
         )
     )
-    track: Optional[TrackORM] = Relationship(back_populates="lyrics")
+    track: TrackORM | None = Relationship(back_populates="lyrics")
 
 
 class MusicVideoORM(SQLModel, table=True):
@@ -331,14 +335,16 @@ class MusicVideoORM(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     is_external_link: bool
     external_link: str | None = None
-    local_link: list["ObjectStorage"]
+    local_link: list["ObjectStorageORM"] = Relationship(
+        sa_relationship_kwargs={"foreign_keys": "ObjectStorageORM.music_video_id"}
+    )
     track_id: Optional[int] = Field(
         sa_column=Column(Integer, ForeignKey("track.id", ondelete="CASCADE"))
     )
     track: Optional["TrackORM"] = Relationship(back_populates="music_videos")
 
 
-class ObjectStorage(SQLModel, table=True):
+class ObjectStorageORM(SQLModel, table=True):
     __tablename__ = "object_storage"
     id: int | None = Field(default=None, primary_key=True)
     link_type: str

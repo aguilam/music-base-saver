@@ -205,6 +205,8 @@ def stream_track(request: Request, id: str):
         start = int(range[0])
         end = int(range[1]) if range[1] != "" else start + CHUNK_SIZE
     track_bytes = library_manager.stream_track(id, start, end)
+    if track_bytes is None:
+        raise_subsonic_error(70)
     headers = {
         "content-length": str(len(track_bytes["bytes"])),
         "content-range": f"bytes {start}-{track_bytes['end_bytes']}/{track_bytes['file_size']}",
@@ -266,27 +268,11 @@ def get_user_starred(user: Annotated[User, Depends(get_user)]):
 
 
 @subsonic_router.get("/getCoverArt")
-def get_cover_art(id: str):
-    splited_id = id.split("-")
-    cover_path = ""
-    if len(splited_id) != 2:
+def get_cover_art(id: int):
+    cover_art = library_manager.get_cover_art(id)
+    if cover_art is None:
         raise_subsonic_error(70)
-    if splited_id[0] == "al":
-        album = library_manager.get_album_by_id(splited_id[1])
-        if album is None or album.cover_path is None:
-            raise_subsonic_error(70)
-        cover_path = album.cover_path
-    elif splited_id[0] == "ar":
-        artist = library_manager.get_artist_by_id(splited_id[1])
-        if artist is None or artist.cover_path is None:
-            raise_subsonic_error(70)
-        cover_path = artist.cover_path
-    else:
-        raise_subsonic_error(70)
-    splited_path = cover_path.split("///")
-    cover_art = library_manager.get_file(splited_path[1], splited_path[0])
-    mime = image_mime(cover_art)
-    return Response(content=cover_art, media_type=mime)
+    return Response(content=cover_art.content, media_type=cover_art.mime)
 
 
 @subsonic_router.get("/getMusicFolders")

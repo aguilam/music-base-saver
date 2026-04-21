@@ -13,12 +13,13 @@ from utils.utils import (
     analyze_track,
     analyze_lrc,
     save_url_file,
+    image_mime,
 )
 import shutil
 from .db.manager import DBManager
 from .db.models import (
     TrackORM,
-    TrackLink,
+    ObjectStorageORM,
     AlbumORM,
     ArtistORM,
     StarredAlbum,
@@ -44,7 +45,7 @@ from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
-from typing import Literal, overload
+from typing import Literal, overload, NamedTuple
 import time
 
 STAR_LINK_MAP = {
@@ -58,6 +59,11 @@ UNSTAR_LINK_MAP = {
     "album": (StarredAlbum, "album_id"),
     "artist": (StarredArtist, "artist_id"),
 }
+
+
+class BinaryBlob(NamedTuple):
+    content: bytes
+    mime: str
 
 
 class LibraryManager:
@@ -262,9 +268,7 @@ class LibraryManager:
             artist_name = track["artist"][0]
             album_title = track["album"]
             length = track["length"]
-            saving_path = Path(
-                (f"{artist_name}/{album_title}/{dst.name}").replace(" ", "-")
-            )
+            saving_path = Path((f"{artist_name}/{album_title}/{dst.name}"))
             best_storage = find_best_storage(self.storages, best_track["size"])
             paths = full_track_save(best_storage, dst, saving_path)
             cover_storage_path = paths["cover_path"]
@@ -283,15 +287,20 @@ class LibraryManager:
                         db_artist.albums.append(db_album)
                         session.flush()
                     if db_album.cover_path is None and cover_storage_path is not None:
-                        db_album.cover_path = (
-                            f"{best_storage.id}///{cover_storage_path}"
+                        cover_storage = ObjectStorageORM(
+                            link_type="storage",
+                            link_provider=best_storage.id,
+                            link=cover_storage_path,
                         )
+                        session.add(cover_storage)
+                        session.flush()
+                        db_album.cover_path = cover_storage.id
                         session.flush()
                 else:
                     db_album = None
 
                 new_track = TrackORM(title=title, length=length, album=db_album)
-                new_link = TrackLink(
+                new_link = ObjectStorageORM(
                     link_type="storage",
                     link_provider=best_storage.id,
                     link=str(saved_path),
@@ -378,6 +387,15 @@ class LibraryManager:
             artist = self.db_manager.get_artist_by_name(session, name)
             artist_tracks = artist.tracks
             return artist_tracks[:50]
+
+    def get_cover_art(self, id: int):
+        with self.db_manager.get_session() as session:
+            storage = self.db_manager.get_storage_object_by_id(session, id)
+            if storage is None:
+                return None
+            cover_art = self.get_file(storage.link, storage.link_provider)
+            cover_mime = image_mime(cover_art)
+            return BinaryBlob(cover_art, cover_mime)
 
     def get_genres(self):
         with self.db_manager.get_session() as session:
@@ -494,22 +512,19 @@ class LibraryManager:
 
     def stream_track(self, id: int, start_bytes: int, end_bytes: int):
         with self.db_manager.get_session() as session:
+            object_id = None
             if "cl-" in str(id):
                 video_id = str(id).split("-")[1]
                 video = self.db_manager.get_video_by_id(session, int(video_id))
-                if video.is_external_link == True:
-                    return
-                parts = video.local_link.split("///")
-                media_storage = parts[0]
-                media_link = parts[1]
+                object_id = video.local_link
             else:
                 track = self.db_manager.get_track_by_id(int(id))
-                link_provider = next(
-                    (links for links in track.links if links.link_type == "storage"),
-                    None,
-                )
-                media_storage = link_provider.link_provider
-                media_link = link_provider.link
+                object_id = track.path
+            if object_id is None:
+                return None
+            storage = self.db_manager.get_storage_object_by_id(object_id)
+            media_storage = storage.link_provider
+            media_link = storage.link
             for storage in self.storages:
                 current_storage = storage.instance
                 if current_storage.id == media_storage:
@@ -613,7 +628,7 @@ class LibraryManager:
                                 length=track_metadata["length"],
                                 album=db_album,
                             )
-                            new_link = TrackLink(
+                            new_link = ObjectStorageORM(
                                 link_type="storage",
                                 link_provider=current_storage.id,
                                 link=str(path),
@@ -674,21 +689,30 @@ class LibraryManager:
                             if content_id is None or content_type is None:
                                 continue
                             if content_type == "al":
-                                entity = self.db_manager.get_album_by_id(
+                                entity = self.db_manager.get_album_orm_by_id(
                                     session, content_id
                                 )
                             elif content_type == "ar":
-                                entity = self.db_manager.get_artist_by_id(
+                                entity = self.db_manager.get_artist_orm_by_id(
                                     session, content_id
                                 )
                             elif content_type == "pl":
-                                entity = self.db_manager.get_playlist_by_id(
+                                entity = self.db_manager.get_playlist_orm_by_id(
                                     session, content_id
                                 )
                             if entity is None:
                                 continue
-                            entity.cover_path = f"{storage.id}///{path}"
+                            cover_storage = ObjectStorageORM(
+                                link_type="storage",
+                                link_provider=storage.id,
+                                link=path,
+                            )
+                            session.add(cover_storage)
                             session.flush()
+                            print(f"\n\n cover_storage - {cover_storage}")
+                            entity.cover_path = cover_storage.id
+                            session.flush()
+                            print(f"\n\n entity - {entity}")
                             cover_added_count += 1
                             self._update_sync_progress(task_id, added=1)
                     if storage.id in lyrics_to_adding:
@@ -708,8 +732,13 @@ class LibraryManager:
                                     synced_text=file_content["text"],
                                     offset=file_content["offset"],
                                     track_id=track.id,
-                                    original_path=f"{storage.id}///{text_path}",
                                 )
+                                lyrics_path = ObjectStorageORM(
+                                    link_type="storage",
+                                    link_provider=storage.id,
+                                    link=text_path,
+                                )
+                                lyrics.path.append(lyrics_path)
                                 session.add(lyrics)
                                 session.flush()
                             elif ".txt" in path:
@@ -723,12 +752,17 @@ class LibraryManager:
                                     for line in file.readlines():
                                         lines.append(line)
                                 lyrics = LyricsORM(
-                                    is_synced=True,
+                                    is_synced=False,
                                     language="und",
                                     plain_text="\n".join(lines),
                                     track_id=track.id,
-                                    original_path=f"{storage.id}///{text_path}",
                                 )
+                                lyrics_path = ObjectStorageORM(
+                                    link_type="storage",
+                                    link_provider=storage.id,
+                                    link=text_path,
+                                )
+                                lyrics.path.append(lyrics_path)
                                 session.add(lyrics)
                                 session.flush()
                     if storage.id in videos_to_adding:
@@ -750,9 +784,14 @@ class LibraryManager:
                                 continue
                             music_video = MusicVideoORM(
                                 is_external_link=False,
-                                local_link=f"{storage.id}///{path}",
                                 track_id=track.id,
                             )
+                            video_storage = ObjectStorageORM(
+                                link_type="storage",
+                                link_provider=storage.id,
+                                link=path,
+                            )
+                            music_video.local_link.append(video_storage)
                             session.add(music_video)
                             session.flush()
                 session.commit()
@@ -820,7 +859,14 @@ class LibraryManager:
                 )
                 best_storage = find_best_storage(self.storages, 0)
                 best_storage.save_track(cover_path)
-                db_playlist.cover_path = f"{best_storage.id}///{cover_path}"
+                cover_storage = ObjectStorageORM(
+                    link_type="storage",
+                    link_provider=best_storage.id,
+                    link=cover_path,
+                )
+                session.add(cover_storage)
+                session.flush()
+                db_playlist.cover_path = cover_storage.id
                 session.flush()
                 playlists_to_add.append(
                     {
@@ -860,13 +906,13 @@ class LibraryManager:
                         length=length,
                         album_id=album_map.get(album_id) if album_id else None,
                     )
-                    track_link = TrackLink(
+                    track_link = ObjectStorageORM(
                         link_type="storage",
                         link_provider=best_storage.id,
                         link=saved_path,
                     )
+                    db_track.links.append(track_link)
                     session.add(db_track)
-                    session.add(track_link)
                     session.flush()
 
                     track_map[track_id] = db_track.id
@@ -889,8 +935,14 @@ class LibraryManager:
 
                     best_storage = find_best_storage(self.storages, 0)
                     saved_cover_path = best_storage.save_track(cover_path)
-                    db_artist.cover_path = f"{best_storage.id}///{saved_cover_path}"
-
+                    cover_storage = ObjectStorageORM(
+                        link_type="storage",
+                        link_provider=best_storage.id,
+                        link=saved_cover_path,
+                    )
+                    session.add(cover_storage)
+                    session.flush()
+                    db_artist.cover_path = cover_storage.id
                     session.flush()
                     artist_map[artist_id] = db_artist.id
                 except:
@@ -918,8 +970,14 @@ class LibraryManager:
 
                     best_storage = find_best_storage(self.storages, 0)
                     saved_cover_path = best_storage.save_track(cover_path)
-                    db_album.cover_path = f"{best_storage.id}///{saved_cover_path}"
-
+                    cover_storage = ObjectStorageORM(
+                        link_type="storage",
+                        link_provider=best_storage.id,
+                        link=saved_cover_path,
+                    )
+                    session.add(cover_storage)
+                    session.flush()
+                    db_album.cover_path = cover_storage.id
                     session.flush()
                     album_map[album_id] = db_album.id
                 except:

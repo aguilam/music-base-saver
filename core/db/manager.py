@@ -16,6 +16,7 @@ from core.db.mappers import (
     track_from_orm,
     music_video_from_orm,
     user_from_orm,
+    object_storage_from_orm,
 )
 from core.db.models import (
     UserORM,
@@ -24,7 +25,7 @@ from core.db.models import (
     AlbumORM,
     Genre,
     Mood,
-    TrackLink,
+    ObjectStorageORM,
     TrackORM,
     PlaylistORM,
     MusicVideoORM,
@@ -101,6 +102,13 @@ class DBManager:
             .all()
         )
         return genres
+
+    def get_storage_object_by_id(self, session: Session, id: int):
+        storage = session.exec(
+            select(ObjectStorageORM).where(ObjectStorageORM.id == id)
+        ).first()
+
+        return object_storage_from_orm(storage) if storage else None
 
     def get_track_by_name(self, session: Session, title: str):
         orm_track = session.exec(
@@ -231,13 +239,17 @@ class DBManager:
     def bulk_delete_by_links(
         self, session: Session, provider_link: list[tuple[str, str]]
     ):
-        select_ids = select(TrackLink.id, TrackLink.track_id).where(
-            tuple_(TrackLink.link_provider, TrackLink.link).in_(provider_link)
+        select_ids = select(ObjectStorageORM.id, ObjectStorageORM.track_id).where(
+            tuple_(ObjectStorageORM.link_provider, ObjectStorageORM.link).in_(
+                provider_link
+            )
         )
         ids_statement = session.exec(select_ids).all()
         links_ids = [r[0] for r in ids_statement]
         track_ids = [r[1] for r in ids_statement]
-        delete_links_statement = delete(TrackLink).where(TrackLink.id.in_(links_ids))
+        delete_links_statement = delete(ObjectStorageORM).where(
+            ObjectStorageORM.id.in_(links_ids)
+        )
         session.exec(delete_links_statement)
         delete_tracks_statement = delete(TrackORM).where(TrackORM.id.in_(track_ids))
         tracks = session.exec(delete_tracks_statement)
@@ -264,10 +276,10 @@ class DBManager:
         return [album_from_orm(album) for album in orm_albums]
 
     def get_all_tracks_storage_links(self, session: Session):
-        combined = (TrackLink.link_provider + literal("///") + TrackLink.link).label(
-            "combined"
-        )
-        statement = select(combined).where(TrackLink.link_type == "storage")
+        combined = (
+            ObjectStorageORM.link_provider + literal("///") + ObjectStorageORM.link
+        ).label("combined")
+        statement = select(combined).where(ObjectStorageORM.link_type == "storage")
         return set(session.exec(statement).all())
 
     def get_track_by_id(self, session: Session, id: int):
@@ -295,6 +307,15 @@ class DBManager:
         )
         orm_album = session.exec(statement).first()
         return album_from_orm(orm_album) if orm_album else None
+
+    def get_album_orm_by_id(self, session: Session, id: int) -> AlbumORM | None:
+        return session.get(AlbumORM, id)
+
+    def get_artist_orm_by_id(self, session: Session, id: int) -> ArtistORM | None:
+        return session.get(ArtistORM, id)
+
+    def get_playlist_orm_by_id(self, session: Session, id: int) -> PlaylistORM | None:
+        return session.get(PlaylistORM, id)
 
     def get_artist_by_id(self, session: Session, id: int):
         statement = (
