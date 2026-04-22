@@ -22,30 +22,29 @@ class S3(Storage):
             aws_secret_access_key=secret_acess_key,
         )
 
-    def save_track(self, file: Path, saving_path: Path) -> str:
+    def save_file(self, file: Path, saving_path: Path) -> str:
         self.s3.upload_file(str(file), self.bucket, str(saving_path))
         os.remove(file)
         return str(saving_path)
 
-    def delete_track(self, track_id: str) -> bool:
+    def delete_file(self, track_id: str) -> bool:
         try:
             self.s3.delete_object(Bucket=self.bucket, Key=track_id)
             return True
         except Exception as e:
-            print(f"Error deleting S3 object: {e}")
             return False
 
     def check_storage(self) -> int:
 
         return 1024 * 1024 * 1024 * 1024
 
-    def get_track(self, track_id: str):
+    def get_file(self, track_id: str):
         filename = str(track_id.split("/")[-1])
         dest_path = Path("temp_tracks") / filename
         self.s3.download_file(self.bucket, track_id, str(dest_path))
         return dest_path
 
-    def stream_track(self, path: str, start: int, end: int):
+    def get_range_bytes(self, path: str, start: int, end: int):
         response = self.s3.get_object(
             Bucket=self.bucket, Key=path, Range=f"bytes={start}-{end}"
         )

@@ -12,11 +12,19 @@ class Storage(ABC):
         self.config = config
 
     @abstractmethod
-    def save_track(file: Path) -> Path:
+    def save_file(file: Path) -> str:
         pass
 
     @abstractmethod
-    def delete_track(track_id: str) -> bool:
+    def delete_file(file: Path) -> bool:
+        pass
+
+    @abstractmethod
+    def get_file(file: Path):
+        pass
+
+    @abstractmethod
+    def get_all_tracks_paths() -> list[str]:
         pass
 
     @abstractmethod
@@ -24,5 +32,5 @@ class Storage(ABC):
         pass
 
     @abstractmethod
-    def get_track(track_id: str):
+    def get_range_bytes(path: str, start: int, end: int) -> dict:
         pass

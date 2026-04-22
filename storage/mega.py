@@ -20,13 +20,13 @@ class MegaStorage(Storage):
         if not folder:
             self.m.create_folder(self.directory)
 
-    def save_track(self, file_path: Path) -> Path:
+    def save_file(self, file_path: Path) -> Path:
         folder = self.m.find(self.directory)
         file = self.m.upload(str(file_path), folder[0])
         os.remove(file_path)
         return file["f"][0]["h"]
 
-    def delete_track(self, link: str) -> bool:
+    def delete_file(self, link: str) -> bool:
         self.m.destroy(link)
         return True
 
@@ -34,7 +34,7 @@ class MegaStorage(Storage):
         storage_space = self.m.get_storage_space()
         return storage_space["total"] - storage_space["used"]
 
-    def get_track(self, link: str):
+    def get_file(self, link: str):
         m = self.m
 
         files = m.get_files()

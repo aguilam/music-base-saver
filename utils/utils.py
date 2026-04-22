@@ -4,6 +4,7 @@ from mutagen.mp3 import MP3
 from mutagen.flac import FLAC, Picture
 from mutagen.oggvorbis import OggVorbis
 from mutagen.oggopus import OggOpus
+import mutagen.mp4
 from mutagen.mp4 import MP4
 import base64
 from storage.base import Storage
@@ -12,6 +13,9 @@ import requests
 import re
 from core.loader import StorageEntry
 from core.schemas.schemas import Track
+from PIL import Image
+from PIL.ExifTags import Base
+from PIL.PngImagePlugin import PngInfo
 
 
 def analyze_lrc(lines: list[str]):
@@ -149,8 +153,8 @@ def full_track_save(best_storage: Storage, dst, saving_path):
         cover_path = dst.parent / f"cover.{ext}"
         cover_path.write_bytes(bytes)
         cover_save_path = saving_path.parent / cover_path.name
-        cover_storage_path = best_storage.save_track(cover_path, cover_save_path)
-    saved_path = best_storage.save_track(dst, saving_path)
+        cover_storage_path = best_storage.save_file(cover_path, cover_save_path)
+    saved_path = best_storage.save_file(dst, saving_path)
     return {"cover_path": cover_storage_path, "track_path": saved_path}
 
 
@@ -207,3 +211,66 @@ def image_mime(data: bytes) -> str:
     if data[:2] in (b"BM",):
         return "image/bmp"
     return "application/octet-stream"
+
+
+def get_track_metadata(path: str) -> dict:
+    track_metadata = mutagen.File(Path(path), easy=True)
+    title_list = track_metadata.get("title")
+    title = title_list[0] if title_list else Path(path).stem
+    artist_name = (track_metadata.get("artist") or ["Unknown"])[0]
+    album_title = (track_metadata.get("album") or [None])[0]
+    length = int(track_metadata.info.length * 1000)
+    del track_metadata
+    return {
+        "title": title,
+        "artist": artist_name,
+        "album": album_title,
+        "length": length,
+    }
+
+
+def get_video_metadata(path: str) -> dict:
+    video_metadata = MP4(Path(path))
+    title = video_metadata.get("\xa9nam")
+    artist = video_metadata.get("\xa9ART")
+    album = video_metadata.get("\xa9alb")
+    video_type = video_metadata.get("stik")
+    return {"title": title, "artist": artist, "album": album}
+
+
+def write_video_metadata(self, artist: str, album: str, title: str, path: str):
+    video_metadata = MP4(Path(path))
+    video_metadata["\xa9nam"] = title
+    video_metadata["\xa9ART"] = artist
+    video_metadata["\xa9alb"] = album
+    video_metadata["stik"] = 6
+
+
+def get_cover_metadata(path: str):
+    norm_path = Path(path)
+    try:
+        with Image.open(norm_path) as img:
+            if norm_path.suffix == ".png":
+                img.load()
+                return img.info.get("contentId")
+            else:
+                exif = img.getexif()
+                return exif.get(Base.UserComment)
+    except:
+        return None
+
+
+def write_cover_metadata(path: str, id: str):
+    norm_path = Path(path)
+    img = Image.open(norm_path)
+    if norm_path.suffix == ".png":
+        img.load()
+        pnginfo = PngInfo()
+        for key, value in img.info.items():
+            if isinstance(value, (str, int, float, bytes)):
+                pnginfo.add_text(str(key), str(value))
+        img.save(norm_path, pnginfo=pnginfo)
+    else:
+        exif = img.getexif()
+        exif[Base.UserComment] = id
+        img.save(norm_path, exif=exif)

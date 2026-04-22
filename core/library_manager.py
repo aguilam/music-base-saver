@@ -14,6 +14,10 @@ from utils.utils import (
     analyze_lrc,
     save_url_file,
     image_mime,
+    get_video_metadata,
+    get_track_metadata,
+    get_cover_metadata,
+    write_cover_metadata,
 )
 import shutil
 from .db.manager import DBManager
@@ -323,7 +327,7 @@ class LibraryManager:
         for storage in self.storages:
             current_storage = storage.instance
             if current_storage.id == storage_id:
-                cover_path = current_storage.get_track(path)
+                cover_path = current_storage.get_file(path)
                 return Path(cover_path).read_bytes()
 
     def get_all_tracks(self):
@@ -438,7 +442,7 @@ class LibraryManager:
 
     def delete_track(self, track_id: int):
         with self.db_manager.get_session() as session:
-            track = self.db_manager.delete_track(session, track_id)
+            track = self.db_manager.delete_file(session, track_id)
             return track
 
     def star(self, user_id: int, object_id: int, object_type: str):
@@ -528,7 +532,7 @@ class LibraryManager:
             for storage in self.storages:
                 current_storage = storage.instance
                 if current_storage.id == media_storage:
-                    track = current_storage.stream_track(
+                    track = current_storage.get_range_bytes(
                         media_link, start_bytes, end_bytes
                     )
                     return track
@@ -603,7 +607,8 @@ class LibraryManager:
                     current_storage = storage.instance
                     if storage.id in tracks_to_adding:
                         for path in tracks_to_adding[storage.id]:
-                            track_metadata = current_storage.get_track_metadata(path)
+                            file_path = current_storage.get_file(path)
+                            track_metadata = get_track_metadata(file_path)
                             db_artist = self.db_manager.get_artist_by_name(
                                 session, track_metadata["artist"]
                             )
@@ -648,7 +653,8 @@ class LibraryManager:
                             content_id = None
                             content_type = None
                             entity = None
-                            id_from_cover = current_storage.get_cover_metadata(path)
+                            file_path = current_storage.get_file(path)
+                            id_from_cover = get_cover_metadata(file_path)
                             if id_from_cover is None:
                                 file_name = Path(path).stem.split(":")[1]
                                 if "-" not in file_name:
@@ -679,8 +685,9 @@ class LibraryManager:
                                         continue
                                     content_type = "pl"
                                     content_id = playlist.id
-                                current_storage.write_cover_metadata(
-                                    path, f"{content_type}-{content_id}"
+                                file_path = current_storage.get_file(path)
+                                write_cover_metadata(
+                                    file_path, f"{content_type}-{content_id}"
                                 )
                             else:
                                 subject, subject_id = id_from_cover.split("-")
@@ -709,15 +716,13 @@ class LibraryManager:
                             )
                             session.add(cover_storage)
                             session.flush()
-                            print(f"\n\n cover_storage - {cover_storage}")
                             entity.cover_path = cover_storage.id
                             session.flush()
-                            print(f"\n\n entity - {entity}")
                             cover_added_count += 1
                             self._update_sync_progress(task_id, added=1)
                     if storage.id in lyrics_to_adding:
                         for path in lyrics_to_adding[storage.id]:
-                            text_path = current_storage.get_track(path)
+                            text_path = current_storage.get_file(path)
                             if ".lrc" in path:
                                 with open(text_path, "r", encoding="utf-8") as file:
                                     file_content = analyze_lrc(file.readlines())
@@ -767,7 +772,8 @@ class LibraryManager:
                                 session.flush()
                     if storage.id in videos_to_adding:
                         for path in videos_to_adding[storage.id]:
-                            video_metadata = current_storage.get_video_metadata(path)
+                            file_path = current_storage.get_file(path)
+                            video_metadata = get_video_metadata(file_path)
                             video_title = video_metadata["title"]
                             filename = Path(path).stem.rsplit(":", maxsplit=1)[1]
                             if video_title is None:
@@ -858,7 +864,7 @@ class LibraryManager:
                     playlist_info["cover_url"], dst / f"pl-{db_playlist.id}.jpg"
                 )
                 best_storage = find_best_storage(self.storages, 0)
-                best_storage.save_track(cover_path)
+                best_storage.save_file(cover_path)
                 cover_storage = ObjectStorageORM(
                     link_type="storage",
                     link_provider=best_storage.id,
@@ -899,7 +905,7 @@ class LibraryManager:
                     best_storage = find_best_storage(
                         self.storages, track_info.get("size", 0)
                     )
-                    saved_path = best_storage.save_track(url, saving_path)
+                    saved_path = best_storage.save_file(url, saving_path)
 
                     db_track = TrackORM(
                         title=title,
@@ -934,7 +940,7 @@ class LibraryManager:
                     )
 
                     best_storage = find_best_storage(self.storages, 0)
-                    saved_cover_path = best_storage.save_track(cover_path)
+                    saved_cover_path = best_storage.save_file(cover_path)
                     cover_storage = ObjectStorageORM(
                         link_type="storage",
                         link_provider=best_storage.id,
@@ -969,7 +975,7 @@ class LibraryManager:
                     )
 
                     best_storage = find_best_storage(self.storages, 0)
-                    saved_cover_path = best_storage.save_track(cover_path)
+                    saved_cover_path = best_storage.save_file(cover_path)
                     cover_storage = ObjectStorageORM(
                         link_type="storage",
                         link_provider=best_storage.id,
