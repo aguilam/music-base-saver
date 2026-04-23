@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Callable
 
 
 class Downloader(ABC):
@@ -11,7 +12,7 @@ class Downloader(ABC):
         self.config = config
 
     @abstractmethod
-    def search(self, query: str) -> list[dict]:
+    def search(query: str) -> list[dict]:
         pass
 
     @abstractmethod
@@ -19,5 +20,5 @@ class Downloader(ABC):
         pass
 
     @abstractmethod
-    def download():
+    def download(track, progress_callback: Callable[[int], None]) -> str:
         pass

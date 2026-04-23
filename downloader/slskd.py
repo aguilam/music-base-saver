@@ -5,7 +5,6 @@ import time
 from pathlib import Path
 import re
 from typing import Callable
-import string
 
 
 class Slskd(Downloader):
@@ -100,7 +99,7 @@ class Slskd(Downloader):
 
         return search_results
 
-    def check_progress(self, username: str, id: str) -> bool:
+    def check_progress(self, username: str, id: str):
         token = self._auth()
         headers = {"Authorization": f"Bearer {token}"}
         slskd_api = self.slskd_api

@@ -4,7 +4,6 @@ from core.schemas.schemas import (
     Playlist,
     Track,
     LyricsResponse,
-    MusicVideo,
 )
 
 

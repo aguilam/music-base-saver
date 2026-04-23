@@ -43,3 +43,7 @@ class Importer(ABC):
     @abstractmethod
     def get_lyrics(self):
         pass
+
+    @abstractmethod
+    def get_music_video(self):
+        pass

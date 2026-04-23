@@ -1,5 +1,3 @@
-import tomllib
-from pathlib import Path
 from fastapi import FastAPI, status, Request, APIRouter, Depends
 from fastapi.responses import Response, JSONResponse
 from core.library_manager import LibraryManager
@@ -8,7 +6,6 @@ import hashlib
 from typing import Annotated
 from core.schemas.schemas import User
 from hmac import compare_digest
-from utils.utils import image_mime
 from fastapi.middleware.cors import CORSMiddleware
 from api.mappers import (
     to_subsonic_album,
