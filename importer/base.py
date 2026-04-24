@@ -17,7 +17,9 @@ class Importer(ABC):
         pass
 
     @abstractmethod
-    def get_tracks(self) -> list[Track]:
+    def get_tracks(
+        self,
+    ) -> list[Track]:
         pass
 
     @abstractmethod
@@ -33,17 +35,17 @@ class Importer(ABC):
         pass
 
     @abstractmethod
-    def get_playlist(self) -> Playlist:
+    def get_playlist(self, playlist_id: str) -> Playlist:
         pass
 
     @abstractmethod
-    def get_track_download(self) -> str:
+    def get_track_download(self, track_id: str) -> str:
         pass
 
     @abstractmethod
-    def get_lyrics(self):
+    def get_lyrics(self, track_id: str):
         pass
 
     @abstractmethod
-    def get_music_video(self):
+    def get_music_videos(self, track_id: str):
         pass

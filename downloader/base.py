@@ -12,13 +12,13 @@ class Downloader(ABC):
         self.config = config
 
     @abstractmethod
-    def search(query: str) -> list[dict]:
+    def search(self, query: str) -> list[dict]:
         pass
 
     @abstractmethod
-    def check_progress() -> bool:
+    def check_progress(self) -> bool:
         pass
 
     @abstractmethod
-    def download(track, progress_callback: Callable[[int], None]) -> str:
+    def download(self, track, progress_callback: Callable[[int], None]) -> str:
         pass

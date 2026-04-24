@@ -6,7 +6,6 @@ from sqlmodel import (
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from typing import ClassVar
-from typing import Optional
 from sqlalchemy import (
     Column,
     Integer,
@@ -25,13 +24,13 @@ class PlaylistTrackLink(SQLModel, table=True):
         UniqueConstraint("playlist_id", "position", name="uq_playlist_position"),
         CheckConstraint("position > 0", name="ck_position_positive"),
     )
-    playlist_id: Optional[int] = Field(
+    playlist_id: int | None = Field(
         default=None,
         sa_column=Column(
             Integer, ForeignKey("playlist.id", ondelete="CASCADE"), primary_key=True
         ),
     )
-    track_id: Optional[int] = Field(
+    track_id: int | None = Field(
         default=None,
         sa_column=Column(
             Integer, ForeignKey("track.id", ondelete="CASCADE"), primary_key=True
@@ -44,7 +43,7 @@ class PlaylistTrackLink(SQLModel, table=True):
 
 class ArtistAlias(SQLModel, table=True):
     __tablename__ = "artist_alias"
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     artist_id: int = Field(foreign_key="artist.id", ondelete="CASCADE")
     name: str
     artist: "ArtistORM" = Relationship(back_populates="aliases")
@@ -52,13 +51,13 @@ class ArtistAlias(SQLModel, table=True):
 
 class TrackArtistsLink(SQLModel, table=True):
     __tablename__ = "track_artist"
-    artist_id: Optional[int] = Field(
+    artist_id: int | None = Field(
         default=None,
         sa_column=Column(
             Integer, ForeignKey("artist.id", ondelete="CASCADE"), primary_key=True
         ),
     )
-    track_id: Optional[int] = Field(
+    track_id: int | None = Field(
         default=None,
         sa_column=Column(
             Integer, ForeignKey("track.id", ondelete="CASCADE"), primary_key=True
@@ -98,7 +97,7 @@ class StarredArtist(SQLModel, table=True):
 
 class UserORM(SQLModel, table=True):
     __tablename__ = "user"
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     username: str = Field(unique=True)
     password: str
     email: str
@@ -160,16 +159,16 @@ class ArtistORM(SQLModel, table=True):
 
 class AlbumORM(SQLModel, table=True):
     __tablename__ = "album"
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     title: str
-    year: Optional[int] = Field(default=None)
+    year: int | None = Field(default=None)
 
-    artist_id: Optional[int] = Field(
+    artist_id: int | None = Field(
         default=None,
         sa_column=Column(Integer, ForeignKey("artist.id", ondelete="CASCADE")),
     )
     cover_path: int | None = Field(default=None, foreign_key="object_storage.id")
-    artist_rel: Optional[ArtistORM] = Relationship(back_populates="albums")
+    artist_rel: ArtistORM | None = Relationship(back_populates="albums")
 
     tracks: list["TrackORM"] = Relationship(
         back_populates="album",
@@ -218,27 +217,19 @@ class AlbumORM(SQLModel, table=True):
 
 class TrackGenreLink(SQLModel, table=True):
     __tablename__ = "track_genre"
-    track_id: Optional[int] = Field(
-        default=None, foreign_key="track.id", primary_key=True
-    )
-    genre_id: Optional[int] = Field(
-        default=None, foreign_key="genre.id", primary_key=True
-    )
+    track_id: int | None = Field(default=None, foreign_key="track.id", primary_key=True)
+    genre_id: int | None = Field(default=None, foreign_key="genre.id", primary_key=True)
 
 
 class TrackMoodLink(SQLModel, table=True):
     __tablename__ = "track_mood"
-    track_id: Optional[int] = Field(
-        default=None, foreign_key="track.id", primary_key=True
-    )
-    mood_id: Optional[int] = Field(
-        default=None, foreign_key="mood.id", primary_key=True
-    )
+    track_id: int | None = Field(default=None, foreign_key="track.id", primary_key=True)
+    mood_id: int | None = Field(default=None, foreign_key="mood.id", primary_key=True)
 
 
 class Genre(SQLModel, table=True):
     __tablename__ = "genre"
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
 
     tracks: list["TrackORM"] = Relationship(
@@ -248,7 +239,7 @@ class Genre(SQLModel, table=True):
 
 class Mood(SQLModel, table=True):
     __tablename__ = "mood"
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
 
     tracks: list["TrackORM"] = Relationship(
@@ -258,31 +249,29 @@ class Mood(SQLModel, table=True):
 
 class TrackORM(SQLModel, table=True):
     __tablename__ = "track"
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     title: str
     length: int
-    bpm: Optional[int] = None
-    trackGain: Optional[float] = None
-    trackPeak: Optional[float] = None
-    discNumber: Optional[int] = None
-    year: Optional[int] = None
+    bpm: int | None = None
+    discNumber: int | None = None
+    year: int | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    album_position: Optional[int]
-    album_id: Optional[int] = Field(
+    album_position: int | None
+    album_id: int | None = Field(
         default=None,
         sa_column=Column(Integer, ForeignKey("album.id", ondelete="CASCADE")),
     )
-    album: Optional["AlbumORM"] = Relationship(back_populates="tracks")
+    album: "AlbumORM" | None = Relationship(back_populates="tracks")
 
     lyrics: list["LyricsORM"] = Relationship(
         back_populates="track",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
 
-    links: list["ObjectStorageORM"] = Relationship(
+    files: list["audioFileORM"] = Relationship(
         sa_relationship_kwargs={
             "cascade": "all, delete-orphan",
-            "foreign_keys": "ObjectStorageORM.track_id",
+            "foreign_keys": "audio_file.track_id",
         },
     )
 
@@ -304,6 +293,27 @@ class TrackORM(SQLModel, table=True):
     )
     moods: list["Mood"] = Relationship(
         back_populates="tracks", link_model=TrackMoodLink
+    )
+
+
+class audioFileORM(SQLModel, table=True):
+    __tablename__ = "audio_file"
+    id: int | None = Field(default=None, primary_key=True)
+    file_size: int
+    hash: str
+    is_primary: bool = False
+    bitrate: int | None = None
+    bit_depth: int | None = None
+    sample_rate: int | None = None
+    trackGain: float | None = None
+    trackPeak: float | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    track_id: int = Field(foreign_key="track.id")
+    links: list["ObjectStorageORM"] = Relationship(
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan",
+            "foreign_keys": "object_storage.audio_id",
+        },
     )
 
 
@@ -332,16 +342,16 @@ class LyricsORM(SQLModel, table=True):
 
 class MusicVideoORM(SQLModel, table=True):
     __tablename__ = "music_video"
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     is_external_link: bool
     external_link: str | None = None
     local_link: list["ObjectStorageORM"] = Relationship(
         sa_relationship_kwargs={"foreign_keys": "ObjectStorageORM.music_video_id"}
     )
-    track_id: Optional[int] = Field(
+    track_id: int | None = Field(
         sa_column=Column(Integer, ForeignKey("track.id", ondelete="CASCADE"))
     )
-    track: Optional["TrackORM"] = Relationship(back_populates="music_videos")
+    track: "TrackORM" | None = Relationship(back_populates="music_videos")
 
 
 class ObjectStorageORM(SQLModel, table=True):
@@ -351,7 +361,7 @@ class ObjectStorageORM(SQLModel, table=True):
     link_provider: str
     link: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    track_id: int | None = Field(default=None, foreign_key="track.id")
+    audio_id: int | None = Field(default=None, foreign_key="audio_file.id")
     music_video_id: int | None = Field(default=None, foreign_key="music_video.id")
     lyrics_id: int | None = Field(default=None, foreign_key="lyrics.id")
 
@@ -368,7 +378,7 @@ class PlaylistORM(SQLModel, table=True):
         default=None,
         sa_column=Column(Integer, ForeignKey("user.id", ondelete="CASCADE")),
     )
-    owner: Optional["UserORM"] = Relationship(back_populates="playlists")
+    owner: "UserORM" | None = Relationship(back_populates="playlists")
 
     @hybrid_property
     def track_count(self) -> int:

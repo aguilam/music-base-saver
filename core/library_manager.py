@@ -853,15 +853,15 @@ class LibraryManager:
 
             for playlist_id, _ in unique_playlists.items():
                 playlist_info = selected_importer.get_playlist(playlist_id)
-                for track in playlist_info["tracks"]:
-                    unique_tracks[track["id"]] = track
+                for track in playlist_info.tracks:
+                    unique_tracks[track.id] = track
                 db_playlist = PlaylistORM(
-                    name=playlist_info["title"], owner_id=user_id, public=False
+                    name=playlist_info.title, owner_id=user_id, is_public=False
                 )
                 session.add(db_playlist)
                 session.flush()
                 cover_path = save_url_file(
-                    playlist_info["cover_url"], dst / f"pl-{db_playlist.id}.jpg"
+                    playlist_info.cover_path, dst / f"pl-{db_playlist.id}.jpg"
                 )
                 best_storage = find_best_storage(self.storages, 0)
                 best_storage.save_file(cover_path)
@@ -931,12 +931,12 @@ class LibraryManager:
                 try:
                     artist = selected_importer.get_artists(artist_id)
 
-                    db_artist = ArtistORM(name=artist["name"])
+                    db_artist = ArtistORM(name=artist.n)
                     session.add(db_artist)
                     session.flush()
 
                     cover_path = save_url_file(
-                        artist["cover_url"], dst / f"ar-{db_artist.id}.jpg"
+                        artist.cov, dst / f"ar-{db_artist.id}.jpg"
                     )
 
                     best_storage = find_best_storage(self.storages, 0)
@@ -995,8 +995,8 @@ class LibraryManager:
                     db_pl_id = playlist_entry["db_id"]
                     playlist_info = selected_importer.get_playlist(importer_pl_id)
 
-                    for track in playlist_info["tracks"]:
-                        t_id = track["id"]
+                    for track in playlist_info.tracks:
+                        t_id = track.id
                         if t_id in track_map:
                             link = PlaylistTrackLink(
                                 playlist_id=db_pl_id, track_id=track_map[t_id]

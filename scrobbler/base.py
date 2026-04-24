@@ -10,9 +10,9 @@ class Scrobbler(ABC):
         pass
 
     @abstractmethod
-    def post_playing_now(track: Track, token: str):
+    def post_playing_now(self, track: Track, token: str):
         pass
 
     @abstractmethod
-    def submit_listen(track: Track, token: str, time: int | None):
+    def submit_listen(self, track: Track, token: str, time: int | None):
         pass
