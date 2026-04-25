@@ -35,6 +35,7 @@ from .db.models import (
     PlaylistTrackLink,
     UserORM as User,
     MusicVideoORM,
+    AudioFileORM,
 )
 from .schemas.schemas import (
     Artist,
@@ -522,11 +523,11 @@ class LibraryManager:
                 video = self.db_manager.get_video_by_id(session, int(video_id))
                 object_id = video.local_link
             else:
-                track = self.db_manager.get_track_by_id(int(id))
+                track = self.db_manager.get_track_by_id(session, int(id))
                 object_id = track.path
             if object_id is None:
                 return None
-            storage = self.db_manager.get_storage_object_by_id(object_id)
+            storage = self.db_manager.get_storage_object_by_id(session, object_id)
             media_storage = storage.link_provider
             media_link = storage.link
             for storage in self.storages:
@@ -554,25 +555,23 @@ class LibraryManager:
         try:
             with self.db_manager.get_session() as session:
                 db_tracks = self.db_manager.get_all_tracks_storage_links(session)
-                storaged_tracks = set()
+                storaged_tracks: set[tuple[str, str]] = set()
                 for storage in self.storages:
                     current_storage = storage.instance
                     tracks_path = current_storage.get_all_tracks_paths()
-                    named_paths = [f"{storage.id}///{f}" for f in tracks_path]
+                    named_paths = [
+                        (f"{storage.id}///{link}", file_name)
+                        for link, file_name in tracks_path
+                    ]
                     storaged_tracks.update(named_paths)
-                for storage in self.storages:
-                    current_storage = storage.instance
-                    tracks_path = current_storage.get_all_tracks_paths()
-                    named_paths = [f"{storage.id}///{f}" for f in tracks_path]
-                    storaged_tracks.update(named_paths)
-                deleted_tracks_links = db_tracks - storaged_tracks
-                added_tracks_links = storaged_tracks - db_tracks
-                tracks_for_deleting = [
+                deleted_objects_links = db_tracks - storaged_tracks
+                added_object_links = storaged_tracks - db_tracks
+                objects_for_deleting = [
                     (track.split("///")[0], track.split("///")[1])
-                    for track in deleted_tracks_links
+                    for track, _ in deleted_objects_links
                 ]
                 deleted_count = self.db_manager.bulk_delete_by_links(
-                    session, tracks_for_deleting
+                    session, objects_for_deleting
                 )
                 self._update_sync_progress(task_id, deleted=deleted_count)
                 tracks_to_adding = {}
@@ -581,33 +580,41 @@ class LibraryManager:
                 videos_to_adding = {}
                 track_added_count = 0
                 cover_added_count = 0
-                for track in added_tracks_links:
-                    k, v = track.split("///")
+                for link, file_name in added_object_links:
+                    k, v = link.split("///")
                     if any(ext in v for ext in ["jpeg", "jpg", "png"]):
                         if k in cover_to_adding:
-                            cover_to_adding[k].append(v)
+                            cover_to_adding[k].append(
+                                {"link": v, "file_name": file_name}
+                            )
                         else:
-                            cover_to_adding[k] = [v]
+                            cover_to_adding[k] = [{"link": v, "file_name": file_name}]
                     elif any(ext in v for ext in ["lrc", "txt"]):
                         if k in lyrics_to_adding:
-                            lyrics_to_adding[k].append(v)
+                            lyrics_to_adding[k].append(
+                                {"link": v, "file_name": file_name}
+                            )
                         else:
-                            lyrics_to_adding[k] = [v]
+                            lyrics_to_adding[k] = [{"link": v, "file_name": file_name}]
                     elif "mp4" in v:
                         if k in videos_to_adding:
-                            videos_to_adding[k].append(v)
+                            videos_to_adding[k].append(
+                                {"link": v, "file_name": file_name}
+                            )
                         else:
-                            videos_to_adding[k] = [v]
+                            videos_to_adding[k] = [{"link": v, "file_name": file_name}]
                     elif any(ext in v for ext in ["m4a", "flac", "mp3", "opus"]):
                         if k in tracks_to_adding:
-                            tracks_to_adding[k].append(v)
+                            tracks_to_adding[k].append(
+                                {"link": v, "file_name": file_name}
+                            )
                         else:
-                            tracks_to_adding[k] = [v]
+                            tracks_to_adding[k] = [{"link": v, "file_name": file_name}]
                 for storage in self.storages:
                     current_storage = storage.instance
                     if storage.id in tracks_to_adding:
-                        for path in tracks_to_adding[storage.id]:
-                            file_path = current_storage.get_file(path)
+                        for track in tracks_to_adding[storage.id]:
+                            file_path = current_storage.get_file(track["link"])
                             track_metadata = get_track_metadata(file_path)
                             db_artist = self.db_manager.get_artist_by_name(
                                 session, track_metadata["artist"]
@@ -633,13 +640,20 @@ class LibraryManager:
                                 length=track_metadata["length"],
                                 album=db_album,
                             )
+                            session.add(new_track)
+                            session.flush()
+                            audio_file = AudioFileORM(track_id=new_track.id)
+                            new_track.files.append(audio_file)
+                            session.add(audio_file)
+                            session.flush()
                             new_link = ObjectStorageORM(
                                 link_type="storage",
+                                audio_id=audio_file.id,
+                                file_name=track["file_name"],
                                 link_provider=current_storage.id,
-                                link=str(path),
+                                link=track["link"],
                             )
-                            new_track.links.append(new_link)
-                            session.add(new_track)
+                            session.add(new_link)
                             session.flush()
                             track_artist = TrackArtistsLink(
                                 artist_id=db_artist.id, track_id=new_track.id
@@ -649,17 +663,16 @@ class LibraryManager:
                             track_added_count += 1
                             self._update_sync_progress(task_id, added=1)
                     if storage.id in cover_to_adding:
-                        for path in cover_to_adding[storage.id]:
+                        for cover in cover_to_adding[storage.id]:
                             content_id = None
                             content_type = None
                             entity = None
-                            file_path = current_storage.get_file(path)
+                            file_path = current_storage.get_file(cover["link"])
                             id_from_cover = get_cover_metadata(file_path)
                             if id_from_cover is None:
-                                file_name = Path(path).stem.split(":")[1]
-                                if "-" not in file_name:
+                                if "-" not in cover["file_name"]:
                                     continue
-                                subject, subject_id = file_name.split("-")
+                                subject, subject_id = cover["file_name"].split("-")
                                 subject_id = int(subject_id)
                                 if subject == "al":
                                     album = self.db_manager.get_album_by_id(
@@ -685,7 +698,7 @@ class LibraryManager:
                                         continue
                                     content_type = "pl"
                                     content_id = playlist.id
-                                file_path = current_storage.get_file(path)
+                                file_path = current_storage.get_file(cover["link"])
                                 write_cover_metadata(
                                     file_path, f"{content_type}-{content_id}"
                                 )
@@ -712,7 +725,8 @@ class LibraryManager:
                             cover_storage = ObjectStorageORM(
                                 link_type="storage",
                                 link_provider=storage.id,
-                                link=path,
+                                link=cover["link"],
+                                file_name=cover["file_name"],
                             )
                             session.add(cover_storage)
                             session.flush()
@@ -721,9 +735,9 @@ class LibraryManager:
                             cover_added_count += 1
                             self._update_sync_progress(task_id, added=1)
                     if storage.id in lyrics_to_adding:
-                        for path in lyrics_to_adding[storage.id]:
-                            text_path = current_storage.get_file(path)
-                            if ".lrc" in path:
+                        for lyrics in lyrics_to_adding[storage.id]:
+                            text_path = current_storage.get_file(lyrics["link"])
+                            if ".lrc" in lyrics["link"]:
                                 with open(text_path, "r", encoding="utf-8") as file:
                                     file_content = analyze_lrc(file.readlines())
                                 track = self.db_manager.get_track_by_name(
@@ -731,24 +745,27 @@ class LibraryManager:
                                 )
                                 if track is None:
                                     continue
-                                lyrics = LyricsORM(
+                                new_lyrics = LyricsORM(
                                     is_synced=True,
                                     language="und",
                                     synced_text=file_content["text"],
                                     offset=file_content["offset"],
                                     track_id=track.id,
                                 )
+                                session.add(new_lyrics)
+                                session.flush()
                                 lyrics_path = ObjectStorageORM(
                                     link_type="storage",
                                     link_provider=storage.id,
                                     link=text_path,
+                                    file_name=lyrics["file_name"],
                                 )
-                                lyrics.path.append(lyrics_path)
-                                session.add(lyrics)
+                                new_lyrics.path.append(lyrics_path)
+                                session.add(lyrics_path)
                                 session.flush()
-                            elif ".txt" in path:
+                            elif ".txt" in lyrics["link"]:
                                 track = self.db_manager.get_track_by_name(
-                                    session, Path(path).stem.split(":")[1]
+                                    session, lyrics["file_name"].split(".")[0]
                                 )
                                 if track is None:
                                     continue
@@ -756,33 +773,36 @@ class LibraryManager:
                                 with open(text_path, "r", encoding="utf-8") as file:
                                     for line in file.readlines():
                                         lines.append(line)
-                                lyrics = LyricsORM(
+                                new_lyrics = LyricsORM(
                                     is_synced=False,
                                     language="und",
                                     plain_text="\n".join(lines),
                                     track_id=track.id,
                                 )
+                                session.add(new_lyrics)
+                                session.flush()
                                 lyrics_path = ObjectStorageORM(
                                     link_type="storage",
                                     link_provider=storage.id,
                                     link=text_path,
+                                    lyrics_id=new_lyrics.id,
+                                    file_name=lyrics["file_name"],
                                 )
-                                lyrics.path.append(lyrics_path)
-                                session.add(lyrics)
+                                new_lyrics.path.append(lyrics_path)
+                                session.add(lyrics_path)
                                 session.flush()
                     if storage.id in videos_to_adding:
-                        for path in videos_to_adding[storage.id]:
-                            file_path = current_storage.get_file(path)
+                        for video in videos_to_adding[storage.id]:
+                            file_path = current_storage.get_file(video["link"])
                             video_metadata = get_video_metadata(file_path)
                             video_title = video_metadata["title"]
-                            filename = Path(path).stem.rsplit(":", maxsplit=1)[1]
                             if video_title is None:
-                                video_title = filename
+                                video_title = video["file_name"]
                             track = self.db_manager.get_track_by_name(
                                 session, video_title
                             )
                             if track is None:
-                                id_parts = filename[1].rsplit("-")
+                                id_parts = video["file_name"].split(".")[0].rsplit("-")
                                 if len(id_parts) == 2 and id_parts[0] == "tr":
                                     track = self.db_manager.get_track_by_id(id_parts[1])
 
@@ -792,10 +812,13 @@ class LibraryManager:
                                 is_external_link=False,
                                 track_id=track.id,
                             )
+                            session.add(music_video)
+                            session.flush()
                             video_storage = ObjectStorageORM(
                                 link_type="storage",
                                 link_provider=storage.id,
-                                link=path,
+                                link=video["link"],
+                                file_name=video["file_name"],
                             )
                             music_video.local_link.append(video_storage)
                             session.add(music_video)
@@ -839,6 +862,9 @@ class LibraryManager:
             favorited_albums = favorited_albums[:5]
             favorited_artists = favorited_artists[:5]
             favorited_playlists = favorited_playlists[:3]
+            favorited_track_ids = {track["id"] for track in favorited_tracks}
+            favorited_album_ids = {album["id"] for album in favorited_albums}
+            favorited_artist_ids = {artist["id"] for artist in favorited_artists}
             playlists_to_add = []
             tracks_to_add = []
             artist_map: dict[int, int] = {}
@@ -936,7 +962,7 @@ class LibraryManager:
                     session.flush()
 
                     cover_path = save_url_file(
-                        artist.cov, dst / f"ar-{db_artist.id}.jpg"
+                        artist.cover, dst / f"ar-{db_artist.id}.jpg"
                     )
 
                     best_storage = find_best_storage(self.storages, 0)
@@ -1016,9 +1042,6 @@ class LibraryManager:
                         session.flush()
                 except:
                     pass
-            favorited_track_ids = {track["id"] for track in favorited_tracks}
-            favorited_album_ids = {album["id"] for album in favorited_albums}
-            favorited_artist_ids = {artist["id"] for artist in favorited_artists}
 
             for track_entry in tracks_to_add:
                 try:

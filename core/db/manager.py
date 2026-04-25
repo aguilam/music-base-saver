@@ -32,6 +32,7 @@ from core.db.models import (
     ApiKeyORM,
     ProviderKeyORM,
     PlaylistTrackLink,
+    AudioFileORM,
 )
 
 
@@ -239,7 +240,7 @@ class DBManager:
     def bulk_delete_by_links(
         self, session: Session, provider_link: list[tuple[str, str]]
     ):
-        select_ids = select(ObjectStorageORM.id, ObjectStorageORM.track_id).where(
+        select_ids = select(ObjectStorageORM.id, ObjectStorageORM.audio_id).where(
             tuple_(ObjectStorageORM.link_provider, ObjectStorageORM.link).in_(
                 provider_link
             )
@@ -279,8 +280,11 @@ class DBManager:
         combined = (
             ObjectStorageORM.link_provider + literal("///") + ObjectStorageORM.link
         ).label("combined")
-        statement = select(combined).where(ObjectStorageORM.link_type == "storage")
-        return set(session.exec(statement).all())
+        statement = select(combined, ObjectStorageORM.file_name).where(
+            ObjectStorageORM.link_type == "storage"
+        )
+        result = session.exec(statement).all()
+        return set(result)
 
     def get_track_by_id(self, session: Session, id: int):
         statement = (

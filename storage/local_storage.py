@@ -39,11 +39,11 @@ class LocalStorage(Storage):
     def get_all_tracks_paths(
         self,
     ):
-        return [
-            f"{f.parent}:{f.name}"
-            for f in self.save_directory.rglob("*")
-            if f.is_file()
-        ]
+        files = []
+        for f in self.save_directory.rglob("*"):
+            if f.is_file():
+                files.append((f"{f.parent}:{f.name}", f.name))
+        return files
 
     def get_range_bytes(self, path: str, start: int, end: int):
         file_size = os.stat(self._fix_windows_path(path)).st_size

@@ -246,7 +246,7 @@ def write_video_metadata(self, artist: str, album: str, title: str, path: str):
     video_metadata["stik"] = 6
 
 
-def get_cover_metadata(path: str):
+def get_cover_metadata(path: str) -> str | None:
     norm_path = Path(path)
     try:
         with Image.open(norm_path) as img:

@@ -91,10 +91,14 @@ def track_from_orm(track: TrackORM) -> Track:
         album=album_short_from_orm(track.album),
         album_position=track.album_position,
         cover_path=track.album.cover_path,
-        path=next((link.id for link in primary_file.links), None),
+        path=(
+            next((link.id for link in primary_file.links), None)
+            if primary_file
+            else None
+        ),
         bpm=track.bpm,
-        track_gain=primary_file.trackGain,
-        track_peak=primary_file.trackPeak,
+        track_gain=primary_file.trackGain if primary_file else None,
+        track_peak=primary_file.trackPeak if primary_file else None,
         year=track.year,
         disc_number=track.discNumber,
         lyrics=[lyrics_from_orm(lyrics) for lyrics in track.lyrics],
@@ -111,10 +115,14 @@ def track_short_from_orm(track: TrackORM) -> TrackShort:
         length=track.length,
         album_position=track.album_position,
         cover_path=track.album.cover_path,
-        path=next((link.id for link in primary_file.links), None),
+        path=(
+            next((link.id for link in primary_file.links), None)
+            if primary_file
+            else None
+        ),
         bpm=track.bpm,
-        track_gain=primary_file.trackGain,
-        track_peak=primary_file.trackPeak,
+        track_gain=primary_file.trackGain if primary_file else None,
+        track_peak=primary_file.trackPeak if primary_file else None,
         year=track.year,
         disc_number=track.discNumber,
         created_at=track.created_at,
