@@ -13,9 +13,10 @@ import requests
 import re
 from core.loader import StorageEntry
 from core.schemas.schemas import Track
-from PIL import Image
+from PIL import Image, ImageFile
 from PIL.ExifTags import Base
 from PIL.PngImagePlugin import PngInfo
+import io
 
 
 def analyze_lrc(lines: list[str]):
@@ -246,11 +247,10 @@ def write_video_metadata(self, artist: str, album: str, title: str, path: str):
     video_metadata["stik"] = 6
 
 
-def get_cover_metadata(path: str) -> str | None:
-    norm_path = Path(path)
+def get_cover_metadata(bytes: bytes, is_png: bool) -> str | None:
     try:
-        with Image.open(norm_path) as img:
-            if norm_path.suffix == ".png":
+        with Image.open(io.BytesIO(bytes)) as img:
+            if is_png:
                 img.load()
                 return img.info.get("contentId")
             else:
@@ -262,6 +262,7 @@ def get_cover_metadata(path: str) -> str | None:
 
 def write_cover_metadata(path: str, id: str):
     norm_path = Path(path)
+    Image
     img = Image.open(norm_path)
     if norm_path.suffix == ".png":
         img.load()

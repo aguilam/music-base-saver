@@ -20,7 +20,7 @@ class Storage(ABC):
         pass
 
     @abstractmethod
-    def get_file(self, file: Path):
+    def get_file(self, file: Path) -> str:
         pass
 
     @abstractmethod

@@ -667,8 +667,10 @@ class LibraryManager:
                             content_id = None
                             content_type = None
                             entity = None
-                            file_path = current_storage.get_file(cover["link"])
-                            id_from_cover = get_cover_metadata(file_path)
+                            range_bytes: bytes = current_storage.get_range_bytes(
+                                cover["link"], 0, 99999999
+                            )["bytes"]
+                            id_from_cover = get_cover_metadata(range_bytes)
                             if id_from_cover is None:
                                 if "-" not in cover["file_name"]:
                                     continue
@@ -736,10 +738,12 @@ class LibraryManager:
                             self._update_sync_progress(task_id, added=1)
                     if storage.id in lyrics_to_adding:
                         for lyrics in lyrics_to_adding[storage.id]:
-                            text_path = current_storage.get_file(lyrics["link"])
+                            range_bytes: bytes = current_storage.get_range_bytes(
+                                lyrics["link"], 0, 9999999
+                            )["bytes"]
+                            text = range_bytes.decode()
                             if ".lrc" in lyrics["link"]:
-                                with open(text_path, "r", encoding="utf-8") as file:
-                                    file_content = analyze_lrc(file.readlines())
+                                file_content = analyze_lrc(text.splitlines())
                                 track = self.db_manager.get_track_by_name(
                                     session, file_content["title"]
                                 )
@@ -757,7 +761,7 @@ class LibraryManager:
                                 lyrics_path = ObjectStorageORM(
                                     link_type="storage",
                                     link_provider=storage.id,
-                                    link=text_path,
+                                    link=lyrics["link"],
                                     file_name=lyrics["file_name"],
                                 )
                                 new_lyrics.path.append(lyrics_path)
@@ -769,14 +773,10 @@ class LibraryManager:
                                 )
                                 if track is None:
                                     continue
-                                lines = []
-                                with open(text_path, "r", encoding="utf-8") as file:
-                                    for line in file.readlines():
-                                        lines.append(line)
                                 new_lyrics = LyricsORM(
                                     is_synced=False,
                                     language="und",
-                                    plain_text="\n".join(lines),
+                                    plain_text=text,
                                     track_id=track.id,
                                 )
                                 session.add(new_lyrics)
@@ -784,7 +784,7 @@ class LibraryManager:
                                 lyrics_path = ObjectStorageORM(
                                     link_type="storage",
                                     link_provider=storage.id,
-                                    link=text_path,
+                                    link=lyrics["link"],
                                     lyrics_id=new_lyrics.id,
                                     file_name=lyrics["file_name"],
                                 )
