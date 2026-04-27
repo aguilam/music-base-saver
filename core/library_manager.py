@@ -476,6 +476,46 @@ class LibraryManager:
         with self.db_manager.get_session() as session:
             return self.db_manager.get_user_playlists(session, user_id)
 
+    def create_playlist(
+        self,
+        user_id: int,
+        name: str | None,
+        tracks_id: list[int],
+        is_public: bool = False,
+        cover_path: int | None = None,
+    ):
+        with self.db_manager.get_session() as session:
+            new_playlist = self.db_manager.create_playlist(
+                session, user_id, name, cover_path, is_public, tracks_id
+            )
+            session.commit()
+            return new_playlist
+
+    def update_user(
+        self,
+        user_id: int,
+        username: str | None = None,
+        password: str | None = None,
+        is_admin: bool | None = None,
+    ):
+        with self.db_manager.get_session() as session:
+            user = self.db_manager.update_user(
+                session, user_id, username, password, is_admin
+            )
+            session.commit()
+            return user
+
+    def create_user(self, username: str, email: str, password: str):
+        with self.db_manager.get_session() as session:
+            new_user = self.db_manager.create_user(username, email, password)
+            session.commit()
+            return new_user
+
+    def delete_playlist(self, playlist_id: int):
+        with self.db_manager.get_session() as session:
+            self.db_manager.delete_playlist(playlist_id)
+            session.commit()
+
     def get_all_albums(self):
         with self.db_manager.get_session() as session:
             return self.db_manager.get_all_albums(session)

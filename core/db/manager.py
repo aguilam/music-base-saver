@@ -3,6 +3,7 @@ from sqlmodel import (
     create_engine,
     Session,
     select,
+    update,
     literal,
     delete,
     col,
@@ -141,7 +142,7 @@ class DBManager:
                 selectinload(PlaylistORM.owner),
                 selectinload(PlaylistORM.track_links)
                 .selectinload(PlaylistTrackLink.track)
-                .selectinload(TrackORM.links),
+                .selectinload(TrackORM.files),
                 selectinload(PlaylistORM.track_links)
                 .selectinload(PlaylistTrackLink.track)
                 .selectinload(TrackORM.album)
@@ -150,6 +151,66 @@ class DBManager:
         )
         orm_playlist = session.exec(statement).first()
         return playlist_from_orm(orm_playlist) if orm_playlist else None
+
+    def create_user(self, session: Session, username: str, email: str, password: str):
+        new_user = UserORM(username=username, email=email, password=password)
+        session.add(new_user)
+        return user_from_orm(new_user)
+
+    def update_user(
+        self,
+        session: Session,
+        user_id: int,
+        username: str | None,
+        password: str | None,
+        is_admin: bool | None,
+    ):
+        changed_user = session.exec(
+            select(UserORM).where(UserORM.username == username)
+        ).first()
+        if changed_user is None:
+            return None
+        same_user = changed_user.id == user_id
+        is_changing_admin = changed_user.is_admin
+        if not same_user:
+            user = session.exec(select(UserORM).where(UserORM.id == user_id)).first()
+            if user and user.is_admin:
+                is_changing_admin = True
+            else:
+                return None
+        if is_admin is not None and is_changing_admin:
+            changed_user.is_admin = is_admin
+        if password and password is not changed_user.password:
+            changed_user.password = password
+        if username and username is not changed_user.username:
+            changed_user.username = username
+        return user_from_orm(changed_user)
+
+    def delete_playlist(self, session: Session, id: int):
+        statement = delete(PlaylistORM).where(PlaylistORM.id == id)
+        session.exec(statement).first()
+
+    def create_playlist(
+        self,
+        session: Session,
+        user_id: int,
+        name: str,
+        cover_path: int | None,
+        is_public: bool,
+        tracks_id: list[int],
+    ):
+        user = session.exec(select(UserORM).where(UserORM.id == user_id)).first()
+        if user is None:
+            return None
+        playlist = PlaylistORM(
+            name=name, cover_path=cover_path, is_public=is_public, owner=user
+        )
+        session.add(playlist)
+        session.flush()
+        for position, track_id in enumerate(tracks_id, start=1):
+            trackLink = PlaylistTrackLink(playlist.id, track_id, position=position)
+            playlist.track_links.append(trackLink)
+        return playlist_from_orm(playlist)
 
     def get_user_by_apikey(self, session: Session, api_key: str):
         orm_user = session.exec(
@@ -211,7 +272,7 @@ class DBManager:
         return [playlist_from_orm(playlist) for playlist in orm_playlists]
 
     def get_all_user_starred(self, session: Session, user_id: int):
-        user = self.get_user_by_id(session, user_id)
+        user = session.exec(select(UserORM).where(UserORM.id == id)).first()
         starred_tracks = [track_from_orm(track) for track in user.starred_tracks]
         starred_albums = [album_from_orm(album) for album in user.starred_albums]
         starred_artists = [artist_from_orm(artist) for artist in user.starred_artists]
@@ -258,7 +319,7 @@ class DBManager:
         return tracks.rowcount
 
     def get_all_tracks(self, session: Session):
-        statement = select(TrackORM).options(selectinload(TrackORM.links))
+        statement = select(TrackORM).options(selectinload(TrackORM.files))
         orm_tracks = session.exec(statement).all()
         return [track_from_orm(track) for track in orm_tracks]
 
@@ -269,7 +330,7 @@ class DBManager:
 
     def get_all_albums(self, session: Session):
         statement = select(AlbumORM).options(
-            selectinload(AlbumORM.tracks).selectinload(TrackORM.links),
+            selectinload(AlbumORM.tracks).selectinload(TrackORM.files),
             selectinload(AlbumORM.tracks).selectinload(TrackORM.album),
             selectinload(AlbumORM.artist_rel),
         )
@@ -291,7 +352,7 @@ class DBManager:
             select(TrackORM)
             .where(TrackORM.id == id)
             .options(
-                selectinload(TrackORM.links),
+                selectinload(TrackORM.files),
                 selectinload(TrackORM.artists),
                 selectinload(TrackORM.lyrics),
             )
@@ -304,7 +365,7 @@ class DBManager:
             select(AlbumORM)
             .where(AlbumORM.id == id)
             .options(
-                selectinload(AlbumORM.tracks).selectinload(TrackORM.links),
+                selectinload(AlbumORM.tracks).selectinload(TrackORM.files),
                 selectinload(AlbumORM.tracks).selectinload(TrackORM.album),
                 selectinload(AlbumORM.artist_rel),
             )

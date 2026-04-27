@@ -101,7 +101,7 @@ class UserORM(SQLModel, table=True):
     username: str = Field(unique=True)
     password: str
     email: str
-    is_admin: bool
+    is_admin: bool = False
 
     api_keys: list["ApiKeyORM"] = Relationship(
         back_populates="user",

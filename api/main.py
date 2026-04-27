@@ -226,6 +226,56 @@ def get_user_playlists(user: Annotated[User, Depends(get_user)]):
     }
 
 
+@subsonic_router.post("/createPlaylists")
+def create_playlist(
+    user: Annotated[User, Depends(get_user)],
+    songId: list[int],
+    name: str | None = None,
+    playlistId: int | None = None,
+):
+    new_playlist = library_manager.create_playlist(user.id, name, songId)
+    if new_playlist is None:
+        raise_subsonic_error(70)
+    subsonic_playlist = to_subsonic_playlist(new_playlist)
+    tracks = []
+    for track in new_playlist.tracks:
+        subsonic_track = to_subsonic_song(track)
+        tracks.append(subsonic_track)
+    subsonic_playlist["entry"] = tracks
+    return {"playlists": subsonic_playlist}
+
+
+@subsonic_router.delete("/deletePlaylist")
+def delete_playlist(id: int, user: Annotated[User, Depends(get_user)]):
+    library_manager.delete_playlist(id, user.id)
+    return {}
+
+
+@subsonic_router.post("/changePassword")
+def change_password(
+    username: str, password: str, user: Annotated[User, Depends(get_user)]
+):
+    library_manager.update_user(user.id, username, password)
+    return {}
+
+
+@subsonic_router.post("/updateUser")
+def update_user(
+    username: str,
+    user: Annotated[User, Depends(get_user)],
+    adminRole: bool | None = None,
+    password: str | None = None,
+):
+    library_manager.update_user(user.id, username, password, adminRole)
+    return {}
+
+
+@subsonic_router.post("/createUser")
+def create_user(username: str, password: str, email: str):
+    library_manager.create_user(username, password, email)
+    return {}
+
+
 @subsonic_router.get("/getPlaylist")
 def get_playlist(id: int, user: Annotated[User, Depends(get_user)]):
     playlist = library_manager.get_playlist_by_id(id)
@@ -234,14 +284,7 @@ def get_playlist(id: int, user: Annotated[User, Depends(get_user)]):
     subsonic_playlist = to_subsonic_playlist(playlist)
     tracks = []
     for track in playlist.tracks:
-        track_link = next(
-            (link.link for link in track.links if link.link_type == "storage"),
-            None,
-        )
         subsonic_track = to_subsonic_song(track)
-
-        subsonic_track["path"] = track_link
-
         tracks.append(subsonic_track)
     subsonic_playlist["entry"] = tracks
     return {
