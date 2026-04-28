@@ -1,5 +1,7 @@
 from pathlib import Path
 import tomllib
+from structlog import get_logger
+from structlog.stdlib import BoundLogger
 from search.base import Search as BaseSearch
 from downloader.base import Downloader as BaseDownloader
 from storage.base import Storage as BaseStorage
@@ -95,6 +97,7 @@ class LibraryManager:
             config.get("scrobbler", {}), import_modules("scrobbler", BaseScrobbler)
         )
         self.db_manager = DBManager()
+        self.logger: BoundLogger = get_logger(__name__)
         self.executor = ThreadPoolExecutor(max_workers=5)
 
     def local_search(
@@ -865,10 +868,9 @@ class LibraryManager:
                             session.flush()
                 session.commit()
                 self.sync_queue[task_id]["status"] = "Finished"
-        except Exception as e:
-            import traceback
-
-            traceback.print_exc()
+                self.logger.info("Syncing succesful completed")
+        except:
+            self.logger.warning("Problem in library syncing")
 
     def import_tracks(self, importer_tag: str, user_id: int | None = None):
         importers = self.importers
@@ -992,7 +994,12 @@ class LibraryManager:
                         {"id": track_id, "album_id": album_id, "artists_id": artists_id}
                     )
                 except:
-                    pass
+                    self.logger.warning(
+                        "Problem in importing track",
+                        importer=importer_tag,
+                        user_id=user_id,
+                        track_id=track_id,
+                    )
             for artist_id in list(unique_artists.keys()):
                 try:
                     artist = selected_importer.get_artists(artist_id)
@@ -1018,7 +1025,12 @@ class LibraryManager:
                     session.flush()
                     artist_map[artist_id] = db_artist.id
                 except:
-                    pass
+                    self.logger.warning(
+                        "Problem in importing artist",
+                        importer=importer_tag,
+                        user_id=user_id,
+                        artist_id=artist_id,
+                    )
 
             for album_id in list(unique_albums.keys()):
                 try:
@@ -1053,7 +1065,12 @@ class LibraryManager:
                     session.flush()
                     album_map[album_id] = db_album.id
                 except:
-                    pass
+                    self.logger.warning(
+                        "Problem in importing album",
+                        importer=importer_tag,
+                        user_id=user_id,
+                        album_id=album_id,
+                    )
 
             for playlist_entry in playlists_to_add:
                 try:
@@ -1070,7 +1087,13 @@ class LibraryManager:
                             session.add(link)
                             session.flush()
                 except:
-                    pass
+                    self.logger.warning(
+                        "Problem in importing playlist",
+                        importer=importer_tag,
+                        user_id=user_id,
+                        playlist_id=playlist_entry["importer_id"],
+                    )
+
             for track_id in list(track_map.keys()):
                 try:
                     lyrics_text = selected_importer.get_lyrics(track_id)
@@ -1081,7 +1104,12 @@ class LibraryManager:
                         session.add(db_lyrics)
                         session.flush()
                 except:
-                    pass
+                    self.logger.warning(
+                        "Problem in importing track lyrics",
+                        importer=importer_tag,
+                        user_id=user_id,
+                        track_id=track_id,
+                    )
 
             for track_entry in tracks_to_add:
                 try:
@@ -1112,7 +1140,12 @@ class LibraryManager:
                             )
                         )
                 except:
-                    pass
+                    self.logger.warning(
+                        "Problem in adding imported track",
+                        importer=importer_tag,
+                        user_id=user_id,
+                        track_id=track_entry["id"],
+                    )
 
             for importer_track_id in favorited_track_ids:
                 db_track_id = track_map.get(importer_track_id)
@@ -1128,7 +1161,11 @@ class LibraryManager:
                 db_artist_id = artist_map.get(importer_artist_id)
                 if db_artist_id is not None:
                     session.add(StarredArtist(user_id=user_id, artist_id=db_artist_id))
+
             session.commit()
+            self.logger.info(
+                "Succesful imported library", importer=importer_tag, user_id=user_id
+            )
 
     def checks_status():
         pass
