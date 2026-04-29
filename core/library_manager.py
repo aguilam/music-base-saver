@@ -7,12 +7,12 @@ from downloader.base import Downloader as BaseDownloader
 from storage.base import Storage as BaseStorage
 from importer.base import Importer as BaseImporter
 from scrobbler.base import Scrobbler as BaseScrobbler
-from utils.utils import (
+from core.utils import (
     compare_tracks,
     find_best_track,
     full_track_save,
     find_best_storage,
-    analyze_track,
+    get_track_metadata_by_path,
     analyze_lrc,
     save_url_file,
     image_mime,
@@ -47,6 +47,7 @@ from .schemas.schemas import (
     Lyrics,
     MusicVideo,
     LyricsResponse,
+    TrackMetadata,
 )
 from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
@@ -54,6 +55,7 @@ from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 from typing import Literal, overload, NamedTuple
 import time
+from sqlmodel import Session
 
 STAR_LINK_MAP = {
     "track": lambda user_id, obj_id: StarredTrack(user_id=user_id, track_id=obj_id),
@@ -205,14 +207,69 @@ class LibraryManager:
     def get_download_task(self, task_id: str):
         return self.download_queue.get(task_id)
 
-    def post_download(self, query: str = None, id: str = None):
+    def post_download(self, query: str | None = None, object_id: str | None = None):
         task_id = str(uuid4())[:8]
         self.download_queue[task_id] = {"status": "Processing", "progress": 0}
-        self.executor.submit(self.download, task_id, query, id)
+        self.executor.submit(self.download, task_id, query, object_id)
         return task_id
 
     def _update_progress(self, task_id: str, progress: int):
         self.download_queue[task_id]["progress"] = progress
+
+    def add_new_track(
+        self,
+        session: Session,
+        track_metadata: TrackMetadata,
+        track_info: dict,
+        storage_id: str,
+        cover_id: int | None = None,
+    ):
+        db_album = None
+        if len(track_metadata.artists) > 0:
+            track_artists = [
+                self.db_manager.find_or_create_artist(session, artist)
+                for artist in track_metadata.artists
+            ]
+
+        if track_metadata.album_title:
+            db_album = self.db_manager.find_or_create_album(
+                session,
+                track_metadata.album_title,
+            )
+            album_artist = next(
+                (
+                    artist
+                    for artist in track_artists
+                    if artist.name == track_metadata.album_artist
+                ),
+                None,
+            )
+            db_album.artist_id = album_artist.id if album_artist else None
+        new_track = TrackORM(
+            title=track_metadata.title,
+            length=track_metadata.length,
+            album=db_album,
+        )
+        if cover_id and db_album:
+            db_album.cover_path = cover_id
+        session.add(new_track)
+        session.flush()
+        audio_file = AudioFileORM(track_id=new_track.id)
+        new_track.files.append(audio_file)
+        session.add(audio_file)
+        session.flush()
+        new_link = ObjectStorageORM(
+            link_type="storage",
+            audio_id=audio_file.id,
+            file_name=track_info["file_name"],
+            link_provider=storage_id,
+            link=track_info["link"],
+        )
+        session.add(new_link)
+        for artist in track_artists:
+            track_artist = TrackArtistsLink(artist_id=artist.id, track_id=new_track.id)
+            session.add(track_artist)
+        session.flush()
 
     def download(
         self,
@@ -271,56 +328,36 @@ class LibraryManager:
 
         if downloaded_path.exists():
             shutil.copy2(downloaded_path, dst)
-            track = analyze_track(dst, downloaded_path.stem)
-            title = track["title"]
-            artist_name = track["artist"][0]
-            album_title = track["album"]
-            length = track["length"]
+            track = get_track_metadata_by_path(dst)
+            title = track.title
+            artist_name = track.artists[0]
+            album_title = track.album_title
             saving_path = Path((f"{artist_name}/{album_title}/{dst.name}"))
             best_storage = find_best_storage(self.storages, best_track["size"])
             paths = full_track_save(best_storage, dst, saving_path)
             cover_storage_path = paths["cover_path"]
             saved_path = paths["track_path"]
             with self.db_manager.get_session() as session:
-                db_artist = self.db_manager.get_artist_by_name(session, artist_name)
-                if db_artist is None:
-                    db_artist = self.db_manager.add(
-                        session, ArtistORM(name=artist_name)
-                    )
-
-                if album_title:
-                    db_album = self.db_manager.get_album_by_name(session, album_title)
-                    if db_album is None:
-                        db_album = AlbumORM(title=album_title)
-                        db_artist.albums.append(db_album)
-                        session.flush()
-                    if db_album.cover_path is None and cover_storage_path is not None:
-                        cover_storage = ObjectStorageORM(
-                            link_type="storage",
-                            link_provider=best_storage.id,
-                            link=cover_storage_path,
-                        )
-                        session.add(cover_storage)
-                        session.flush()
-                        db_album.cover_path = cover_storage.id
-                        session.flush()
-                else:
-                    db_album = None
-
-                new_track = TrackORM(title=title, length=length, album=db_album)
-                new_link = ObjectStorageORM(
+                cover = ObjectStorageORM(
                     link_type="storage",
+                    file_name=Path(cover_storage_path).name,
                     link_provider=best_storage.id,
-                    link=str(saved_path),
+                    link=cover_storage_path,
                 )
-                new_track.links.append(new_link)
-                session.add(new_track)
-
+                session.add(cover)
+                session.flush(cover)
+                self.add_new_track(
+                    session,
+                    track,
+                    {"link": saved_path, "file_name": dst.name},
+                    best_storage.id,
+                    cover.id,
+                )
                 session.commit()
             self.download_queue[task_id]["result"] = {
                 "title": title,
-                "artist": [artist_name],
-                "length": length,
+                "artist": track.artists,
+                "length": track.length,
                 "storage": best_storage.name,
                 "download_source": downloader.TAG,
                 "saved_path": saved_path,
@@ -659,50 +696,9 @@ class LibraryManager:
                         for track in tracks_to_adding[storage.id]:
                             file_path = current_storage.get_file(track["link"])
                             track_metadata = get_track_metadata(file_path)
-                            db_artist = self.db_manager.get_artist_by_name(
-                                session, track_metadata["artist"]
+                            self.add_new_track(
+                                session, track_metadata, track, storage.id
                             )
-                            if db_artist is None:
-                                db_artist = self.db_manager.add(
-                                    session, ArtistORM(name=track_metadata["artist"])
-                                )
-
-                            if track_metadata["album"]:
-                                db_album = self.db_manager.get_album_by_name(
-                                    session, track_metadata["album"]
-                                )
-                                if db_album is None:
-                                    db_album = AlbumORM(title=track_metadata["album"])
-                                    db_artist.albums.append(db_album)
-                                    session.flush()
-                            else:
-                                db_album = None
-
-                            new_track = TrackORM(
-                                title=track_metadata["title"],
-                                length=track_metadata["length"],
-                                album=db_album,
-                            )
-                            session.add(new_track)
-                            session.flush()
-                            audio_file = AudioFileORM(track_id=new_track.id)
-                            new_track.files.append(audio_file)
-                            session.add(audio_file)
-                            session.flush()
-                            new_link = ObjectStorageORM(
-                                link_type="storage",
-                                audio_id=audio_file.id,
-                                file_name=track["file_name"],
-                                link_provider=current_storage.id,
-                                link=track["link"],
-                            )
-                            session.add(new_link)
-                            session.flush()
-                            track_artist = TrackArtistsLink(
-                                artist_id=db_artist.id, track_id=new_track.id
-                            )
-                            session.add(track_artist)
-                            session.flush()
                             track_added_count += 1
                             self._update_sync_progress(task_id, added=1)
                     if storage.id in cover_to_adding:

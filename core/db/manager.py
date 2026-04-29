@@ -9,7 +9,7 @@ from sqlmodel import (
     col,
 )
 
-from sqlalchemy import tuple_, func
+from sqlalchemy import tuple_, or_, func
 from core.db.mappers import (
     artist_from_orm,
     album_from_orm,
@@ -123,6 +123,38 @@ class DBManager:
             select(UserORM).where(UserORM.username == username)
         ).first()
         return user_from_orm(orm_user) if orm_user else None
+
+    def find_or_create_artist(self, session: Session, name: str):
+        normalized_name = name.lower().strip()
+
+        existed_artist = session.exec(
+            select(ArtistORM).where(
+                or_(
+                    func.lower(ArtistORM.name) == normalized_name,
+                    ArtistORM.aliases.any(
+                        func.lower(ArtistAlias.name) == normalized_name
+                    ),
+                )
+            )
+        ).first()
+        if existed_artist:
+            return existed_artist
+        new_artist = ArtistORM(name=name)
+        session.add(new_artist)
+        session.flush()
+        return new_artist
+
+    def find_or_create_album(self, session: Session, title: str):
+        normalized_title = title.lower().strip()
+        existed_album = session.exec(
+            select(AlbumORM).where(AlbumORM.title == normalized_title)
+        ).first()
+        if existed_album:
+            return existed_album
+        new_album = AlbumORM(title=title)
+        session.add(new_album)
+        session.flush()
+        return new_album
 
     def get_user_by_id(self, session: Session, id: int):
         orm_user = session.exec(select(UserORM).where(UserORM.id == id)).first()

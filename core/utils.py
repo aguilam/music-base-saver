@@ -17,6 +17,7 @@ from PIL import Image, ImageFile
 from PIL.ExifTags import Base
 from PIL.PngImagePlugin import PngInfo
 import io
+from core.schemas.schemas import TrackMetadata
 
 
 def analyze_lrc(lines: list[str]):
@@ -119,32 +120,17 @@ def find_best_track(
     return best_match_track
 
 
-def find_best_storage(storages: list[StorageEntry], file_size: int) -> Storage:
+def find_best_storage(storages: list[StorageEntry], file_size: int):
     for storage in storages:
-        params = storage.params.copy()
-        params.update({"id": storage.id, "name": storage.name})
         current_storage = storage.instance
         free_storage = current_storage.check_storage()
         if free_storage > file_size:
-            return current_storage
+            return storage
 
 
-def analyze_track(track_path: Path, default_name: str):
+def get_track_metadata_by_path(track_path: Path):
     track_metadata = mutagen.File(track_path, easy=True)
-    title = (track_metadata.get("title") or [default_name])[0]
-    artist_name = (track_metadata.get("artist") or ["Unknown"])[0]
-    album_title = (track_metadata.get("album") or [None])[0]
-    bpm = getattr(track_metadata.info, "bpm", None)
-    bitrate = getattr(track_metadata.info, "bitrate", None)
-    length = int(getattr(track_metadata.info, "length", 0) * 1000)
-    return {
-        "title": title,
-        "artist": [artist_name],
-        "album": album_title,
-        "bpm": bpm,
-        "bitrate": bitrate,
-        "length": length,
-    }
+    return _get_track_metadata(track_metadata)
 
 
 def full_track_save(best_storage: Storage, dst, saving_path):
@@ -214,20 +200,38 @@ def image_mime(data: bytes) -> str:
     return "application/octet-stream"
 
 
-def get_track_metadata(path: str) -> dict:
+def _get_track_metadata(track_metadata):
+    title = track_metadata.get("title", [None])[0]
+    artists_names = track_metadata.get("artist", [None])[0]
+    album_artist = track_metadata.get("artist", [None])[0]
+    album_title = track_metadata.get("album", [None])[0]
+    bpm = getattr(track_metadata.info, "bpm", [None])[0]
+    bitrate = getattr(track_metadata.info, "bitrate", [None])[0]
+    track_number = track_metadata.get("tracknumber", [None])[0]
+    disc_number = track_metadata.get("discnumber", [None])[0]
+    year = track_metadata.get("year", [None])[0]
+    genres = track_metadata.get("genre", [None])[0]
+    moods = track_metadata.get("mood", [None])[0]
+    length = int(getattr(track_metadata.info, "length", 0) * 1000)
+    return TrackMetadata(
+        title,
+        artists_names,
+        album_title,
+        album_artist,
+        length,
+        track_number,
+        disc_number,
+        year,
+        genres,
+        moods,
+        bitrate,
+        bpm,
+    )
+
+
+def get_track_metadata(path: str):
     track_metadata = mutagen.File(Path(path), easy=True)
-    title_list = track_metadata.get("title")
-    title = title_list[0] if title_list else Path(path).stem
-    artist_name = (track_metadata.get("artist") or ["Unknown"])[0]
-    album_title = (track_metadata.get("album") or [None])[0]
-    length = int(track_metadata.info.length * 1000)
-    del track_metadata
-    return {
-        "title": title,
-        "artist": artist_name,
-        "album": album_title,
-        "length": length,
-    }
+    return _get_track_metadata(track_metadata)
 
 
 def get_video_metadata(path: str) -> dict:
@@ -239,7 +243,7 @@ def get_video_metadata(path: str) -> dict:
     return {"title": title, "artist": artist, "album": album}
 
 
-def write_video_metadata(self, artist: str, album: str, title: str, path: str):
+def write_video_metadata(artist: str, album: str, title: str, path: str):
     video_metadata = MP4(Path(path))
     video_metadata["\xa9nam"] = title
     video_metadata["\xa9ART"] = artist

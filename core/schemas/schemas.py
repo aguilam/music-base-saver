@@ -148,3 +148,19 @@ class ObjectStorage:
     track_id: int | None = None
     music_video_id: int | None = None
     lyrics_id: int | None = None
+
+
+@dataclass(slots=True)
+class TrackMetadata:
+    title: str | None
+    artists: list[str]
+    album_title: str | None
+    album_artist: str | None
+    length: int
+    track_number: int | None
+    disc_number: int | None
+    year: int | None
+    genres: list[str]
+    moods: list[str]
+    bitrate: int | None
+    bpm: int | None
