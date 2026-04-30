@@ -164,3 +164,24 @@ class TrackMetadata:
     moods: list[str]
     bitrate: int | None
     bpm: int | None
+
+
+@dataclass(slots=True)
+class HealthStatus:
+    ok: bool
+    message: str | None = None
+
+
+@dataclass(slots=True)
+class ServicesStatus:
+    downloaders: list[ServiceStatus]
+    importers: list[ServiceStatus]
+    scrobblers: list[ServiceStatus]
+    search: list[ServiceStatus]
+    storages: list[ServiceStatus]
+
+
+@dataclass(slots=True)
+class ServiceStatus:
+    tag: str
+    health: HealthStatus

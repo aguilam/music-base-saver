@@ -1,12 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Callable
+from core.base_service import Service
 
 
-class Downloader(ABC):
-    @classmethod
-    @abstractmethod
-    def TAG(cls) -> str:
-        pass
+class Downloader(Service, ABC):
 
     def __init__(self, config):
         self.config = config

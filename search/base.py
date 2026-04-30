@@ -1,12 +1,9 @@
 from abc import ABC, abstractmethod
 from core.schemas.schemas import Track, Album, Artist
+from core.base_service import Service
 
 
-class Search(ABC):
-    @classmethod
-    @abstractmethod
-    def TAG(cls) -> str:
-        pass
+class Search(Service, ABC):
 
     def __init__(self, config):
         self.config = config

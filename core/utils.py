@@ -61,7 +61,7 @@ def _get_tag_value(text: str):
 
 
 def compare_tracks(original_metadata: dict, track_metadata: dict):
-    similarity = 0
+    similarity = 0.0
     if any(
         orig.lower() in track.lower()
         for orig in original_metadata["title"]

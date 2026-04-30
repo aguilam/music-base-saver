@@ -1,12 +1,9 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
+from core.base_service import Service
 
 
-class Storage(ABC):
-    @classmethod
-    @abstractmethod
-    def TAG(cls) -> str:
-        pass
+class Storage(Service, ABC):
 
     def __init__(self, config):
         self.config = config

@@ -48,6 +48,9 @@ from .schemas.schemas import (
     MusicVideo,
     LyricsResponse,
     TrackMetadata,
+    HealthStatus,
+    ServiceStatus,
+    ServicesStatus,
 )
 from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
@@ -1163,5 +1166,31 @@ class LibraryManager:
                 "Succesful imported library", importer=importer_tag, user_id=user_id
             )
 
-    def checks_status():
-        pass
+    def check_status(self):
+
+        return ServicesStatus(
+            downloaders=[
+                ServiceStatus(
+                    tag=downloader.tag, helth=downloader.instance.health_check()
+                )
+                for downloader in self.downloaders
+            ],
+            importers=[
+                ServiceStatus(tag=importer.tag, helth=importer.instance.health_check())
+                for importer in self.importers
+            ],
+            scrobblers=[
+                ServiceStatus(
+                    tag=scrobbler.tag, health=scrobbler.instance.health_check()
+                )
+                for scrobbler in self.scrobblers
+            ],
+            search=[
+                ServiceStatus(tag=search.tag, helth=search.instance.health_check())
+                for search in self.search_engines
+            ],
+            storages=[
+                ServiceStatus(tag=storage.tag, helth=storage.instance.health_check())
+                for storage in self.storages
+            ],
+        )

@@ -1,13 +1,9 @@
 from abc import ABC, abstractmethod
 from core.schemas.schemas import Track, Album, Artist, Playlist
+from core.base_service import Service
 
 
-class Importer(ABC):
-
-    @classmethod
-    @abstractmethod
-    def TAG(cls) -> str:
-        pass
+class Importer(Service, ABC):
 
     def __init__(self, config):
         self.config = config
