@@ -46,3 +46,6 @@ class MegaStorage(Storage):
         download_path = self.m.download(file_tulpe, dest_path=str(Path("temp_tracks")))
 
         return download_path
+
+    def health_check(self):
+        return super().health_check()

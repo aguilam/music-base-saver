@@ -11,4 +11,4 @@ class Service(ABC):
 
     @abstractmethod
     def health_check(self) -> HealthStatus:
-        pass
+        return HealthStatus(True)

@@ -139,3 +139,6 @@ class Slskd(Downloader):
 
         file_path = Path(self.download_path) / parts[-2] / parts[-1]
         return file_path
+
+    def health_check(self):
+        return super().health_check()

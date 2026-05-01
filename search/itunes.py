@@ -132,3 +132,6 @@ class iTunes(Search):
                 )
             )
         return Artist(external_id=artist_id, name=name, cover_path=avatar_url)
+
+    def health_check(self):
+        return super().health_check()

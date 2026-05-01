@@ -1171,12 +1171,12 @@ class LibraryManager:
         return ServicesStatus(
             downloaders=[
                 ServiceStatus(
-                    tag=downloader.tag, helth=downloader.instance.health_check()
+                    tag=downloader.tag, health=downloader.instance.health_check()
                 )
                 for downloader in self.downloaders
             ],
             importers=[
-                ServiceStatus(tag=importer.tag, helth=importer.instance.health_check())
+                ServiceStatus(tag=importer.tag, health=importer.instance.health_check())
                 for importer in self.importers
             ],
             scrobblers=[
@@ -1186,11 +1186,11 @@ class LibraryManager:
                 for scrobbler in self.scrobblers
             ],
             search=[
-                ServiceStatus(tag=search.tag, helth=search.instance.health_check())
+                ServiceStatus(tag=search.tag, health=search.instance.health_check())
                 for search in self.search_engines
             ],
             storages=[
-                ServiceStatus(tag=storage.tag, helth=storage.instance.health_check())
+                ServiceStatus(tag=storage.tag, health=storage.instance.health_check())
                 for storage in self.storages
             ],
         )

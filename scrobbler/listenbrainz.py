@@ -1,5 +1,5 @@
 from scrobbler.base import Scrobbler
-from core.schemas.schemas import Track
+from core.schemas.schemas import HealthStatus, Track
 import liblistenbrainz
 
 
@@ -26,3 +26,6 @@ class ListenBrainz(Scrobbler):
             track_name=track.title, artist_name=artists, listened_at=time
         )
         client.submit_single_listen(listen)
+
+    def health_check(self):
+        return super().health_check()

@@ -61,3 +61,6 @@ class S3(Storage):
             "end_bytes": start + len(data) - 1,
             "file_size": total_size,
         }
+
+    def health_check(self):
+        return super().health_check()

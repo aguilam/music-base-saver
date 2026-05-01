@@ -49,3 +49,6 @@ class MusicBrainz(Search):
 
     def get_artist(self, id: str) -> Artist:
         pass
+
+    def health_check(self):
+        return super().health_check()

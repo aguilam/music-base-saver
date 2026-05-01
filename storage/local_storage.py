@@ -58,6 +58,9 @@ class LocalStorage(Storage):
                 "file_size": file_size,
             }
 
+    def health_check(self):
+        return super().health_check()
+
     def _fix_windows_path(self, p: str) -> str:
         drive, rest = os.path.splitdrive(p)
 
