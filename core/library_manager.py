@@ -48,9 +48,9 @@ from .schemas.schemas import (
     MusicVideo,
     LyricsResponse,
     TrackMetadata,
-    HealthStatus,
     ServiceStatus,
     ServicesStatus,
+    SearchResults,
 )
 from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
@@ -114,26 +114,22 @@ class LibraryManager:
         albumOffset: int,
         songCount: int,
         songOffset: int,
-    ) -> dict:
+    ):
         with self.db_manager.get_session() as session:
-            return {
-                "tracks": self.db_manager.search_tracks(
-                    session, query, songCount, songOffset
-                ),
-                "albums": self.db_manager.search_albums(
-                    session, query, albumCount, albumOffset
-                ),
-                "artists": self.db_manager.search_artists(
+            return SearchResults(
+                artists=self.db_manager.search_artists(
                     session, query, artistCount, artistOffset
                 ),
-            }
+                albums=self.db_manager.search_albums(
+                    session, query, albumCount, albumOffset
+                ),
+                tracks=self.db_manager.search_tracks(
+                    session, query, songCount, songOffset
+                ),
+            )
 
     def global_search(self, query: str):
-        search_results = {
-            "artists": [],
-            "albums": [],
-            "tracks": [],
-        }
+        search_results = SearchResults(artists=[], albums=[], tracks=[])
         for engine in self.search_engines:
             search_engine = engine.instance
 
@@ -141,32 +137,32 @@ class LibraryManager:
             if res:
                 for item in res:
                     item.external_id = f"{search_engine.TAG}-{item.external_id}"
-                search_results["tracks"].extend(res)
+                search_results.tracks.extend(res)
 
             res = search_engine.search_albums(query)
             if res:
                 for item in res:
                     item.external_id = f"{search_engine.TAG}-{item.external_id}"
-                search_results["albums"].extend(res)
+                search_results.albums.extend(res)
 
             res = search_engine.search_artists(query)
             if res:
                 for item in res:
                     item.external_id = f"{search_engine.TAG}-{item.external_id}"
-                search_results["artists"].extend(res)
+                search_results.artists.extend(res)
 
         with self.db_manager.get_session() as session:
-            for artist in search_results["artists"]:
+            for artist in search_results.artists:
                 db_artist: ArtistORM = self.db_manager.get_artist_by_name(
                     session, artist.name
                 )
                 artist.id = db_artist.id if db_artist else None
-            for album in search_results["albums"]:
+            for album in search_results.albums:
                 db_album: AlbumORM = self.db_manager.get_album_by_name(
                     session, album.title
                 )
                 album.id = db_album.id if db_album else None
-            for track in search_results["tracks"]:
+            for track in search_results.tracks:
                 db_track: TrackORM = self.db_manager.get_track_by_name(
                     session, track.title
                 )
@@ -189,8 +185,9 @@ class LibraryManager:
     def get_global_object(
         self, object_type: Literal["track", "album", "artist"], object_id: str
     ):
-        search_tag = object_id.split("-")[0]
-        search_id = object_id.split("-")[1]
+        parts = object_id.split("-", 1)
+        search_tag = parts[0]
+        search_id = parts[1]
         for engine in self.search_engines:
             if engine.tag == search_tag:
                 search_engine = engine.instance
@@ -1167,7 +1164,6 @@ class LibraryManager:
             )
 
     def check_status(self):
-
         return ServicesStatus(
             downloaders=[
                 ServiceStatus(

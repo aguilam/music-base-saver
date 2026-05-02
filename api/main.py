@@ -345,9 +345,9 @@ def local_serch(
     )
     return {
         "searchResult3": {
-            "artist": [to_subsonic_artist(artist) for artist in searched["artists"]],
-            "album": [to_subsonic_album(album) for album in searched["albums"]],
-            "song": [to_subsonic_song(track) for track in searched["tracks"]],
+            "artist": [to_subsonic_artist(artist) for artist in searched.artists],
+            "album": [to_subsonic_album(album) for album in searched.albums],
+            "song": [to_subsonic_song(track) for track in searched.tracks],
         },
     }
 
@@ -380,15 +380,15 @@ def global_search(
     artists = []
     albums = []
     tracks = []
-    for artist in searched["artists"]:
+    for artist in searched.artists:
         sub_artist = external_artist_to_subsonic(artist)
         sub_artist["dbId"] = artist["db_id"]
         artists.append(sub_artist)
-    for album in searched["albums"]:
+    for album in searched.albums:
         sub_album = external_album_to_subsonic(album)
         sub_album["dbId"] = album["db_id"]
         albums.append(sub_album)
-    for track in searched["tracks"]:
+    for track in searched.tracks:
         sub_track = external_track_to_subsonic(track)
         sub_track["dbId"] = track["db_id"]
         tracks.append(sub_track)

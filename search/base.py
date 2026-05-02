@@ -21,13 +21,13 @@ class Search(Service, ABC):
         pass
 
     @abstractmethod
-    def get_track(self, id: str) -> Track:
+    def get_track(self, id: str) -> Track | None:
         pass
 
     @abstractmethod
-    def get_album(self, id: str) -> Album:
+    def get_album(self, id: str) -> Album | None:
         pass
 
     @abstractmethod
-    def get_artist(self, id: str) -> Artist:
+    def get_artist(self, id: str) -> Artist | None:
         pass

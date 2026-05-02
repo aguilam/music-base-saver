@@ -1,15 +1,15 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 
 @dataclass(slots=True)
 class Artist:
     name: str
-    albums: list[Album]
+    albums: list[Album] = field(default_factory=list)
     id: int | None = None
     cover_path: int | None = None
-    external_id: int | None = None
+    external_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -17,42 +17,42 @@ class ArtistShort:
     name: str
     id: int | None = None
     cover_path: int | None = None
-    external_id: int | None = None
+    external_id: str | None = None
 
 
 @dataclass(slots=True)
 class Album:
     title: str
-    duration: int
-    tracks_count: int
-    tracks: list[Track]
+    duration: int | None = None
+    tracks_count: int | None = None
+    tracks: list[Track] = field(default_factory=list)
     artist: ArtistShort | None = None
     id: int | None = None
     cover_path: int | None = None
     created_at: datetime | None = None
-    external_id: int | None = None
+    external_id: str | None = None
 
 
 @dataclass(slots=True)
 class AlbumShort:
     title: str
-    duration: int
-    tracks_count: int
-    tracks: list[Track]
+    duration: int | None = None
+    tracks_count: int | None = None
+    tracks: list[TrackShort] = field(default_factory=list)
     artist: ArtistShort | None = None
     id: int | None = None
     cover_path: int | None = None
     created_at: datetime | None = None
-    external_id: int | None = None
+    external_id: str | None = None
 
 
 @dataclass(slots=True)
 class Playlist:
     title: str
-    tracks: list[Track]
     owner: User
     tracks_count: int
     duration: int
+    tracks: list[Track] = field(default_factory=list)
     id: int | None = None
     cover_path: int | None = None
     is_public: bool = False
@@ -63,9 +63,9 @@ class Playlist:
 class Track:
     title: str
     length: int
-    lyrics: list[Lyrics]
-    music_videos: list[MusicVideo]
-    artists: list[ArtistShort]
+    artists: list[ArtistShort] = field(default_factory=list)
+    lyrics: list[Lyrics] = field(default_factory=list)
+    music_videos: list[MusicVideo] = field(default_factory=list)
     id: int | None = None
     album: Album | None = None
     cover_path: int | None = None
@@ -77,7 +77,7 @@ class Track:
     disc_number: int | None = None
     year: int | None = None
     created_at: datetime | None = None
-    external_id: int | None = None
+    external_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -94,7 +94,7 @@ class TrackShort:
     disc_number: int | None = None
     year: int | None = None
     created_at: datetime | None = None
-    external_id: int | None = None
+    external_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -153,17 +153,17 @@ class ObjectStorage:
 @dataclass(slots=True)
 class TrackMetadata:
     title: str | None
-    artists: list[str]
-    album_title: str | None
-    album_artist: str | None
-    length: int
-    track_number: int | None
-    disc_number: int | None
-    year: int | None
-    genres: list[str]
-    moods: list[str]
-    bitrate: int | None
-    bpm: int | None
+    length: int | None = None
+    artists: list[str] = field(default_factory=list)
+    album_title: str | None = None
+    album_artist: str | None = None
+    genres: list[str] = field(default_factory=list)
+    moods: list[str] = field(default_factory=list)
+    track_number: int | None = None
+    disc_number: int | None = None
+    year: int | None = None
+    bitrate: int | None = None
+    bpm: int | None = None
 
 
 @dataclass(slots=True)
@@ -185,3 +185,10 @@ class ServicesStatus:
 class ServiceStatus:
     tag: str
     health: HealthStatus
+
+
+@dataclass(slots=True)
+class SearchResults:
+    artists: list[Artist]
+    albums: list[Album]
+    tracks: list[Track]
