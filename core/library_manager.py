@@ -17,7 +17,7 @@ from core.utils import (
     save_url_file,
     image_mime,
     get_video_metadata,
-    get_track_metadata,
+    get_track_metadata_by_bytes,
     get_cover_metadata,
     write_cover_metadata,
 )
@@ -694,8 +694,10 @@ class LibraryManager:
                     current_storage = storage.instance
                     if storage.id in tracks_to_adding:
                         for track in tracks_to_adding[storage.id]:
-                            file_path = current_storage.get_file(track["link"])
-                            track_metadata = get_track_metadata(file_path)
+                            track_bytes = current_storage.get_range_bytes(
+                                track["link"], 0, 1024 * 1024 * 5
+                            )["bytes"]
+                            track_metadata = get_track_metadata_by_bytes(track_bytes)
                             self.add_new_track(
                                 session, track_metadata, track, storage.id
                             )
@@ -709,7 +711,9 @@ class LibraryManager:
                             range_bytes: bytes = current_storage.get_range_bytes(
                                 cover["link"], 0, 99999999
                             )["bytes"]
-                            id_from_cover = get_cover_metadata(range_bytes)
+                            id_from_cover = get_cover_metadata(
+                                range_bytes, "png" in cover["file_name"]
+                            )
                             if id_from_cover is None:
                                 if "-" not in cover["file_name"]:
                                     continue
@@ -832,11 +836,13 @@ class LibraryManager:
                                 session.flush()
                     if storage.id in videos_to_adding:
                         for video in videos_to_adding[storage.id]:
-                            file_path = current_storage.get_file(video["link"])
-                            video_metadata = get_video_metadata(file_path)
+                            video_bytes = current_storage.get_range_bytes(
+                                video["link"], 0, 1024 * 1024 * 5
+                            )["bytes"]
+                            video_metadata = get_video_metadata(video_bytes)
                             video_title = video_metadata["title"]
                             if video_title is None:
-                                video_title = video["file_name"]
+                                video_title = video["file_name"].split(".")[0]
                             track = self.db_manager.get_track_by_name(
                                 session, video_title
                             )

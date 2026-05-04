@@ -202,11 +202,11 @@ def image_mime(data: bytes) -> str:
 
 def _get_track_metadata(track_metadata):
     title = track_metadata.get("title", [None])[0]
-    artists_names = track_metadata.get("artist", [None])[0]
+    artists_names = track_metadata.get("artist", [])
     album_artist = track_metadata.get("artist", [None])[0]
     album_title = track_metadata.get("album", [None])[0]
     bpm = getattr(track_metadata.info, "bpm", [None])[0]
-    bitrate = getattr(track_metadata.info, "bitrate", [None])[0]
+    bitrate = getattr(track_metadata.info, "bitrate", None)
     track_number = track_metadata.get("tracknumber", [None])[0]
     disc_number = track_metadata.get("discnumber", [None])[0]
     year = track_metadata.get("year", [None])[0]
@@ -214,32 +214,32 @@ def _get_track_metadata(track_metadata):
     moods = track_metadata.get("mood", [None])[0]
     length = int(getattr(track_metadata.info, "length", 0) * 1000)
     return TrackMetadata(
-        title,
-        artists_names,
-        album_title,
-        album_artist,
-        length,
-        track_number,
-        disc_number,
-        year,
-        genres,
-        moods,
-        bitrate,
-        bpm,
+        title=title,
+        artists=artists_names,
+        album_title=album_title,
+        album_artist=album_artist,
+        length=length,
+        track_number=track_number,
+        disc_number=disc_number,
+        year=year,
+        genres=genres,
+        moods=moods,
+        bitrate=bitrate,
+        bpm=bpm,
     )
 
 
-def get_track_metadata(path: str):
-    track_metadata = mutagen.File(Path(path), easy=True)
+def get_track_metadata_by_bytes(bytes: bytes):
+    track_metadata = mutagen.File(io.BytesIO(bytes), easy=True)
     return _get_track_metadata(track_metadata)
 
 
-def get_video_metadata(path: str) -> dict:
-    video_metadata = MP4(Path(path))
-    title = video_metadata.get("\xa9nam")
-    artist = video_metadata.get("\xa9ART")
-    album = video_metadata.get("\xa9alb")
-    video_type = video_metadata.get("stik")
+def get_video_metadata(video_bytes: bytes) -> dict:
+    video_metadata = MP4(io.BytesIO(video_bytes))
+    title = video_metadata.get("\xa9nam", None)
+    artist = video_metadata.get("\xa9ART", None)
+    album = video_metadata.get("\xa9alb", None)
+    video_type = video_metadata.get("stik", None)
     return {"title": title, "artist": artist, "album": album}
 
 
