@@ -540,6 +540,20 @@ def unstar(id: int, time: int | None = None, submission: bool | None = True):
     return {}
 
 
+@subsonic_router.get("/getLyrics")
+def get_lyrics(title: str, artist: str | None = None):
+    track = library_manager.get_track_by_title(title)
+    lyrics = library_manager.get_lyrics(track.id)
+    lyric = next((lyric for lyric in lyrics if lyric.is_synced == False), None)
+    return {
+        "lyrics": {
+            "artist": lyric.artist,
+            "title": lyric.title,
+            "value": lyric.plain_text,
+        },
+    }
+
+
 @subsonic_router.get("/getLyricsBySongId")
 def get_lyrics(id: int, enhanced: bool | None = False):
     lyrics = library_manager.get_lyrics(id)

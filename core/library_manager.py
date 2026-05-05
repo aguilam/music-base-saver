@@ -564,6 +564,10 @@ class LibraryManager:
         with self.db_manager.get_session() as session:
             return self.db_manager.get_all_user_starred(session, user_id)
 
+    def get_track_by_title(self, title: str):
+        with self.db_manager.get_session() as session:
+            return self.db_manager.get_track_by_name(session, title)
+
     def get_lyrics(self, track_id: int):
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, track_id)
