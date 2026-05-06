@@ -63,7 +63,7 @@ def to_subsonic_playlist(playlist: Playlist):
     sub_playlist = {
         "id": playlist.id,
         "name": playlist.title,
-        "owner": playlist.owner.username,
+        "owner": playlist.owners[0].username,
         "public": playlist.is_public,
         "created": playlist.created_at,
         "changed": playlist.created_at,

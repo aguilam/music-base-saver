@@ -95,6 +95,12 @@ class StarredArtist(SQLModel, table=True):
     artist: "ArtistORM" = Relationship(back_populates="starred_artist_links")
 
 
+class playlistOwnerORM(SQLModel, table=True):
+    __tablename__ = "playlist_owner"
+    owner_id: int = Field(foreign_key="user.id", primary_key=True)
+    playlist_id: int = Field(foreign_key="playlist.id", primary_key=True)
+
+
 class UserORM(SQLModel, table=True):
     __tablename__ = "user"
     id: int | None = Field(default=None, primary_key=True)
@@ -107,7 +113,9 @@ class UserORM(SQLModel, table=True):
         back_populates="user",
         sa_relationship_kwargs={"passive_deletes": True},
     )
-    playlists: list["PlaylistORM"] = Relationship(back_populates="owner")
+    playlists: list["PlaylistORM"] = Relationship(
+        back_populates="owners", link_model=playlistOwnerORM
+    )
 
     starred_tracks_link: list["StarredTrack"] = Relationship(back_populates="user")
     starred_albums_link: list["StarredAlbum"] = Relationship(back_populates="user")
@@ -375,11 +383,9 @@ class PlaylistORM(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_public: bool = Field(default=False)
 
-    owner_id: int | None = Field(
-        default=None,
-        sa_column=Column(Integer, ForeignKey("user.id", ondelete="CASCADE")),
+    owners: list[UserORM] = Relationship(
+        back_populates="playlists", link_model=playlistOwnerORM
     )
-    owner: UserORM | None = Relationship(back_populates="playlists")
 
     @hybrid_property
     def track_count(self) -> int:

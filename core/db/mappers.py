@@ -73,7 +73,7 @@ def playlist_from_orm(playlist: PlaylistORM) -> Playlist:
         title=playlist.title,
         cover_path=playlist.cover_path,
         is_public=playlist.is_public,
-        owner=user_from_orm(playlist.owner),
+        owners=[user_from_orm(owner) for owner in playlist.owners],
         duration=playlist.duration,
         tracks_count=playlist.track_count,
         tracks=[track_from_orm(link.track) for link in playlist.track_links],

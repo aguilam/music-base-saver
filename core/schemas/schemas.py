@@ -49,7 +49,7 @@ class AlbumShort:
 @dataclass(slots=True)
 class Playlist:
     title: str
-    owner: User
+    owners: list[User]
     tracks_count: int
     duration: int
     tracks: list[Track] = field(default_factory=list)
