@@ -51,12 +51,13 @@ from .schemas.schemas import (
     ServiceStatus,
     ServicesStatus,
     SearchResults,
+    BinaryBlob,
 )
 from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
-from typing import Literal, overload, NamedTuple
+from typing import Literal, overload
 import time
 from sqlmodel import Session
 
@@ -71,11 +72,6 @@ UNSTAR_LINK_MAP = {
     "album": (StarredAlbum, "album_id"),
     "artist": (StarredArtist, "artist_id"),
 }
-
-
-class BinaryBlob(NamedTuple):
-    content: bytes
-    mime: str
 
 
 class LibraryManager:
@@ -153,19 +149,13 @@ class LibraryManager:
 
         with self.db_manager.get_session() as session:
             for artist in search_results.artists:
-                db_artist: ArtistORM = self.db_manager.get_artist_by_name(
-                    session, artist.name
-                )
+                db_artist = self.db_manager.get_artist_by_name(session, artist.name)
                 artist.id = db_artist.id if db_artist else None
             for album in search_results.albums:
-                db_album: AlbumORM = self.db_manager.get_album_by_name(
-                    session, album.title
-                )
+                db_album = self.db_manager.get_album_by_name(session, album.title)
                 album.id = db_album.id if db_album else None
             for track in search_results.tracks:
-                db_track: TrackORM = self.db_manager.get_track_by_name(
-                    session, track.title
-                )
+                db_track = self.db_manager.get_track_by_name(session, track.title)
                 track.id = db_track.id if db_track else None
         return search_results
 

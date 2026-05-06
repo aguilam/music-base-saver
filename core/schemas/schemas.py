@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import NamedTuple
 
 
 @dataclass(slots=True)
@@ -192,3 +193,8 @@ class SearchResults:
     artists: list[Artist]
     albums: list[Album]
     tracks: list[Track]
+
+
+class BinaryBlob(NamedTuple):
+    content: bytes
+    mime: str
