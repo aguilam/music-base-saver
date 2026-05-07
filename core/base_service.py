@@ -1,13 +1,10 @@
 from abc import ABC, abstractmethod
 from core.schemas.schemas import HealthStatus
+from typing import ClassVar
 
 
 class Service(ABC):
-
-    @classmethod
-    @abstractmethod
-    def TAG(cls) -> str:
-        pass
+    TAG: ClassVar[str]
 
     @abstractmethod
     def health_check(self) -> HealthStatus:

@@ -42,7 +42,8 @@ def import_modules(module_folder: str, BaseClass: type[T]) -> dict[str, type[T]]
                 and issubclass(cls, BaseClass)
                 and cls is not BaseClass
             ):
-                modules[getattr(cls, "TAG", None)] = cls
+                key = getattr(cls, "TAG", None) or getattr(cls, "NAME", None)
+                modules[key] = cls
     return modules
 
 

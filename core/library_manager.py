@@ -7,6 +7,7 @@ from downloader.base import Downloader as BaseDownloader
 from storage.base import Storage as BaseStorage
 from importer.base import Importer as BaseImporter
 from scrobbler.base import Scrobbler as BaseScrobbler
+from tool.base import Tool as BaseTool
 from core.utils import (
     compare_tracks,
     find_best_track,
@@ -96,6 +97,9 @@ class LibraryManager:
         )
         self.scrobblers = load_modules(
             config.get("scrobbler", {}), import_modules("scrobbler", BaseScrobbler)
+        )
+        self.scrobblers = load_modules(
+            config.get("tool", {}), import_modules("tool", BaseTool)
         )
         self.db_manager = DBManager()
         self.logger: BoundLogger = get_logger(__name__)
