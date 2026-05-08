@@ -25,6 +25,7 @@ class ArtistShort:
 class Album:
     title: str
     duration: int | None = None
+    year: int | None = None
     tracks_count: int | None = None
     tracks: list[Track] = field(default_factory=list)
     artist: ArtistShort | None = None

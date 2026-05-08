@@ -19,11 +19,15 @@ class Importer(Service, ABC):
         pass
 
     @abstractmethod
-    def get_albums(self) -> list[Album]:
+    def get_track(self, track_id: str) -> Track:
         pass
 
     @abstractmethod
-    def get_artists(self) -> list[Artist]:
+    def get_album(self, album_id: str) -> Album:
+        pass
+
+    @abstractmethod
+    def get_artist(self, artist_id: str) -> Artist:
         pass
 
     @abstractmethod

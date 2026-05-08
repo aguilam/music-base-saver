@@ -95,7 +95,7 @@ class StarredArtist(SQLModel, table=True):
     artist: "ArtistORM" = Relationship(back_populates="starred_artist_links")
 
 
-class playlistOwnerORM(SQLModel, table=True):
+class PlaylistOwnerORM(SQLModel, table=True):
     __tablename__ = "playlist_owner"
     owner_id: int = Field(foreign_key="user.id", primary_key=True)
     playlist_id: int = Field(foreign_key="playlist.id", primary_key=True)
@@ -114,7 +114,7 @@ class UserORM(SQLModel, table=True):
         sa_relationship_kwargs={"passive_deletes": True},
     )
     playlists: list["PlaylistORM"] = Relationship(
-        back_populates="owners", link_model=playlistOwnerORM
+        back_populates="owners", link_model=PlaylistOwnerORM
     )
 
     starred_tracks_link: list["StarredTrack"] = Relationship(back_populates="user")
@@ -384,7 +384,7 @@ class PlaylistORM(SQLModel, table=True):
     is_public: bool = Field(default=False)
 
     owners: list[UserORM] = Relationship(
-        back_populates="playlists", link_model=playlistOwnerORM
+        back_populates="playlists", link_model=PlaylistOwnerORM
     )
 
     @hybrid_property
