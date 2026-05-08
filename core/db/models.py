@@ -18,6 +18,12 @@ from sqlalchemy import (
 from datetime import datetime, timezone
 
 
+class AlbumArtistLink(SQLModel, table=True):
+    __tablename__ = "album_artist_link"
+    artist_id: int = Field(foreign_key="artist.id", primary_key=True)
+    album_id: int = Field(foreign_key="album.id", primary_key=True)
+
+
 class PlaylistTrackLink(SQLModel, table=True):
     __tablename__ = "playlist_track_link"
     __table_args__ = (
@@ -145,8 +151,8 @@ class ArtistORM(SQLModel, table=True):
     cover_path: int | None = Field(default=None, foreign_key="object_storage.id")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     albums: list["AlbumORM"] = Relationship(
-        back_populates="artist_rel",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+        back_populates="artists",
+        link_model=AlbumArtistLink,
     )
     tracks: list["TrackORM"] = Relationship(
         back_populates="artists", link_model=TrackArtistsLink
@@ -171,12 +177,10 @@ class AlbumORM(SQLModel, table=True):
     title: str
     year: int | None = Field(default=None)
 
-    artist_id: int | None = Field(
-        default=None,
-        sa_column=Column(Integer, ForeignKey("artist.id", ondelete="CASCADE")),
-    )
     cover_path: int | None = Field(default=None, foreign_key="object_storage.id")
-    artist_rel: ArtistORM | None = Relationship(back_populates="albums")
+    artists: list[ArtistORM] = Relationship(
+        back_populates="albums", link_model=AlbumArtistLink
+    )
 
     tracks: list["TrackORM"] = Relationship(
         back_populates="album",

@@ -28,7 +28,7 @@ class Album:
     year: int | None = None
     tracks_count: int | None = None
     tracks: list[Track] = field(default_factory=list)
-    artist: ArtistShort | None = None
+    artists: list[ArtistShort] = field(default_factory=list)
     id: int | None = None
     cover_path: int | None = None
     created_at: datetime | None = None
@@ -41,7 +41,7 @@ class AlbumShort:
     duration: int | None = None
     tracks_count: int | None = None
     tracks: list[TrackShort] = field(default_factory=list)
-    artist: ArtistShort | None = None
+    artists: list[ArtistShort] = field(default_factory=list)
     id: int | None = None
     cover_path: int | None = None
     created_at: datetime | None = None
@@ -158,7 +158,7 @@ class TrackMetadata:
     length: int | None = None
     artists: list[str] = field(default_factory=list)
     album_title: str | None = None
-    album_artist: str | None = None
+    album_artist: list[str] = field(default_factory=list)
     genres: list[str] = field(default_factory=list)
     moods: list[str] = field(default_factory=list)
     track_number: int | None = None

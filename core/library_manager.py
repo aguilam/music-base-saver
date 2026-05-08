@@ -39,6 +39,7 @@ from .db.models import (
     PlaylistOwnerORM,
     MusicVideoORM,
     AudioFileORM,
+    AlbumArtistLink,
 )
 from .schemas.schemas import (
     Artist,
@@ -230,15 +231,15 @@ class LibraryManager:
                 session,
                 track_metadata.album_title,
             )
-            album_artist = next(
-                (
-                    artist
-                    for artist in track_artists
-                    if artist.name == track_metadata.album_artist
-                ),
-                None,
-            )
-            db_album.artist_id = album_artist.id if album_artist else None
+            session.add(db_album)
+            session.flush()
+            album_artist = [
+                AlbumArtistLink(album_id=db_album.id, artist_id=artist.id)
+                for artist in track_artists
+                if artist.name == track_metadata.album_artist
+            ]
+            session.add_all(album_artist)
+            session.flush()
         new_track = TrackORM(
             title=track_metadata.title,
             length=track_metadata.length,

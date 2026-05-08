@@ -48,7 +48,7 @@ def album_from_orm(album: AlbumORM) -> Album:
         cover_path=album.cover_path,
         duration=album.duration,
         tracks_count=album.track_count,
-        artist=artist_short_from_orm(album.artist_rel) if album.artist_rel else None,
+        artists=[artist_short_from_orm(artist) for artist in album.artists],
         tracks=[track_from_orm(track) for track in album.tracks],
         created_at=album.created_at,
     )
@@ -61,7 +61,7 @@ def album_short_from_orm(album: AlbumORM) -> AlbumShort:
         cover_path=album.cover_path,
         duration=album.duration,
         tracks_count=album.track_count,
-        artist=artist_short_from_orm(album.artist_rel) if album.artist_rel else None,
+        artists=[artist_short_from_orm(artist) for artist in album.artists],
         tracks=[track_short_from_orm(track) for track in album.tracks],
         created_at=album.created_at,
     )

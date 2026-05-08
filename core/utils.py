@@ -217,7 +217,7 @@ def _get_track_metadata(track_metadata):
         title=title,
         artists=artists_names,
         album_title=album_title,
-        album_artist=album_artist,
+        album_artist=[album_artist],
         length=length,
         track_number=track_number,
         disc_number=disc_number,

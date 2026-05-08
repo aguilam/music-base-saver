@@ -49,7 +49,7 @@ class iTunes(Search):
                     Album(
                         external_id=id,
                         title=title,
-                        artist=Artist(name=artist),
+                        artists=[Artist(name=artist)],
                         cover_path=cover_url,
                     )
                 )
@@ -122,7 +122,7 @@ class iTunes(Search):
                 Album(
                     external_id=id,
                     title=title,
-                    artist=Artist(name=artist),
+                    artists=[Artist(name=artist)],
                     cover_path=cover_url,
                     duration=duration,
                     tracks=album_tracks,
@@ -150,7 +150,7 @@ class iTunes(Search):
                         external_id=album_id,
                         title=title,
                         cover_path=cover_url,
-                        artist=Artist(name=artist_name),
+                        artists=[Artist(name=artist_name)],
                     )
                 )
             return Artist(external_id=artist_id, name=name, cover_path=avatar_url)

@@ -14,11 +14,11 @@ def to_subsonic_song(track: Track):
         "isDir": False,
         "title": track.title,
         "album": track.album.title,
-        "artist": track.album.artist.name,
+        "artist": track.album.artist[0].name,
         "duration": int(track.length / 1000),
         "created": track.created_at,
         "albumId": track.album.id,
-        "artistId": track.album.artist.id,
+        "artistId": track.album.artist[0].id,
         "musicVideo": "cl-" + track.music_videos,
         "type": "music",
         "mediaType": "song",
@@ -30,9 +30,10 @@ def to_subsonic_song(track: Track):
 
 
 def to_subsonic_album(album: Album):
+    artist = album.artist[0]
     sub_album = {
         "id": album.id,
-        "parent": album.artist.id,
+        "parent": artist.id,
         "album": album.title,
         "title": album.title,
         "name": album.title,
@@ -40,8 +41,8 @@ def to_subsonic_album(album: Album):
         "songCount": len(album.tracks),
         "created": album.created_at,
         "duration": int(album.duration / 1000),
-        "artistId": album.artist.id,
-        "artist": album.artist.name,
+        "artistId": artist.id,
+        "artist": artist.name,
     }
     if album.cover_path:
         sub_album["coverArt"] = f"{album.cover_path}"
@@ -116,7 +117,7 @@ def external_album_to_subsonic(album: Album):
         "title": album.title,
         "name": album.title,
         "isDir": True,
-        "artist": album.artist,
+        "artist": album.artists[0],
         "songCount": album.tracks_count,
         "created": album.created_at,
     }

@@ -50,7 +50,7 @@ class MusicBrainz(Search):
                 Album(
                     external_id=album["id"],
                     title=album["title"],
-                    artist=normalized_artists[0],
+                    artists=normalized_artists,
                 )
             )
 
