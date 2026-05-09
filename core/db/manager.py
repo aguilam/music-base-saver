@@ -156,6 +156,30 @@ class DBManager:
         session.flush()
         return new_album
 
+    def find_or_create_mood(self, session: Session, mood_name: str):
+        normalized_name = mood_name.lower().strip()
+        mood = session.exec(
+            select(Mood).where(Mood.name.lower() == normalized_name)
+        ).first()
+        if mood:
+            return mood
+        new_mood = Mood(name=mood_name.strip())
+        session.add(new_mood)
+        session.flush()
+        return new_mood
+
+    def find_or_create_genre(self, session: Session, genre_name: str):
+        normalized_name = genre_name.lower().strip()
+        genre = session.exec(
+            select(Genre).where(Genre.name.lower() == normalized_name)
+        ).first()
+        if genre:
+            return genre
+        new_genre = Genre(name=genre_name.strip())
+        session.add(new_genre)
+        session.flush()
+        return new_genre
+
     def get_user_by_id(self, session: Session, id: int):
         orm_user = session.exec(select(UserORM).where(UserORM.id == id)).first()
         return user_from_orm(orm_user) if orm_user else None

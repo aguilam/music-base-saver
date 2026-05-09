@@ -39,6 +39,10 @@ from .db.models import (
     PlaylistOwnerORM,
     MusicVideoORM,
     AudioFileORM,
+    Genre,
+    TrackGenreLink,
+    Mood,
+    TrackMoodLink,
     AlbumArtistLink,
 )
 from .schemas.schemas import (
@@ -220,11 +224,10 @@ class LibraryManager:
         cover_id: int | None = None,
     ):
         db_album = None
-        if len(track_metadata.artists) > 0:
-            track_artists = [
-                self.db_manager.find_or_create_artist(session, artist)
-                for artist in track_metadata.artists
-            ]
+        track_artists = [
+            self.db_manager.find_or_create_artist(session, artist)
+            for artist in track_metadata.artists
+        ]
 
         if track_metadata.album_title:
             db_album = self.db_manager.find_or_create_album(
@@ -244,12 +247,30 @@ class LibraryManager:
             title=track_metadata.title,
             length=track_metadata.length,
             album=db_album,
+            bpm=track_metadata.bpm,
+            discNumber=track_metadata.disc_number,
+            album_position=track_metadata.album_position,
+            year=track_metadata.year,
         )
         if cover_id and db_album:
             db_album.cover_path = cover_id
         session.add(new_track)
         session.flush()
-        audio_file = AudioFileORM(track_id=new_track.id)
+        for genre in track_metadata.genres:
+            track_genre = self.db_manager.find_or_create_genre(session, genre)
+            track_genre_link = TrackGenreLink(
+                track_id=new_track.id, genre_id=track_genre.id
+            )
+            session.add(track_genre_link)
+            session.flush()
+        for mood in track_metadata.moods:
+            track_mood = self.db_manager.find_or_create_mood(session, mood)
+            track_mood_link = TrackMoodLink(
+                track_id=new_track.id, mood_id=track_mood.id
+            )
+            session.add(track_mood_link)
+            session.flush()
+        audio_file = AudioFileORM(track_id=new_track.id, bitrate=track_metadata.bitrate)
         new_track.files.append(audio_file)
         session.add(audio_file)
         session.flush()

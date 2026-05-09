@@ -161,7 +161,7 @@ class TrackMetadata:
     album_artist: list[str] = field(default_factory=list)
     genres: list[str] = field(default_factory=list)
     moods: list[str] = field(default_factory=list)
-    track_number: int | None = None
+    album_position: int | None = None
     disc_number: int | None = None
     year: int | None = None
     bitrate: int | None = None

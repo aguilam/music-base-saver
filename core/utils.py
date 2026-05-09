@@ -207,7 +207,7 @@ def _get_track_metadata(track_metadata):
     album_title = track_metadata.get("album", [None])[0]
     bpm = getattr(track_metadata.info, "bpm", [None])[0]
     bitrate = getattr(track_metadata.info, "bitrate", None)
-    track_number = track_metadata.get("tracknumber", [None])[0]
+    album_position = track_metadata.get("tracknumber", [None])[0]
     disc_number = track_metadata.get("discnumber", [None])[0]
     year = track_metadata.get("year", [None])[0]
     genres = track_metadata.get("genre", [None])[0]
@@ -219,7 +219,7 @@ def _get_track_metadata(track_metadata):
         album_title=album_title,
         album_artist=[album_artist],
         length=length,
-        track_number=track_number,
+        album_position=album_position,
         disc_number=disc_number,
         year=year,
         genres=genres,
