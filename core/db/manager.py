@@ -354,6 +354,18 @@ class DBManager:
         track = session.exec(statement).first()
         session.delete(track)
 
+    def delete_user_by_id(self, session: Session, user_id: int):
+        stm = delete(UserORM).where(UserORM.id == user_id)
+        result = session.exec(stm)
+        session.commit()
+        return result.rowcount
+
+    def delete_user_by_username(self, session: Session, username: str):
+        stm = delete(UserORM).where(UserORM.username == username)
+        result = session.exec(stm)
+        session.commit()
+        return result.rowcount
+
     def bulk_delete_by_links(
         self, session: Session, provider_link: list[tuple[str, str]]
     ):

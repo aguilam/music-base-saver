@@ -572,7 +572,7 @@ def get_artist_top_songs(artist: str, count: int | None = 50):
     }
 
 
-@subsonic_router.get("getGenres")
+@subsonic_router.get("/getGenres")
 def get_genres():
     genres = library_manager.get_genres()
     sub_genres = []
@@ -589,7 +589,7 @@ def get_genres():
     }
 
 
-@subsonic_router.get("getMoods")
+@subsonic_router.get("/getMoods")
 def get_moods():
     moods = library_manager.get_moods()
     sub_moods = []
@@ -604,6 +604,16 @@ def get_moods():
     return {
         "moods": {"mood": sub_moods},
     }
+
+
+@subsonic_router.get("/deleteUser")
+def delete_user(username: str, user: Annotated[User, Depends(get_user())]):
+    result = library_manager.delete_user_by_username(username, user.id)
+    if result is None:
+        raise_subsonic_error(50)
+    elif result == 0:
+        raise_subsonic_error(70)
+    return {}
 
 
 @subsonic_router.get("/download")

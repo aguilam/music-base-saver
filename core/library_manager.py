@@ -498,9 +498,23 @@ class LibraryManager:
                 session.expunge_all()
             return playlist
 
+    def delete_user_by_username(self, username: str, user_id: int):
+        with self.db_manager.get_session() as session:
+            user = self.db_manager.get_user_by_id(session, user_id)
+            if user.is_admin or user.username == username:
+                return self.db_manager.delete_user_by_username(session, username)
+            return None
+
+    def delete_user_by_id(self, id: int, user_id: int):
+        with self.db_manager.get_session() as session:
+            user = self.db_manager.get_user_by_id(session, user_id)
+            if user.is_admin or user.id == id:
+                return self.db_manager.delete_user_by_id(session, id)
+            return None
+
     def delete_track(self, track_id: int):
         with self.db_manager.get_session() as session:
-            track = self.db_manager.delete_file(session, track_id)
+            track = self.db_manager.delete_track(session, track_id)
             return track
 
     def star(self, user_id: int, object_id: int, object_type: str):
