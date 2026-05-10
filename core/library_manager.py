@@ -666,8 +666,8 @@ class LibraryManager:
         self.sync_queue[task_id]["deleted"] += deleted
         self.sync_queue[task_id]["added"] += added
 
-    def save_object(self, session: Session, saving_path: str):
-        best_storage = find_best_storage(self.storages, 0)
+    def save_object(self, session: Session, saving_path: str, file_size: int = 0):
+        best_storage = find_best_storage(self.storages, file_size)
         saved_object_path = best_storage.instance.save_file(saving_path)
         object_storage = ObjectStorageORM(
             link_type="storage",
@@ -939,42 +939,23 @@ class LibraryManager:
                 owner = self.db_manager.get_user_by_id(session, user_id)
             user_id = 1 if user_id is None or owner is None else user_id
 
-            unique_tracks = {
-                track["id"]: {"id": track["id"]} for track in favorited_tracks
-            }
-            unique_albums = {
-                album["id"]: {"id": album["id"]} for album in favorited_albums
-            }
-            unique_artists = {
-                artist["id"]: {"id": artist["id"]} for artist in favorited_artists
-            }
-            unique_playlists = {
-                playlist["id"]: {"id": playlist["id"]}
-                for playlist in favorited_playlists
-            }
-            favorited_tracks = favorited_tracks[:10]
-            favorited_albums = favorited_albums[:5]
-            favorited_artists = favorited_artists[:5]
-            favorited_playlists = favorited_playlists[:3]
-            favorited_track_ids = {track["id"] for track in favorited_tracks}
-            favorited_album_ids = {album["id"] for album in favorited_albums}
-            favorited_artist_ids = {artist["id"] for artist in favorited_artists}
+            unique_tracks_ids = {*favorited_tracks}
+            unique_albums_ids = {*favorited_albums}
+            unique_artists_ids = {*favorited_artists}
+            unique_playlists_ids = {*favorited_playlists}
             playlists_to_add = []
             tracks_to_add = []
             artist_map: dict[int, int] = {}
             album_map: dict[int, int] = {}
             track_map: dict[int, int] = {}
 
-            unique_playlists.update(
-                {pid: {} for pid in selected_importer.get_playlists()}
-            )
+            unique_playlists_ids.update(selected_importer.get_playlists())
 
             dst = Path("temp_tracks")
 
-            for playlist_id, _ in unique_playlists.items():
+            for playlist_id in unique_playlists_ids:
                 playlist_info = selected_importer.get_playlist(playlist_id)
-                for track in playlist_info.tracks:
-                    unique_tracks[track.id] = track
+                unique_tracks_ids.update(playlist_info.tracks)
                 db_playlist = PlaylistORM(name=playlist_info.title, is_public=False)
                 session.add(db_playlist)
                 session.flush()
@@ -984,7 +965,7 @@ class LibraryManager:
                 session.add(playlist_owner)
                 session.flush()
                 cover_path = save_url_file(
-                    playlist_info.cover_path, dst / f"pl-{db_playlist.id}.jpg"
+                    playlist_info.cover_path, dst / f"pl-{playlist_info.title}.jpg"
                 )
                 cover_id = self.save_object(session, cover_path)
                 db_playlist.cover_path = cover_id
@@ -996,28 +977,25 @@ class LibraryManager:
                         "name": playlist_info.title,
                     }
                 )
-            for track_id in list(unique_tracks.keys()):
+
+            for track_id in unique_tracks_ids:
                 try:
                     track_info = selected_importer.get_track(track_id)
-                    title = track_info.get("title", "Unknown")
-                    length = track_info.get("length", 0)
                     has_lyrics = track_info.get("has_lyrics", False)
                     has_video = track_info.get("has_video", False)
                     album_id = track_info.get("album_id")
                     artists_id = track_info.get("artists", [])
 
-                    if album_id is not None and album_id not in unique_albums:
-                        unique_albums[album_id] = {"id": album_id}
+                    unique_albums_ids.add(track_info.album.id)
 
-                    for artist_id in artists_id:
-                        if artist_id not in unique_artists:
-                            unique_artists[artist_id] = {"id": artist_id}
-                    url, name = selected_importer.get_track_download(track_id, dst)
+                    for artist in track_info.artists:
+                        unique_artists_ids.add(artist.id)
+                    url, name = selected_importer.get_track_download_link(track_id)
                     track_dst = dst / name
                     save_url_file(url, track_dst)
                     saving_path = Path(
                         (
-                            f"{track_info.get('artist_name', 'Unknown')[0]}/{track_info.get('album_title', 'Unknown')}/{name}"
+                            f"{track_info.artists[0].name}/{track_info.album.title}/{name}"
                         )
                     )
                     best_storage = find_best_storage(
@@ -1026,7 +1004,7 @@ class LibraryManager:
                     saved_path = best_storage.instance.save_file(track_dst, saving_path)
                     new_track_id = self.add_new_track(
                         session,
-                        TrackMetadata(),
+                        TrackMetadata(title=track_info.title, length=track_info.length),
                         {"link": saved_path, "filename": name},
                         best_storage.id,
                     )
@@ -1042,7 +1020,8 @@ class LibraryManager:
                         user_id=user_id,
                         track_id=track_id,
                     )
-            for artist_id in list(unique_artists.keys()):
+
+            for artist_id in unique_artists_ids:
                 try:
                     artist = selected_importer.get_artist(artist_id)
 
@@ -1065,7 +1044,7 @@ class LibraryManager:
                         artist_id=artist_id,
                     )
 
-            for album_id in list(unique_albums.keys()):
+            for album_id in unique_albums_ids:
                 try:
                     album = selected_importer.get_album(album_id)
 
@@ -1172,17 +1151,17 @@ class LibraryManager:
                         track_id=track_entry["id"],
                     )
 
-            for importer_track_id in favorited_track_ids:
+            for importer_track_id in favorited_tracks:
                 db_track_id = track_map.get(importer_track_id)
                 if db_track_id is not None:
                     session.add(StarredTrack(user_id=user_id, track_id=db_track_id))
 
-            for importer_album_id in favorited_album_ids:
+            for importer_album_id in favorited_albums:
                 db_album_id = album_map.get(importer_album_id)
                 if db_album_id is not None:
                     session.add(StarredAlbum(user_id=user_id, album_id=db_album_id))
 
-            for importer_artist_id in favorited_artist_ids:
+            for importer_artist_id in favorited_artists:
                 db_artist_id = artist_map.get(importer_artist_id)
                 if db_artist_id is not None:
                     session.add(StarredArtist(user_id=user_id, artist_id=db_artist_id))

@@ -9,13 +9,9 @@ class Importer(Service, ABC):
         self.config = config
 
     @abstractmethod
-    def get_favorited(self):
-        pass
-
-    @abstractmethod
-    def get_tracks(
+    def get_favorited(
         self,
-    ) -> list[Track]:
+    ) -> tuple[list[int | str], list[int | str], list[int | str], list[int | str]]:
         pass
 
     @abstractmethod
@@ -39,13 +35,13 @@ class Importer(Service, ABC):
         pass
 
     @abstractmethod
-    def get_track_download(self, track_id: str) -> str:
+    def get_track_download_link(self, track_id: str) -> str:
         pass
 
     @abstractmethod
-    def get_lyrics(self, track_id: str):
+    def get_lyrics_download_link(self, track_id: str):
         pass
 
     @abstractmethod
-    def get_music_videos(self, track_id: str):
+    def get_music_video_download_link(self, track_id: str):
         pass
