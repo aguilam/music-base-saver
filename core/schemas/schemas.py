@@ -69,14 +69,12 @@ class Track:
     lyrics: list[Lyrics] = field(default_factory=list)
     music_videos: list[MusicVideo] = field(default_factory=list)
     id: int | None = None
-    album: Album | None = None
+    albums: list[TrackAlbum] = field(default_factory=list)
     cover_path: int | None = None
     path: str | None = None
-    album_position: int | None = None
     bpm: int | None = None
     track_gain: float | None = None
     track_peak: float | None = None
-    disc_number: int | None = None
     year: int | None = None
     created_at: datetime | None = None
     external_id: str | None = None
@@ -87,13 +85,12 @@ class TrackShort:
     title: str
     length: int
     id: int | None = None
+    albums: list[TrackAlbum] = field(default_factory=list)
     cover_path: int | None = None
     path: str | None = None
-    album_position: int | None = None
     bpm: int | None = None
     track_gain: float | None = None
     track_peak: float | None = None
-    disc_number: int | None = None
     year: int | None = None
     created_at: datetime | None = None
     external_id: str | None = None
@@ -153,19 +150,39 @@ class ObjectStorage:
 
 
 @dataclass(slots=True)
+class TrackAlbumMetadata:
+    title: str
+    album_artist: str
+    disc_number: int | None = None
+    album_position: int | None = None
+
+
+@dataclass(slots=True)
 class TrackMetadata:
     title: str | None
     length: int | None = None
     artists: list[str] = field(default_factory=list)
-    album_title: str | None = None
-    album_artist: list[str] = field(default_factory=list)
+    albums: list[TrackAlbumMetadata] = field(default_factory=list)
     genres: list[str] = field(default_factory=list)
     moods: list[str] = field(default_factory=list)
-    album_position: int | None = None
-    disc_number: int | None = None
     year: int | None = None
     bitrate: int | None = None
     bpm: int | None = None
+
+
+@dataclass(slots=True)
+class TrackAlbum:
+    title: str
+    duration: int | None = None
+    tracks_count: int | None = None
+    artists: list[ArtistShort] = field(default_factory=list)
+    id: int | None = None
+    cover_path: int | None = None
+    created_at: datetime | None = None
+    disc_number: int | None = None
+    album_position: int | None = None
+    is_primary: bool = False
+    external_id: str | None = None
 
 
 @dataclass(slots=True)

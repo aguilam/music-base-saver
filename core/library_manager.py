@@ -42,6 +42,7 @@ from .db.models import (
     Genre,
     TrackGenreLink,
     Mood,
+    TrackAlbumLink,
     TrackMoodLink,
     AlbumArtistLink,
 )
@@ -54,6 +55,7 @@ from .schemas.schemas import (
     MusicVideo,
     LyricsResponse,
     TrackMetadata,
+    TrackAlbumMetadata,
     ServiceStatus,
     ServicesStatus,
     SearchResults,
@@ -228,34 +230,37 @@ class LibraryManager:
             self.db_manager.find_or_create_artist(session, artist)
             for artist in track_metadata.artists
         ]
-
-        if track_metadata.album_title:
+        new_track = TrackORM(
+            title=track_metadata.title,
+            length=track_metadata.length,
+            bpm=track_metadata.bpm,
+            year=track_metadata.year,
+        )
+        session.add(new_track)
+        session.flush()
+        for album in track_metadata.albums:
             db_album = self.db_manager.find_or_create_album(
                 session,
-                track_metadata.album_title,
+                album.title,
             )
+            if db_album.cover_path is None and cover_id:
+                db_album.cover_path = cover_id
             session.add(db_album)
             session.flush()
             album_artist = [
                 AlbumArtistLink(album_id=db_album.id, artist_id=artist.id)
                 for artist in track_artists
-                if artist.name == track_metadata.album_artist
+                if artist.name == album.album_artist
             ]
+            track_album = TrackAlbumLink(
+                track_id=new_track.id,
+                album_id=db_album.id,
+                album_position=album.album_position,
+                disc_number=album.disc_number,
+            )
+            session.add(track_album)
             session.add_all(album_artist)
             session.flush()
-        new_track = TrackORM(
-            title=track_metadata.title,
-            length=track_metadata.length,
-            album=db_album,
-            bpm=track_metadata.bpm,
-            discNumber=track_metadata.disc_number,
-            album_position=track_metadata.album_position,
-            year=track_metadata.year,
-        )
-        if cover_id and db_album:
-            db_album.cover_path = cover_id
-        session.add(new_track)
-        session.flush()
         for genre in track_metadata.genres:
             track_genre = self.db_manager.find_or_create_genre(session, genre)
             track_genre_link = TrackGenreLink(

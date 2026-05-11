@@ -17,7 +17,7 @@ from PIL import Image, ImageFile
 from PIL.ExifTags import Base
 from PIL.PngImagePlugin import PngInfo
 import io
-from core.schemas.schemas import TrackMetadata
+from core.schemas.schemas import TrackMetadata, TrackAlbumMetadata
 
 
 def analyze_lrc(lines: list[str]):
@@ -216,11 +216,15 @@ def _get_track_metadata(track_metadata):
     return TrackMetadata(
         title=title,
         artists=artists_names,
-        album_title=album_title,
-        album_artist=[album_artist],
+        albums=[
+            TrackAlbumMetadata(
+                title=album_title,
+                album_artist=album_artist,
+                disc_number=disc_number,
+                album_position=album_position,
+            )
+        ],
         length=length,
-        album_position=album_position,
-        disc_number=disc_number,
         year=year,
         genres=genres,
         moods=moods,

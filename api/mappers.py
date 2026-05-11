@@ -8,29 +8,30 @@ from core.schemas.schemas import (
 
 
 def to_subsonic_song(track: Track):
+    primary_album = next((album for album in track.albums if album.is_primary), None)
     song = {
         "id": track.id,
-        "parent": track.album.id,
+        "parent": primary_album.id if primary_album else None,
         "isDir": False,
         "title": track.title,
-        "album": track.album.title,
-        "artist": track.album.artist[0].name,
+        "album": primary_album.title if primary_album else None,
+        "artist": primary_album.artists[0].name if primary_album else None,
         "duration": int(track.length / 1000),
         "created": track.created_at,
-        "albumId": track.album.id,
-        "artistId": track.album.artist[0].id,
-        "musicVideo": "cl-" + track.music_videos,
+        "albumId": primary_album.id if primary_album else None,
+        "artistId": primary_album.artists[0].id if primary_album else None,
+        "musicVideo": "cl-" + track.music_videos[0].id,
         "type": "music",
         "mediaType": "song",
         "isVideo": False,
     }
-    if track.album.cover_path:
-        song["coverArt"] = f"{track.album.cover_path}"
+    if primary_album and primary_album.cover_path:
+        song["coverArt"] = f"{primary_album.cover_path}"
     return song
 
 
 def to_subsonic_album(album: Album):
-    artist = album.artist[0]
+    artist = album.artists[0]
     sub_album = {
         "id": album.id,
         "parent": artist.id,
@@ -93,7 +94,7 @@ def external_track_to_subsonic(track: Track):
         "id": track.external_id,
         "isDir": False,
         "title": track.title,
-        "album": track.album,
+        "album": track.albums[0].title,
         "artist": (track.artists[0]),
         "duration": track.length,
         "type": "music",
@@ -117,7 +118,7 @@ def external_album_to_subsonic(album: Album):
         "title": album.title,
         "name": album.title,
         "isDir": True,
-        "artist": album.artists[0],
+        "artist": album.artists[0].name,
         "songCount": album.tracks_count,
         "created": album.created_at,
     }

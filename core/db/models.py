@@ -144,6 +144,17 @@ class UserORM(SQLModel, table=True):
     )
 
 
+class TrackAlbumLink(SQLModel, table=True):
+    __tablename__ = "track_album"
+    track_id: int = Field(Primary_key=True, foreign_key="track.id")
+    album_id: int = Field(primary_key=True, foreign_key="album.id")
+    album_position: int
+    disc_number: int | None = None
+    is_primary_album: bool = False
+    track: "TrackORM" = Relationship(back_populates="albums_links")
+    album: "AlbumORM" = Relationship(back_populates="tracks_links")
+
+
 class ArtistORM(SQLModel, table=True):
     __tablename__ = "artist"
     id: int | None = Field(default=None, primary_key=True)
@@ -182,7 +193,7 @@ class AlbumORM(SQLModel, table=True):
         back_populates="albums", link_model=AlbumArtistLink
     )
 
-    tracks: list["TrackORM"] = Relationship(
+    tracks_links: list["TrackAlbumLink"] = Relationship(
         back_populates="album",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
@@ -299,15 +310,9 @@ class TrackORM(SQLModel, table=True):
     title: str
     length: int
     bpm: int | None = None
-    discNumber: int | None = None
     year: int | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    album_position: int | None
-    album_id: int | None = Field(
-        default=None,
-        sa_column=Column(Integer, ForeignKey("album.id", ondelete="CASCADE")),
-    )
-    album: AlbumORM | None = Relationship(back_populates="tracks")
+    albums_links: list[TrackAlbumLink] = Relationship(back_populates="track")
 
     lyrics: list["LyricsORM"] = Relationship(
         back_populates="track",

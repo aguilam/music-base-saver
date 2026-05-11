@@ -7,6 +7,7 @@ from core.db.models import (
     LyricsORM,
     UserORM,
     ObjectStorageORM,
+    TrackAlbumLink,
 )
 from core.schemas.schemas import (
     TrackShort,
@@ -21,6 +22,7 @@ from core.schemas.schemas import (
     Lyrics,
     User,
     ObjectStorage,
+    TrackAlbum,
 )
 
 
@@ -49,7 +51,7 @@ def album_from_orm(album: AlbumORM) -> Album:
         duration=album.duration,
         tracks_count=album.track_count,
         artists=[artist_short_from_orm(artist) for artist in album.artists],
-        tracks=[track_from_orm(track) for track in album.tracks],
+        tracks=[track_from_orm(link.track) for link in album.tracks_links],
         created_at=album.created_at,
     )
 
@@ -62,7 +64,7 @@ def album_short_from_orm(album: AlbumORM) -> AlbumShort:
         duration=album.duration,
         tracks_count=album.track_count,
         artists=[artist_short_from_orm(artist) for artist in album.artists],
-        tracks=[track_short_from_orm(track) for track in album.tracks],
+        tracks=[track_from_orm(link.track) for link in album.tracks_links],
         created_at=album.created_at,
     )
 
@@ -81,16 +83,34 @@ def playlist_from_orm(playlist: PlaylistORM) -> Playlist:
     )
 
 
+def track_album_from_orm(link: TrackAlbumLink) -> TrackAlbum:
+    album = link.album
+    return TrackAlbum(
+        title=album.title,
+        duration=album.duration,
+        tracks_count=album.track_count,
+        artists=[artist_short_from_orm(artist) for artist in album.artists],
+        id=album.id,
+        cover_path=album.cover_path,
+        created_at=album.created_at,
+        disc_number=link.disc_number,
+        album_position=link.album_position,
+        is_primary=link.is_primary_album,
+    )
+
+
 def track_from_orm(track: TrackORM) -> Track:
     primary_file = next((file for file in track.files if file.is_primary), None)
+    primary_album = next(
+        (link.album for link in track.albums_links if link.is_primary_album), None
+    )
     return Track(
         id=track.id,
         title=track.title,
         length=track.length,
         artists=[artist_short_from_orm(artist) for artist in track.artists],
-        album=album_short_from_orm(track.album),
-        album_position=track.album_position,
-        cover_path=track.album.cover_path,
+        albums=[track_album_from_orm(link.album) for link in track.albums_links],
+        cover_path=primary_album.cover_path if primary_album else primary_album,
         path=(
             next((link.id for link in primary_file.links), None)
             if primary_file
@@ -100,7 +120,6 @@ def track_from_orm(track: TrackORM) -> Track:
         track_gain=primary_file.trackGain if primary_file else None,
         track_peak=primary_file.trackPeak if primary_file else None,
         year=track.year,
-        disc_number=track.discNumber,
         lyrics=[lyrics_from_orm(lyrics) for lyrics in track.lyrics],
         music_videos=[music_video_from_orm(video) for video in track.music_videos],
         created_at=track.created_at,
@@ -114,7 +133,7 @@ def track_short_from_orm(track: TrackORM) -> TrackShort:
         title=track.title,
         length=track.length,
         album_position=track.album_position,
-        cover_path=track.album.cover_path,
+        cover_path=track.album[0].cover_path,
         path=(
             next((link.id for link in primary_file.links), None)
             if primary_file
