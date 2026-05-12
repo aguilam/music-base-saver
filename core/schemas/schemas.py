@@ -9,6 +9,8 @@ class Artist:
     name: str
     albums: list[Album] = field(default_factory=list)
     id: int | None = None
+    description: str | None = None
+    genres: list[str] = field(default_factory=list)
     cover_path: int | None = None
     external_id: str | None = None
 
@@ -17,6 +19,8 @@ class Artist:
 class ArtistShort:
     name: str
     id: int | None = None
+    description: str | None = None
+    genres: list[str] = field(default_factory=list)
     cover_path: int | None = None
     external_id: str | None = None
 
@@ -27,8 +31,10 @@ class Album:
     duration: int | None = None
     year: int | None = None
     tracks_count: int | None = None
+    description: str | None = None
     tracks: list[Track] = field(default_factory=list)
     artists: list[ArtistShort] = field(default_factory=list)
+    genres: list[str] = field(default_factory=list)
     id: int | None = None
     cover_path: int | None = None
     created_at: datetime | None = None
@@ -40,8 +46,10 @@ class AlbumShort:
     title: str
     duration: int | None = None
     tracks_count: int | None = None
+    description: str | None = None
     tracks: list[TrackShort] = field(default_factory=list)
     artists: list[ArtistShort] = field(default_factory=list)
+    genres: list[str] = field(default_factory=list)
     id: int | None = None
     cover_path: int | None = None
     created_at: datetime | None = None
@@ -125,6 +133,7 @@ class LyricsResponse:
 class MusicVideo:
     local_link: int
     track_id: int
+    duration_ms: int | None = None
     id: int | None = None
 
 

@@ -24,6 +24,32 @@ class AlbumArtistLink(SQLModel, table=True):
     album_id: int = Field(foreign_key="album.id", primary_key=True)
 
 
+class ArtistGenreLink(SQLModel, table=True):
+    __tablename__ = "track_genre"
+    artist_id: int | None = Field(
+        default=None, foreign_key="artist.id", primary_key=True
+    )
+    genre_id: int | None = Field(default=None, foreign_key="genre.id", primary_key=True)
+
+
+class AlbumGenreLink(SQLModel, table=True):
+    __tablename__ = "track_genre"
+    album_id: int | None = Field(default=None, foreign_key="album.id", primary_key=True)
+    genre_id: int | None = Field(default=None, foreign_key="genre.id", primary_key=True)
+
+
+class TrackGenreLink(SQLModel, table=True):
+    __tablename__ = "track_genre"
+    track_id: int | None = Field(default=None, foreign_key="track.id", primary_key=True)
+    genre_id: int | None = Field(default=None, foreign_key="genre.id", primary_key=True)
+
+
+class TrackMoodLink(SQLModel, table=True):
+    __tablename__ = "track_mood"
+    track_id: int | None = Field(default=None, foreign_key="track.id", primary_key=True)
+    mood_id: int | None = Field(default=None, foreign_key="mood.id", primary_key=True)
+
+
 class PlaylistTrackLink(SQLModel, table=True):
     __tablename__ = "playlist_track_link"
     __table_args__ = (
@@ -160,6 +186,7 @@ class ArtistORM(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
     cover_path: int | None = Field(default=None, foreign_key="object_storage.id")
+    description: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     albums: list["AlbumORM"] = Relationship(
         back_populates="artists",
@@ -167,6 +194,9 @@ class ArtistORM(SQLModel, table=True):
     )
     tracks: list["TrackORM"] = Relationship(
         back_populates="artists", link_model=TrackArtistsLink
+    )
+    genres: list["Genre"] = Relationship(
+        back_populates="artists", link_model=ArtistGenreLink
     )
     starred_artist_links: list[StarredArtist] = Relationship(back_populates="artist")
     starred_by: list["UserORM"] = Relationship(
@@ -186,13 +216,16 @@ class AlbumORM(SQLModel, table=True):
     __tablename__ = "album"
     id: int | None = Field(default=None, primary_key=True)
     title: str
+    type: str | None = None
     year: int | None = Field(default=None)
-
     cover_path: int | None = Field(default=None, foreign_key="object_storage.id")
     artists: list[ArtistORM] = Relationship(
         back_populates="albums", link_model=AlbumArtistLink
     )
-
+    genres: list["Genre"] = Relationship(
+        back_populates="albums", link_model=AlbumGenreLink
+    )
+    description: str | None = None
     tracks_links: list["TrackAlbumLink"] = Relationship(
         back_populates="album",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
@@ -238,23 +271,17 @@ class AlbumORM(SQLModel, table=True):
     )
 
 
-class TrackGenreLink(SQLModel, table=True):
-    __tablename__ = "track_genre"
-    track_id: int | None = Field(default=None, foreign_key="track.id", primary_key=True)
-    genre_id: int | None = Field(default=None, foreign_key="genre.id", primary_key=True)
-
-
-class TrackMoodLink(SQLModel, table=True):
-    __tablename__ = "track_mood"
-    track_id: int | None = Field(default=None, foreign_key="track.id", primary_key=True)
-    mood_id: int | None = Field(default=None, foreign_key="mood.id", primary_key=True)
-
-
 class Genre(SQLModel, table=True):
     __tablename__ = "genre"
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
 
+    artists: list["ArtistORM"] = Relationship(
+        back_populates="genres", link_model=ArtistGenreLink
+    )
+    albums: list["AlbumORM"] = Relationship(
+        back_populates="genres", link_model=AlbumGenreLink
+    )
     tracks: list["TrackORM"] = Relationship(
         back_populates="genres", link_model=TrackGenreLink
     )
@@ -374,6 +401,7 @@ class MusicVideoORM(SQLModel, table=True):
     __tablename__ = "music_video"
     id: int | None = Field(default=None, primary_key=True)
     is_external_link: bool
+    duration_ms: int | None = None
     external_link: str | None = None
     local_link: list["ObjectStorageORM"] = Relationship(
         sa_relationship_kwargs={"foreign_keys": ObjectStorageORM.music_video_id}

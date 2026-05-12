@@ -31,7 +31,9 @@ def artist_from_orm(artist: ArtistORM) -> Artist:
         id=artist.id,
         name=artist.name,
         cover_path=artist.cover_path,
+        description=artist.description,
         albums=[album_from_orm(album) for album in artist.albums],
+        genres=[genre.name for genre in artist.genres],
     )
 
 
@@ -39,6 +41,7 @@ def artist_short_from_orm(artist: ArtistORM) -> ArtistShort:
     return ArtistShort(
         id=artist.id,
         name=artist.name,
+        description=artist.description,
         cover_path=artist.cover_path,
     )
 
@@ -49,7 +52,9 @@ def album_from_orm(album: AlbumORM) -> Album:
         title=album.title,
         cover_path=album.cover_path,
         duration=album.duration,
+        description=album.description,
         tracks_count=album.track_count,
+        genres=[genre.name for genre in album.genres],
         artists=[artist_short_from_orm(artist) for artist in album.artists],
         tracks=[track_from_orm(link.track) for link in album.tracks_links],
         created_at=album.created_at,
@@ -62,7 +67,9 @@ def album_short_from_orm(album: AlbumORM) -> AlbumShort:
         title=album.title,
         cover_path=album.cover_path,
         duration=album.duration,
+        description=album.description,
         tracks_count=album.track_count,
+        genres=[genre.name for genre in album.genres],
         artists=[artist_short_from_orm(artist) for artist in album.artists],
         tracks=[track_from_orm(link.track) for link in album.tracks_links],
         created_at=album.created_at,
@@ -167,6 +174,7 @@ def music_video_from_orm(music_video: MusicVideoORM) -> MusicVideo:
         id=music_video.id,
         local_link=next((link.id for link in music_video.local_link), None),
         track_id=music_video.track_id,
+        duration_ms=music_video.duration_ms,
     )
 
 
