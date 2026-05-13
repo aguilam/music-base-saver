@@ -77,6 +77,12 @@ class DBManager:
     def get_album_by_name(self, session: Session, title: str):
         return session.exec(select(AlbumORM).where(AlbumORM.title == title)).first()
 
+    def get_tracks_by_artist_name(self, session: Session, artist_name: str):
+        tracks = session.exec(
+            select(TrackORM).join(TrackORM.artists).where(ArtistORM.name == artist_name)
+        ).all()
+        return [track_from_orm(track) for track in tracks]
+
     def get_provider_key(self, session: Session, provider: str, user_id: int):
         statement = select(ProviderKeyORM.key).where(
             ProviderKeyORM.provider == provider, ProviderKeyORM.user_id == user_id

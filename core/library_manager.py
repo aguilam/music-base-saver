@@ -451,8 +451,7 @@ class LibraryManager:
 
     def get_artist_top_songs(self, name: str, count: int):
         with self.db_manager.get_session() as session:
-            artist = self.db_manager.get_artist_by_name(session, name)
-            artist_tracks = artist.tracks
+            artist_tracks = self.db_manager.get_tracks_by_artist_name(session, name)
             return artist_tracks[:50]
 
     def get_cover_art(self, id: int):
@@ -1000,7 +999,7 @@ class LibraryManager:
                     save_url_file(url, track_dst)
                     saving_path = Path(
                         (
-                            f"{track_info.artists[0].name}/{track_info.album.title}/{name}"
+                            f"{track_info.artists[0].name}/{track_info.album[0].title}/{name}"
                         )
                     )
                     best_storage = find_best_storage(
