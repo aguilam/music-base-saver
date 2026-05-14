@@ -16,6 +16,22 @@ class Artist:
 
 
 @dataclass(slots=True)
+class Mood:
+    tracks: list[TrackShort] = field(default_factory=list)
+    name: str
+    id: int | None = None
+
+
+@dataclass(slots=True)
+class Genre:
+    name: str
+    artists: list[ArtistShort] = field(default_factory=list)
+    albums: list[AlbumShort] = field(default_factory=list)
+    tracks: list[TrackShort] = field(default_factory=list)
+    id: int | None = None
+
+
+@dataclass(slots=True)
 class ArtistShort:
     name: str
     id: int | None = None

@@ -39,9 +39,7 @@ from .db.models import (
     PlaylistOwnerORM,
     MusicVideoORM,
     AudioFileORM,
-    Genre,
     TrackGenreLink,
-    Mood,
     TrackAlbumLink,
     TrackMoodLink,
     AlbumArtistLink,
@@ -53,6 +51,8 @@ from .schemas.schemas import (
     Track,
     Lyrics,
     MusicVideo,
+    Genre,
+    Mood,
     LyricsResponse,
     TrackMetadata,
     TrackAlbumMetadata,
@@ -468,12 +468,11 @@ class LibraryManager:
             genres = self.db_manager.get_genres(session)
             counted_genres = []
             for genre in genres:
-                album_ids = {track.album_id for track in genre.tracks}
                 counted_genres.append(
                     {
                         "name": genre.name,
                         "track_count": len(genre.tracks),
-                        "album_count": len(album_ids),
+                        "album_count": len(genre.albums),
                     }
                 )
             return counted_genres
@@ -483,12 +482,14 @@ class LibraryManager:
             moods = self.db_manager.get_moods(session)
             counted_moods = []
             for mood in moods:
-                album_ids = {track.album_id for track in mood.tracks}
+                albums_ids = {}
+                for track in mood.tracks:
+                    albums_ids.update(album.id for album in track.albums)
                 counted_moods.append(
                     {
                         "name": mood.name,
                         "track_count": len(mood.tracks),
-                        "album_count": len(album_ids),
+                        "album_count": len(albums_ids),
                     }
                 )
             return counted_moods
@@ -990,7 +991,7 @@ class LibraryManager:
                     album_id = track_info.get("album_id")
                     artists_id = track_info.get("artists", [])
 
-                    unique_albums_ids.add(track_info.album.id)
+                    unique_albums_ids.update(album.id for album in track_info.albums)
 
                     for artist in track_info.artists:
                         unique_artists_ids.add(artist.id)
@@ -999,7 +1000,7 @@ class LibraryManager:
                     save_url_file(url, track_dst)
                     saving_path = Path(
                         (
-                            f"{track_info.artists[0].name}/{track_info.album[0].title}/{name}"
+                            f"{track_info.artists[0].name}/{track_info.albums[0].title}/{name}"
                         )
                     )
                     best_storage = find_best_storage(

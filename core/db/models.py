@@ -195,7 +195,7 @@ class ArtistORM(SQLModel, table=True):
     tracks: list["TrackORM"] = Relationship(
         back_populates="artists", link_model=TrackArtistsLink
     )
-    genres: list["Genre"] = Relationship(
+    genres: list["GenreORM"] = Relationship(
         back_populates="artists", link_model=ArtistGenreLink
     )
     starred_artist_links: list[StarredArtist] = Relationship(back_populates="artist")
@@ -222,7 +222,7 @@ class AlbumORM(SQLModel, table=True):
     artists: list[ArtistORM] = Relationship(
         back_populates="albums", link_model=AlbumArtistLink
     )
-    genres: list["Genre"] = Relationship(
+    genres: list["GenreORM"] = Relationship(
         back_populates="albums", link_model=AlbumGenreLink
     )
     description: str | None = None
@@ -271,7 +271,7 @@ class AlbumORM(SQLModel, table=True):
     )
 
 
-class Genre(SQLModel, table=True):
+class GenreORM(SQLModel, table=True):
     __tablename__ = "genre"
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
@@ -287,7 +287,7 @@ class Genre(SQLModel, table=True):
     )
 
 
-class Mood(SQLModel, table=True):
+class MoodORM(SQLModel, table=True):
     __tablename__ = "mood"
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
@@ -366,10 +366,10 @@ class TrackORM(SQLModel, table=True):
         back_populates="tracks", link_model=TrackArtistsLink
     )
     music_videos: list["MusicVideoORM"] = Relationship(back_populates="track")
-    genres: list["Genre"] = Relationship(
+    genres: list["GenreORM"] = Relationship(
         back_populates="tracks", link_model=TrackGenreLink
     )
-    moods: list["Mood"] = Relationship(
+    moods: list["MoodORM"] = Relationship(
         back_populates="tracks", link_model=TrackMoodLink
     )
 

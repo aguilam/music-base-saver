@@ -18,14 +18,16 @@ from core.db.mappers import (
     music_video_from_orm,
     user_from_orm,
     object_storage_from_orm,
+    mood_from_orm,
+    genre_from_orm,
 )
 from core.db.models import (
     UserORM,
     ArtistAlias,
     ArtistORM,
     AlbumORM,
-    Genre,
-    Mood,
+    GenreORM,
+    MoodORM,
     ObjectStorageORM,
     TrackORM,
     PlaylistORM,
@@ -95,21 +97,21 @@ class DBManager:
         keys = session.exec(statement).all()
         return keys
 
-    def get_moods(self, session: Session) -> list[Mood] | None:
+    def get_moods(self, session: Session):
         moods = (
-            session.execute(select(Mood).options(selectinload(Mood.tracks)))
+            session.execute(select(MoodORM).options(selectinload(MoodORM.tracks)))
             .scalars()
             .all()
         )
-        return moods
+        return [mood_from_orm(mood) for mood in moods]
 
-    def get_genres(self, session: Session) -> list[Genre] | None:
+    def get_genres(self, session: Session):
         genres = (
-            session.execute(select(Genre).options(selectinload(Genre.tracks)))
+            session.execute(select(GenreORM).options(selectinload(GenreORM.tracks)))
             .scalars()
             .all()
         )
-        return genres
+        return [genre_from_orm(genre) for genre in genres]
 
     def get_storage_object_by_id(self, session: Session, id: int):
         storage = session.exec(
@@ -165,11 +167,11 @@ class DBManager:
     def find_or_create_mood(self, session: Session, mood_name: str):
         normalized_name = mood_name.lower().strip()
         mood = session.exec(
-            select(Mood).where(Mood.name.lower() == normalized_name)
+            select(MoodORM).where(MoodORM.name.lower() == normalized_name)
         ).first()
         if mood:
             return mood
-        new_mood = Mood(name=mood_name.strip())
+        new_mood = MoodORM(name=mood_name.strip())
         session.add(new_mood)
         session.flush()
         return new_mood
@@ -177,11 +179,11 @@ class DBManager:
     def find_or_create_genre(self, session: Session, genre_name: str):
         normalized_name = genre_name.lower().strip()
         genre = session.exec(
-            select(Genre).where(Genre.name.lower() == normalized_name)
+            select(GenreORM).where(GenreORM.name.lower() == normalized_name)
         ).first()
         if genre:
             return genre
-        new_genre = Genre(name=genre_name.strip())
+        new_genre = GenreORM(name=genre_name.strip())
         session.add(new_genre)
         session.flush()
         return new_genre

@@ -8,6 +8,8 @@ from core.db.models import (
     UserORM,
     ObjectStorageORM,
     TrackAlbumLink,
+    MoodORM,
+    GenreORM,
 )
 from core.schemas.schemas import (
     TrackShort,
@@ -21,6 +23,8 @@ from core.schemas.schemas import (
     MusicVideo,
     Lyrics,
     User,
+    Mood,
+    Genre,
     ObjectStorage,
     TrackAlbum,
 )
@@ -139,8 +143,7 @@ def track_short_from_orm(track: TrackORM) -> TrackShort:
         id=track.id,
         title=track.title,
         length=track.length,
-        album_position=track.album_position,
-        cover_path=track.album[0].cover_path,
+        cover_path=track.albums_links[0].cover_path,
         path=(
             next((link.id for link in primary_file.links), None)
             if primary_file
@@ -150,8 +153,25 @@ def track_short_from_orm(track: TrackORM) -> TrackShort:
         track_gain=primary_file.trackGain if primary_file else None,
         track_peak=primary_file.trackPeak if primary_file else None,
         year=track.year,
-        disc_number=track.discNumber,
         created_at=track.created_at,
+    )
+
+
+def mood_from_orm(mood: MoodORM) -> Mood:
+    return Mood(
+        id=mood.id,
+        name=mood.name,
+        tracks=[track_short_from_orm(track) for track in mood.tracks],
+    )
+
+
+def genre_from_orm(genre: GenreORM) -> Genre:
+    return Genre(
+        id=genre.id,
+        name=genre.name,
+        artists=[artist_short_from_orm(artist) for artist in genre.artists],
+        albums=[album_short_from_orm(album) for album in genre.albums],
+        tracks=[track_short_from_orm(track) for track in genre.tracks],
     )
 
 
