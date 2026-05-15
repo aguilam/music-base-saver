@@ -219,7 +219,7 @@ def _get_track_metadata(track_metadata):
         albums=[
             TrackAlbumMetadata(
                 title=album_title,
-                album_artist=album_artist,
+                album_artists=[album_artist],
                 disc_number=disc_number,
                 album_position=album_position,
             )

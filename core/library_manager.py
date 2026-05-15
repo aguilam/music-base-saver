@@ -240,17 +240,19 @@ class LibraryManager:
         session.flush()
         for album in track_metadata.albums:
             db_album = self.db_manager.find_or_create_album(
-                session,
-                album.title,
+                session, album.title, album.album_artists
             )
             if db_album.cover_path is None and cover_id:
                 db_album.cover_path = cover_id
             session.add(db_album)
             session.flush()
-            album_artist = [
-                AlbumArtistLink(album_id=db_album.id, artist_id=artist.id)
-                for artist in track_artists
-                if artist.name == album.album_artist
+            db_album_artists = [
+                self.db_manager.find_or_create_artist(session, artist)
+                for artist in album.album_artists
+            ]
+            album_artists = [
+                AlbumArtistLink(artist_id=artist.id, album_id=db_album.id)
+                for artist in db_album_artists
             ]
             track_album = TrackAlbumLink(
                 track_id=new_track.id,
@@ -259,7 +261,7 @@ class LibraryManager:
                 disc_number=album.disc_number,
             )
             session.add(track_album)
-            session.add_all(album_artist)
+            session.add_all(album_artists)
             session.flush()
         for genre in track_metadata.genres:
             track_genre = self.db_manager.find_or_create_genre(session, genre)

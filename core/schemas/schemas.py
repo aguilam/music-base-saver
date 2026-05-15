@@ -177,7 +177,7 @@ class ObjectStorage:
 @dataclass(slots=True)
 class TrackAlbumMetadata:
     title: str
-    album_artist: str
+    album_artists: list[str]
     disc_number: int | None = None
     album_position: int | None = None
 

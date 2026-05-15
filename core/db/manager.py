@@ -152,11 +152,18 @@ class DBManager:
         session.flush()
         return new_artist
 
-    def find_or_create_album(self, session: Session, title: str):
+    def find_or_create_album(
+        self, session: Session, title: str, artists_names: list[str] | None = None
+    ):
         normalized_title = title.lower().strip()
-        existed_album = session.exec(
-            select(AlbumORM).where(AlbumORM.title == normalized_title)
-        ).first()
+        stmt = select(AlbumORM).where(AlbumORM.title == normalized_title)
+        if artists_names:
+            stmt = (
+                stmt.join(AlbumORM.artists)
+                .where(ArtistORM.name.in_(artists_names))
+                .distinct()
+            )
+        existed_album = session.exec(stmt).first()
         if existed_album:
             return existed_album
         new_album = AlbumORM(title=title)
