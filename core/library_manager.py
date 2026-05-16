@@ -90,6 +90,7 @@ class LibraryManager:
         with config_path.open("rb") as config_file:
             config = tomllib.load(config_file)
         self.config = config
+        self.temp_dir = Path("temp_tracks")
         self.download_queue = {}
         self.sync_queue = {}
         self.search_engines = load_modules(
@@ -309,13 +310,7 @@ class LibraryManager:
         tracks_dict = []
         searched_tracks = []
         if query:
-            self.global_search()
-            search_results = []
-            for engine in self.search_engines:
-                search_engine = engine.instance
-                results = search_engine.search_tracks(query)
-                for track in results:
-                    track.external_id = f"{search_engine.TAG}-{track.external_id}"
+            search_results = self.global_search(query).tracks
             if len(search_results) < 1:
                 return None
             original_track = find_best_track(search_results)
@@ -348,14 +343,14 @@ class LibraryManager:
             best_track, lambda progress: self._update_progress(task_id, progress)
         )
         downloaded_path = Path(track_path)
-        dst = Path("temp_tracks") / downloaded_path.name
+        dst = self.temp_dir / downloaded_path.name
 
         if downloaded_path.exists():
             shutil.copy2(downloaded_path, dst)
             track = get_track_metadata_by_path(dst)
             title = track.title
             artist_name = track.artists[0]
-            album_title = track.album_title
+            album_title = track.albums[0].title
             saving_path = Path((f"{artist_name}/{album_title}/{dst.name}"))
             best_storage = find_best_storage(self.storages, best_track["size"])
             paths = full_track_save(best_storage, dst, saving_path)
@@ -958,7 +953,7 @@ class LibraryManager:
 
             unique_playlists_ids.update(selected_importer.get_playlists())
 
-            dst = Path("temp_tracks")
+            dst = self.temp_dir
 
             for playlist_id in unique_playlists_ids:
                 playlist_info = selected_importer.get_playlist(playlist_id)
