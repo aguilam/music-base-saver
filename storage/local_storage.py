@@ -14,11 +14,11 @@ class LocalStorage(Storage):
         self.save_directory = Path(self.config["save_directory"])
         self.save_directory.mkdir(parents=True, exist_ok=True)
 
-    def save_file(self, file: Path, saving_path: Path) -> Path:
+    def save_file(self, file: str, saving_path: str) -> str:
         dst = self.save_directory / saving_path
         dst.parent.mkdir(parents=True, exist_ok=True)
         move(file, dst)
-        return dst
+        return str(dst)
 
     def delete_file(path: str) -> bool:
         try:

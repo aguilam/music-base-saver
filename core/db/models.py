@@ -400,7 +400,7 @@ class LyricsORM(SQLModel, table=True):
 class MusicVideoORM(SQLModel, table=True):
     __tablename__ = "music_video"
     id: int | None = Field(default=None, primary_key=True)
-    is_external_link: bool
+    is_external_link: bool = False
     duration_ms: int | None = None
     external_link: str | None = None
     local_link: list["ObjectStorageORM"] = Relationship(

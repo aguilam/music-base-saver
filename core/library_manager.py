@@ -15,7 +15,7 @@ from core.utils import (
     find_best_storage,
     get_track_metadata_by_path,
     analyze_lrc,
-    save_url_file,
+    save_file_from_url,
     image_mime,
     get_video_metadata,
     get_track_metadata_by_bytes,
@@ -668,9 +668,11 @@ class LibraryManager:
         self.sync_queue[task_id]["deleted"] += deleted
         self.sync_queue[task_id]["added"] += added
 
-    def save_object(self, session: Session, saving_path: str, file_size: int = 0):
+    def save_object(
+        self, session: Session, file_path: str, saving_path: str, file_size: int = 0
+    ):
         best_storage = find_best_storage(self.storages, file_size)
-        saved_object_path = best_storage.instance.save_file(saving_path)
+        saved_object_path = best_storage.instance.save_file(file_path, saving_path)
         object_storage = ObjectStorageORM(
             link_type="storage",
             link_provider=best_storage.id,
@@ -925,7 +927,7 @@ class LibraryManager:
 
     def import_tracks(self, importer_tag: str, user_id: int | None = None):
         importers = self.importers
-        selected_importer: BaseImporter | None = None
+        selected_importer = None
         for importer in importers:
             if importer.tag == importer_tag:
                 selected_importer = importer.instance
@@ -947,210 +949,291 @@ class LibraryManager:
             unique_playlists_ids = {*favorited_playlists}
             playlists_to_add = []
             tracks_to_add = []
-            artist_map: dict[int, int] = {}
-            album_map: dict[int, int] = {}
-            track_map: dict[int, int] = {}
-
-            unique_playlists_ids.update(selected_importer.get_playlists())
+            artist_map: dict[int | str, int] = {}
+            album_map: dict[int | str, int] = {}
+            track_map: dict[int | str, int] = {}
+            tracks_with_lyrics = []
+            tracks_with_music_videos = []
+            album_artist_link = {}
+            track_artist_link = {}
+            track_album_link = {}
+            unique_playlists_ids.update(selected_importer.get_user_playlists())
 
             dst = self.temp_dir
 
             for playlist_id in unique_playlists_ids:
-                playlist_info = selected_importer.get_playlist(playlist_id)
-                unique_tracks_ids.update(playlist_info.tracks)
-                db_playlist = PlaylistORM(name=playlist_info.title, is_public=False)
-                session.add(db_playlist)
-                session.flush()
-                playlist_owner = PlaylistOwnerORM(
-                    owner_id=user_id, playlist_id=db_playlist.id
-                )
-                session.add(playlist_owner)
-                session.flush()
-                cover_path = save_url_file(
-                    playlist_info.cover_path, dst / f"pl-{playlist_info.title}.jpg"
-                )
-                cover_id = self.save_object(session, cover_path)
-                db_playlist.cover_path = cover_id
-                session.flush()
-                playlists_to_add.append(
-                    {
-                        "importer_id": playlist_id,
-                        "db_id": db_playlist.id,
-                        "name": playlist_info.title,
-                    }
-                )
+                try:
+                    playlist_info = selected_importer.get_playlist(playlist_id)
+                    unique_tracks_ids.update(playlist_info.track_ids)
+                    db_playlist = PlaylistORM(name=playlist_info.title, is_public=False)
+                    session.add(db_playlist)
+                    session.flush()
+                    playlist_owner = PlaylistOwnerORM(
+                        owner_id=user_id, playlist_id=db_playlist.id
+                    )
+                    session.add(playlist_owner)
+                    session.flush()
+                    playlists_to_add.append(
+                        {
+                            "importer_id": playlist_id,
+                            "db_id": db_playlist.id,
+                        }
+                    )
+                    cover_name = f"pl-{playlist_info.title}.jpg"
+                    cover_path = dst / cover_name
+                    save_file_from_url(playlist_info.cover_uri, cover_path)
+                    cover_id = self.save_object(session, cover_path, cover_name)
+                    db_playlist.cover_path = cover_id
+                    session.flush()
+                except:
+                    self.logger.warning(
+                        "Problem in importing playlist",
+                        importer=importer_tag,
+                        user_id=user_id,
+                        playlist_id=playlist_id,
+                    )
 
             for track_id in unique_tracks_ids:
                 try:
                     track_info = selected_importer.get_track(track_id)
-                    has_lyrics = track_info.get("has_lyrics", False)
-                    has_video = track_info.get("has_video", False)
-                    album_id = track_info.get("album_id")
-                    artists_id = track_info.get("artists", [])
-
-                    unique_albums_ids.update(album.id for album in track_info.albums)
-
-                    for artist in track_info.artists:
-                        unique_artists_ids.add(artist.id)
+                    if track_info.has_lyrics:
+                        tracks_with_lyrics.append(track_id)
+                    if track_info.has_video:
+                        tracks_with_music_videos.append(track_id)
+                    unique_albums_ids.update(track_info.albums)
+                    unique_artists_ids.update(track_info.artists)
                     url, name = selected_importer.get_track_download_link(track_id)
                     track_dst = dst / name
-                    save_url_file(url, track_dst)
+                    save_file_from_url(url, track_dst)
                     saving_path = Path(
                         (
-                            f"{track_info.artists[0].name}/{track_info.albums[0].title}/{name}"
+                            f"{track_info.main_artist_name}/{track_info.main_album_title}/{name}"
                         )
                     )
                     best_storage = find_best_storage(
                         self.storages, track_info.get("size", 0)
                     )
                     saved_path = best_storage.instance.save_file(track_dst, saving_path)
-                    new_track_id = self.add_new_track(
+                    db_track_id = self.add_new_track(
                         session,
                         TrackMetadata(title=track_info.title, length=track_info.length),
                         {"link": saved_path, "filename": name},
                         best_storage.id,
                     )
-
-                    track_map[track_id] = new_track_id
-                    tracks_to_add.append(
-                        {"id": track_id, "album_id": album_id, "artists_id": artists_id}
-                    )
-                except:
+                    for album_id in track_info.albums:
+                        if album_id in track_album_link:
+                            track_album_link[album_id] = [db_track_id]
+                        else:
+                            track_album_link[album_id].append(db_track_id)
+                    for artist_id in track_info.artists:
+                        if artist_id in track_artist_link:
+                            track_artist_link[artist_id] = [db_track_id]
+                        else:
+                            track_artist_link[artist_id].append(db_track_id)
+                except Exception as e:
                     self.logger.warning(
                         "Problem in importing track",
                         importer=importer_tag,
                         user_id=user_id,
                         track_id=track_id,
-                    )
-
-            for artist_id in unique_artists_ids:
-                try:
-                    artist = selected_importer.get_artist(artist_id)
-
-                    db_artist = ArtistORM(name=artist.name)
-                    session.add(db_artist)
-                    session.flush()
-
-                    cover_path = save_url_file(
-                        artist.cover_path, dst / f"ar-{db_artist.id}.jpg"
-                    )
-                    cover_id = self.save_object(session, cover_path)
-                    db_artist.cover_path = cover_id
-                    session.flush()
-                    artist_map[artist_id] = db_artist.id
-                except:
-                    self.logger.warning(
-                        "Problem in importing artist",
-                        importer=importer_tag,
-                        user_id=user_id,
-                        artist_id=artist_id,
+                        error=str(e),
                     )
 
             for album_id in unique_albums_ids:
                 try:
                     album = selected_importer.get_album(album_id)
-
-                    album_artist_id = None
-                    if "artist_id" in album and album["artist_id"] in artist_map:
-                        album_artist_id = artist_map[album["artist_id"]]
+                    unique_artists_ids.update(album.artist_ids)
 
                     db_album = AlbumORM(
                         title=album.title,
                         year=album.year,
-                        artist_id=album_artist_id,
+                        description=album.description,
                     )
                     session.add(db_album)
                     session.flush()
 
-                    cover_path = save_url_file(
-                        album["cover_url"], dst / f"al-{db_album.id}.jpg"
+                    cover_path = save_file_from_url(
+                        album.cover_uri, dst / f"al-{db_album.title}.jpg"
                     )
 
                     cover_id = self.save_object(session, cover_path)
                     db_album.cover_path = cover_id
                     session.flush()
                     album_map[album_id] = db_album.id
-                except:
+                    track_links = []
+                    for track_id in track_album_link:
+                        track_links.append(
+                            TrackAlbumLink(track_id=track_id, album_id=db_album.id)
+                        )
+                    session.add_all(track_links)
+                    session.flush()
+                    for artist_id in track_info.artists:
+                        if artist_id in album_artist_link:
+                            album_artist_link[artist_id] = [album_id]
+                        else:
+                            album_artist_link[artist_id].append(album_id)
+                except Exception as e:
                     self.logger.warning(
                         "Problem in importing album",
                         importer=importer_tag,
                         user_id=user_id,
                         album_id=album_id,
+                        error=str(e),
+                    )
+
+            for artist_id in unique_artists_ids:
+                try:
+                    artist = selected_importer.get_artist(artist_id)
+
+                    db_artist = self.db_manager.find_or_create_artist(
+                        session, artist.name
+                    )
+
+                    db_artist.description = artist.description
+                    cover_path = f"ar-{db_artist.name}.jpg"
+                    save_file_from_url(artist.cover_uri, dst / cover_path)
+                    cover_id = self.save_object(
+                        session, cover_path, f"{db_artist.name}/cover.jpg"
+                    )
+                    db_artist.cover_path = cover_id
+                    session.flush()
+                    album_artist_links = []
+                    track_artist_links = []
+                    for album_id in album_artist_link:
+                        album_artist_links.append(
+                            AlbumArtistLink(album_id=album_id, artist_id=db_artist.id)
+                        )
+                    for track_id in track_artist_link:
+                        track_artist_links.append(
+                            TrackArtistsLink(track_id=track_id, artist_id=db_artist.id)
+                        )
+                    session.add_all(album_artist_links)
+                    session.add_all(track_artist_links)
+                    session.flush()
+                    artist_map[artist_id] = db_artist.id
+                except Exception as e:
+                    self.logger.warning(
+                        "Problem in importing artist",
+                        importer=importer_tag,
+                        user_id=user_id,
+                        artist_id=artist_id,
+                        error=str(e),
                     )
 
             for playlist_entry in playlists_to_add:
                 try:
-                    importer_pl_id = playlist_entry["importer_id"]
-                    db_pl_id = playlist_entry["db_id"]
-                    playlist_info = selected_importer.get_playlist(importer_pl_id)
+                    playlist_info = selected_importer.get_playlist(
+                        playlist_entry["importer_id"]
+                    )
 
-                    for track in playlist_info.tracks:
-                        t_id = track.id
-                        if t_id in track_map:
+                    for track in playlist_info.track_ids:
+                        if track in track_map:
                             link = PlaylistTrackLink(
-                                playlist_id=db_pl_id, track_id=track_map[t_id]
+                                playlist_id=playlist_entry["db_id"],
+                                track_id=track_map[track],
                             )
                             session.add(link)
                             session.flush()
-                except:
+                except Exception as e:
                     self.logger.warning(
                         "Problem in importing playlist",
                         importer=importer_tag,
                         user_id=user_id,
                         playlist_id=playlist_entry["importer_id"],
+                        error=str(e),
                     )
 
-            for track_id in list(track_map.keys()):
+            for track_id in tracks_with_lyrics:
                 try:
-                    lyrics_text = selected_importer.get_lyrics(track_id)
-                    if lyrics_text:
-                        db_lyrics = LyricsORM(
-                            value=lyrics_text, track_id=track_map[track_id]
+                    url, name = selected_importer.get_lyrics_download_link(track_id)
+                    saved_path = dst / name
+                    save_file_from_url(url, saved_path)
+                    text = saved_path.read_text()
+                    if ".lrc" in name:
+                        file_content = analyze_lrc(text.splitlines())
+                        track = self.db_manager.get_track_by_name(
+                            session, file_content["title"]
                         )
-                        session.add(db_lyrics)
+                        if track is None:
+                            continue
+                        new_lyrics = LyricsORM(
+                            is_synced=True,
+                            language="und",
+                            synced_text=file_content["text"],
+                            offset=file_content["offset"],
+                            track_id=track.id,
+                        )
+                        session.add(new_lyrics)
                         session.flush()
-                except:
+                    elif ".txt" in name:
+                        track = self.db_manager.get_track_by_name(
+                            session, name.split(".")[0]
+                        )
+                        if track is None:
+                            continue
+                        new_lyrics = LyricsORM(
+                            is_synced=False,
+                            language="und",
+                            plain_text=text,
+                            track_id=track.id,
+                        )
+                        session.add(new_lyrics)
+                        session.flush()
+                    best_storage = find_best_storage(
+                        self.storages, track_info.get("size", 0)
+                    )
+                    saved_link = best_storage.instance.save_file(track_dst, saving_path)
+                    lyrics_path = ObjectStorageORM(
+                        link_type="storage",
+                        link_provider=best_storage.id,
+                        link=saved_link,
+                        lyrics_id=new_lyrics.id,
+                        file_name=saved_path.name,
+                    )
+                    new_lyrics.path.append(lyrics_path)
+                    session.add(lyrics_path)
+                    session.flush()
+                except Exception as e:
                     self.logger.warning(
                         "Problem in importing track lyrics",
                         importer=importer_tag,
                         user_id=user_id,
                         track_id=track_id,
+                        error=str(e),
                     )
 
-            for track_entry in tracks_to_add:
+            for track_id in tracks_with_music_videos:
                 try:
-                    importer_track_id = track_entry["id"]
-                    importer_album_id = track_entry["album_id"]
-                    importer_artists_id = track_entry["artists_id"]
+                    url, name = selected_importer.get_music_video_download_link(
+                        track_id
+                    )
 
-                    db_track_id = track_map.get(importer_track_id)
-                    if db_track_id is None:
-                        continue
-
-                    db_track = session.get(TrackORM, db_track_id)
-                    if db_track is None:
-                        continue
-
-                    if importer_album_id is not None:
-                        db_track.album_id = album_map.get(importer_album_id)
-
-                    for importer_artist_id in importer_artists_id:
-                        db_artist_id = artist_map.get(importer_artist_id)
-                        if db_artist_id is None:
-                            continue
-
-                        session.add(
-                            TrackArtistsLink(
-                                artist_id=db_artist_id,
-                                track_id=db_track.id,
-                            )
-                        )
-                except:
+                    save_file_from_url(url, dst / name)
+                    best_storage = find_best_storage(
+                        self.storages, track_info.get("size", 0)
+                    )
+                    db_track = track_map[track_id]
+                    music_video = MusicVideoORM(track_id=db_track)
+                    session.add(music_video)
+                    session.flush()
+                    saved_link = best_storage.instance.save_file(track_dst, saving_path)
+                    video_path = ObjectStorageORM(
+                        link_type="storage",
+                        link_provider=best_storage.id,
+                        link=saved_link,
+                        music_video_id=music_video.id,
+                        file_name=name,
+                    )
+                    music_video.local_link.append(video_path)
+                    session.add(video_path)
+                    session.flush()
+                except Exception as e:
                     self.logger.warning(
-                        "Problem in adding imported track",
+                        "Problem in adding imported music video",
                         importer=importer_tag,
                         user_id=user_id,
-                        track_id=track_entry["id"],
+                        track_id=track_id,
+                        error=str(e),
                     )
 
             for importer_track_id in favorited_tracks:

@@ -145,7 +145,7 @@ def full_track_save(best_storage: Storage, dst, saving_path):
     return {"cover_path": cover_storage_path, "track_path": saved_path}
 
 
-def save_url_file(url: str, dst: Path):
+def save_file_from_url(url: str, dst: Path):
     with requests.get(url, stream=True) as response:
         response.raise_for_status()
         with open(dst, "wb") as file:

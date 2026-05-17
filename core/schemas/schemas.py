@@ -241,3 +241,41 @@ class SearchResults:
 class BinaryBlob(NamedTuple):
     content: bytes
     mime: str
+
+
+@dataclass(slots=True)
+class ImporterArtist:
+    id: int | str
+    name: str
+    cover_uri: str | None = None
+    description: str | None = None
+
+
+@dataclass(slots=True)
+class ImporterPlaylist:
+    id: int | str
+    title: str
+    track_ids: list[int | str]
+    cover_uri: str | None = None
+
+
+@dataclass(slots=True)
+class ImporterAlbum:
+    id: int | str
+    artist_ids: list[int | str]
+    title: str
+    year: str
+    type: str
+    cover_uri: str
+    description: str | None = None
+
+
+@dataclass(slots=True)
+class ImporterTrack(TrackMetadata):
+    id: int | str
+    artists: list[int | str]
+    albums: list[int | str]
+    main_artist_name: str
+    main_album_title: str
+    has_lyrics: bool
+    has_video: bool

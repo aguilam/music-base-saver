@@ -9,15 +9,15 @@ class Storage(Service, ABC):
         self.config = config
 
     @abstractmethod
-    def save_file(self, file: Path) -> str:
+    def save_file(self, file_path: str, saving_path: str) -> str:
         pass
 
     @abstractmethod
-    def delete_file(self, file: Path) -> bool:
+    def delete_file(self, path: str) -> bool:
         pass
 
     @abstractmethod
-    def get_file(self, file: Path) -> str:
+    def get_file(self, path: str) -> str:
         pass
 
     @abstractmethod
