@@ -947,8 +947,7 @@ class LibraryManager:
             unique_albums_ids = {*favorited_albums}
             unique_artists_ids = {*favorited_artists}
             unique_playlists_ids = {*favorited_playlists}
-            playlists_to_add = []
-            tracks_to_add = []
+            playlist_tracks_to_add: list[tuple[int, list[int | str]]] = []
             artist_map: dict[int | str, int] = {}
             album_map: dict[int | str, int] = {}
             track_map: dict[int | str, int] = {}
@@ -973,11 +972,8 @@ class LibraryManager:
                     )
                     session.add(playlist_owner)
                     session.flush()
-                    playlists_to_add.append(
-                        {
-                            "importer_id": playlist_id,
-                            "db_id": db_playlist.id,
-                        }
+                    playlist_tracks_to_add.append(
+                        (db_playlist.id, playlist_info.track_ids)
                     )
                     cover_name = f"pl-{playlist_info.title}.jpg"
                     cover_path = dst / cover_name
@@ -1047,6 +1043,7 @@ class LibraryManager:
                     db_album = AlbumORM(
                         title=album.title,
                         year=album.year,
+                        type=album.type,
                         description=album.description,
                     )
                     session.add(db_album)
@@ -1120,16 +1117,13 @@ class LibraryManager:
                         error=str(e),
                     )
 
-            for playlist_entry in playlists_to_add:
+            for playlist_entry in playlist_tracks_to_add:
+                playlist_id, track_ids = playlist_entry
                 try:
-                    playlist_info = selected_importer.get_playlist(
-                        playlist_entry["importer_id"]
-                    )
-
-                    for track in playlist_info.track_ids:
+                    for track in track_ids:
                         if track in track_map:
                             link = PlaylistTrackLink(
-                                playlist_id=playlist_entry["db_id"],
+                                playlist_id=playlist_id,
                                 track_id=track_map[track],
                             )
                             session.add(link)
@@ -1139,7 +1133,7 @@ class LibraryManager:
                         "Problem in importing playlist",
                         importer=importer_tag,
                         user_id=user_id,
-                        playlist_id=playlist_entry["importer_id"],
+                        playlist_id=playlist_id,
                         error=str(e),
                     )
 
