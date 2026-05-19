@@ -263,6 +263,7 @@ class ImporterPlaylist:
 class ImporterAlbum:
     id: int | str
     artist_ids: list[int | str]
+    main_artist_name: str
     title: str
     year: str
     type: str

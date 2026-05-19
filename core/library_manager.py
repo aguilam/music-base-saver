@@ -975,7 +975,7 @@ class LibraryManager:
                     playlist_tracks_to_add.append(
                         (db_playlist.id, playlist_info.track_ids)
                     )
-                    cover_name = f"pl-{playlist_info.title}.jpg"
+                    cover_name = f"pl-{db_playlist.id}.jpg"
                     cover_path = dst / cover_name
                     save_file_from_url(playlist_info.cover_uri, cover_path)
                     cover_id = self.save_object(session, cover_path, cover_name)
@@ -1012,7 +1012,13 @@ class LibraryManager:
                     saved_path = best_storage.instance.save_file(track_dst, saving_path)
                     db_track_id = self.add_new_track(
                         session,
-                        TrackMetadata(title=track_info.title, length=track_info.length),
+                        TrackMetadata(
+                            title=track_info.title,
+                            length=track_info.length,
+                            bpm=track_info.bpm,
+                            genres=track_info.genres,
+                            moods=track_info.moods,
+                        ),
                         {"link": saved_path, "filename": name},
                         best_storage.id,
                     )
@@ -1048,12 +1054,13 @@ class LibraryManager:
                     )
                     session.add(db_album)
                     session.flush()
-
-                    cover_path = save_file_from_url(
-                        album.cover_uri, dst / f"al-{db_album.title}.jpg"
+                    cover_path = dst / f"al-{db_album.title}.jpg"
+                    save_file_from_url(album.cover_uri, cover_path)
+                    cover_id = self.save_object(
+                        session,
+                        str(cover_path),
+                        f"{album.main_artist_name}/{album.title}/cover.jpg",
                     )
-
-                    cover_id = self.save_object(session, cover_path)
                     db_album.cover_path = cover_id
                     session.flush()
                     album_map[album_id] = db_album.id
@@ -1087,10 +1094,10 @@ class LibraryManager:
                     )
 
                     db_artist.description = artist.description
-                    cover_path = f"ar-{db_artist.name}.jpg"
+                    cover_path = f"ar-{artist.name}.jpg"
                     save_file_from_url(artist.cover_uri, dst / cover_path)
                     cover_id = self.save_object(
-                        session, cover_path, f"{db_artist.name}/cover.jpg"
+                        session, cover_path, f"{artist.name}/cover.jpg"
                     )
                     db_artist.cover_path = cover_id
                     session.flush()
