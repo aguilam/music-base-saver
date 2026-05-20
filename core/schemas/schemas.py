@@ -243,11 +243,17 @@ class BinaryBlob(NamedTuple):
     mime: str
 
 
+class FilePathInfo(NamedTuple):
+    link: str
+    filename: str
+
+
 @dataclass(slots=True)
 class ImporterArtist:
     id: int | str
     name: str
     cover_uri: str | None = None
+    genres: str | None = None
     description: str | None = None
 
 
@@ -268,6 +274,7 @@ class ImporterAlbum:
     year: str
     type: str
     cover_uri: str
+    genres: str | None = None
     description: str | None = None
 
 
