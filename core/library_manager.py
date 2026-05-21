@@ -22,6 +22,7 @@ from core.utils import (
     get_cover_metadata,
     write_cover_metadata,
     write_track_metadata,
+    write_video_metadata,
 )
 import shutil
 from .db.manager import DBManager
@@ -1267,6 +1268,12 @@ class LibraryManager:
                     )
                     video_dst = dst / name
                     save_file_from_url(url, video_dst)
+                    write_video_metadata(
+                        track.artists[0].name,
+                        track.albums[0].title,
+                        track.title,
+                        video_dst,
+                    )
                     best_storage = find_best_storage(
                         self.storages, track_info.get("size", 0)
                     )
