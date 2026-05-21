@@ -987,9 +987,11 @@ class LibraryManager:
                     playlist_tracks_to_add.append(
                         (db_playlist.id, playlist_info.track_ids)
                     )
-                    cover_name = f"pl-{db_playlist.id}.jpg"
-                    cover_path = dst / cover_name
+                    cover_path = dst / f"pl-{db_playlist.id}.jpg"
                     save_file_from_url(playlist_info.cover_uri, cover_path)
+                    with open(cover_path, "rb") as f:
+                        ext = image_mime(f.read(20)).split("/")[1]
+                    cover_name = f"pl-{db_playlist.id}.{ext}"
                     cover_id = self.save_object(session, cover_path, cover_name)
                     db_playlist.cover_path = cover_id
                     session.flush()
@@ -1089,11 +1091,13 @@ class LibraryManager:
                     session.add_all(genre_links)
                     session.flush()
                     cover_path = dst / f"al-{db_album.title}.jpg"
+                    with open(cover_path, "rb") as f:
+                        ext = image_mime(f.read(20)).split("/")[1]
                     save_file_from_url(album.cover_uri, cover_path)
                     cover_id = self.save_object(
                         session,
                         str(cover_path),
-                        f"{album.main_artist_name}/{album.title}/cover.jpg",
+                        f"{album.artists[0]}/{album.title}/cover.{ext}",
                     )
                     db_album.cover_path = cover_id
                     session.flush()
@@ -1128,10 +1132,12 @@ class LibraryManager:
                     )
 
                     db_artist.description = artist.description
-                    cover_path = f"{artist.name}.jpg"
-                    save_file_from_url(artist.cover_uri, dst / cover_path)
+                    cover_path = dst / f"{artist.name}.jpg"
+                    save_file_from_url(artist.cover_uri, cover_path)
+                    with open(cover_path, "rb") as f:
+                        ext = image_mime(f.read(20)).split("/")[1]
                     cover_id = self.save_object(
-                        session, cover_path, f"{artist.name}/cover.jpg"
+                        session, cover_path, f"{artist.name}/cover.{ext}"
                     )
                     db_artist.cover_path = cover_id
                     session.add(db_artist)
