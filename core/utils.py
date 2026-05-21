@@ -1,5 +1,6 @@
 from pathlib import Path
 from mutagen import File
+import mutagen.flac
 from mutagen.mp3 import MP3
 from mutagen.flac import FLAC, Picture
 from mutagen.oggvorbis import OggVorbis
@@ -203,16 +204,16 @@ def image_mime(data: bytes) -> str:
 def _get_track_metadata(track_metadata):
     title = track_metadata.get("title", [None])[0]
     artists_names = track_metadata.get("artist", [])
-    album_artist = track_metadata.get("artist", [None])[0]
+    album_artist = track_metadata.get("albumartist", [None])[0] or artists_names
     album_title = track_metadata.get("album", [None])[0]
-    bpm = getattr(track_metadata.info, "bpm", [None])[0]
-    bitrate = getattr(track_metadata.info, "bitrate", None)
     album_position = track_metadata.get("tracknumber", [None])[0]
     disc_number = track_metadata.get("discnumber", [None])[0]
-    year = track_metadata.get("year", [None])[0]
-    genres = track_metadata.get("genre", [None])[0]
-    moods = track_metadata.get("mood", [None])[0]
+    date = track_metadata.get("date", [None])[0]
+    genres = track_metadata.get("genre", [])
+    moods = track_metadata.get("mood", [])
     length = int(getattr(track_metadata.info, "length", 0) * 1000)
+    bpm = getattr(track_metadata.info, "bpm", [None])[0]
+    bitrate = getattr(track_metadata.info, "bitrate", None)
     return TrackMetadata(
         title=title,
         artists=artists_names,
@@ -225,7 +226,7 @@ def _get_track_metadata(track_metadata):
             )
         ],
         length=length,
-        year=year,
+        year=date,
         genres=genres,
         moods=moods,
         bitrate=bitrate,
@@ -270,7 +271,6 @@ def get_cover_metadata(bytes: bytes, is_png: bool) -> str | None:
 
 def write_cover_metadata(path: str, id: str):
     norm_path = Path(path)
-    Image
     img = Image.open(norm_path)
     if norm_path.suffix == ".png":
         img.load()
@@ -283,3 +283,14 @@ def write_cover_metadata(path: str, id: str):
         exif = img.getexif()
         exif[Base.UserComment] = id
         img.save(norm_path, exif=exif)
+
+
+def write_track_metadata(
+    file_path: str, new_metadata: dict[str, list[str]], rewrite: bool = True
+):
+    track_file = mutagen.File(file_path, easy=True)
+    for key, value in new_metadata.items():
+        if not rewrite and track_file.get(key):
+            continue
+        track_file[key] = value
+    track_file.save()

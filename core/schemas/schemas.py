@@ -269,7 +269,7 @@ class ImporterPlaylist:
 class ImporterAlbum:
     id: int | str
     artist_ids: list[int | str]
-    main_artist_name: str
+    artists: list[str]
     title: str
     year: str
     type: str
@@ -281,9 +281,7 @@ class ImporterAlbum:
 @dataclass(slots=True)
 class ImporterTrack(TrackMetadata):
     id: int | str
-    artists: list[int | str]
-    albums: list[int | str]
-    main_artist_name: str
-    main_album_title: str
+    artist_ids: list[str | int]
+    album_ids: list[str | int]
     has_lyrics: bool
     has_video: bool

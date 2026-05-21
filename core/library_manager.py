@@ -21,6 +21,7 @@ from core.utils import (
     get_track_metadata_by_bytes,
     get_cover_metadata,
     write_cover_metadata,
+    write_track_metadata,
 )
 import shutil
 from .db.manager import DBManager
@@ -1007,15 +1008,26 @@ class LibraryManager:
                         tracks_with_lyrics.append(track_id)
                     if track_info.has_video:
                         tracks_with_music_videos.append(track_id)
-                    unique_albums_ids.update(track_info.albums)
-                    unique_artists_ids.update(track_info.artists)
+                    unique_albums_ids.update(track_info.album_ids)
+                    unique_artists_ids.update(track_info.artist_ids)
                     url, name = selected_importer.get_track_download_link(track_id)
                     track_dst = dst / name
                     save_file_from_url(url, track_dst)
+                    write_track_metadata(
+                        track_dst,
+                        {
+                            "title": [track_info.title],
+                            "artist": [track_info.artists],
+                            "albumartist": track_info.albums[0].album_artists,
+                            "tracknumber": [str(track_info.albums[0].album_position)],
+                            "discnumber": [str(track_info.albums[0].disc_number)],
+                            "date": [str(track_info.year)],
+                            "genre": track_info.genres,
+                            "mood": track_info.moods,
+                        },
+                    )
                     saving_path = Path(
-                        (
-                            f"{track_info.main_artist_name}/{track_info.main_album_title}/{name}"
-                        )
+                        (f"{track_info.artists[0]}/{track_info.albums[0]}/{name}")
                     )
                     best_storage = find_best_storage(
                         self.storages, track_info.get("size", 0)
@@ -1025,6 +1037,9 @@ class LibraryManager:
                         session,
                         TrackMetadata(
                             title=track_info.title,
+                            artists=track_info.artists,
+                            albums=track_info.albums,
+                            year=track_info.year,
                             length=track_info.length,
                             bpm=track_info.bpm,
                             genres=track_info.genres,
@@ -1176,17 +1191,18 @@ class LibraryManager:
 
             for track_id in tracks_with_lyrics:
                 try:
+                    track = self.db_manager.get_track_by_id(
+                        session, track_map[track_id]
+                    )
+                    if track is None:
+                        continue
                     url, name = selected_importer.get_lyrics_download_link(track_id)
+
                     saved_path = dst / name
                     save_file_from_url(url, saved_path)
                     text = saved_path.read_text()
                     if ".lrc" in name:
                         file_content = analyze_lrc(text.splitlines())
-                        track = self.db_manager.get_track_by_name(
-                            session, file_content["title"]
-                        )
-                        if track is None:
-                            continue
                         new_lyrics = LyricsORM(
                             is_synced=True,
                             language="und",
@@ -1197,11 +1213,6 @@ class LibraryManager:
                         session.add(new_lyrics)
                         session.flush()
                     elif ".txt" in name:
-                        track = self.db_manager.get_track_by_name(
-                            session, name.split(".")[0]
-                        )
-                        if track is None:
-                            continue
                         new_lyrics = LyricsORM(
                             is_synced=False,
                             language="und",
@@ -1213,7 +1224,12 @@ class LibraryManager:
                     best_storage = find_best_storage(
                         self.storages, track_info.get("size", 0)
                     )
-                    saved_link = best_storage.instance.save_file(track_dst, saving_path)
+                    saving_path = (
+                        f"{track.artists[0].name}/{track.albums[0].title}/{name}"
+                    )
+                    saved_link = best_storage.instance.save_file(
+                        saved_path, saving_path
+                    )
                     lyrics_path = ObjectStorageORM(
                         link_type="storage",
                         link_provider=best_storage.id,
@@ -1235,19 +1251,27 @@ class LibraryManager:
 
             for track_id in tracks_with_music_videos:
                 try:
+                    track = self.db_manager.get_track_by_id(
+                        session, track_map[track_id]
+                    )
+                    if track is None:
+                        continue
                     url, name = selected_importer.get_music_video_download_link(
                         track_id
                     )
-
-                    save_file_from_url(url, dst / name)
+                    video_dst = dst / name
+                    save_file_from_url(url, video_dst)
                     best_storage = find_best_storage(
                         self.storages, track_info.get("size", 0)
                     )
-                    db_track = track_map[track_id]
-                    music_video = MusicVideoORM(track_id=db_track)
+
+                    music_video = MusicVideoORM(track_id=track.id)
                     session.add(music_video)
                     session.flush()
-                    saved_link = best_storage.instance.save_file(track_dst, saving_path)
+                    saving_path = (
+                        f"{track.artists[0].name}/{track.albums[0].title}/{name}"
+                    )
+                    saved_link = best_storage.instance.save_file(video_dst, saving_path)
                     video_path = ObjectStorageORM(
                         link_type="storage",
                         link_provider=best_storage.id,
