@@ -72,6 +72,7 @@ from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 from typing import Literal, overload
 import time
+import os
 from sqlmodel import Session
 
 STAR_LINK_MAP = {
@@ -674,8 +675,13 @@ class LibraryManager:
         self.sync_queue[task_id]["added"] += added
 
     def save_object(
-        self, session: Session, file_path: str, saving_path: str, file_size: int = 0
+        self,
+        session: Session,
+        file_path: str,
+        saving_path: str,
+        file_size: int | None = None,
     ):
+        file_size = os.path.getsize(file_path) if file_size is None else file_size
         best_storage = find_best_storage(self.storages, file_size)
         saved_object_path = best_storage.instance.save_file(file_path, saving_path)
         object_storage = ObjectStorageORM(
@@ -685,7 +691,7 @@ class LibraryManager:
         )
         session.add(object_storage)
         session.flush()
-        return object_storage.id
+        return object_storage
 
     def sync(self, task_id: str):
         try:
@@ -993,8 +999,12 @@ class LibraryManager:
                     with open(cover_path, "rb") as f:
                         ext = image_mime(f.read(20)).split("/")[1]
                     cover_name = f"pl-{db_playlist.id}.{ext}"
-                    cover_id = self.save_object(session, cover_path, cover_name)
-                    db_playlist.cover_path = cover_id
+                    cover_object = self.save_object(
+                        session,
+                        str(cover_path),
+                        cover_name,
+                    )
+                    db_playlist.cover_path = cover_object.id
                     session.flush()
                 except:
                     self.logger.warning(
@@ -1017,7 +1027,7 @@ class LibraryManager:
                     track_dst = dst / name
                     save_file_from_url(url, track_dst)
                     write_track_metadata(
-                        track_dst,
+                        str(track_dst),
                         {
                             "title": [track_info.title],
                             "artist": [track_info.artists],
@@ -1033,7 +1043,8 @@ class LibraryManager:
                         (f"{track_info.artists[0]}/{track_info.albums[0]}/{name}")
                     )
                     best_storage = find_best_storage(
-                        self.storages, track_info.get("size", 0)
+                        self.storages,
+                        track_dst.stat().st_size,
                     )
                     saved_path = best_storage.instance.save_file(track_dst, saving_path)
                     db_track_id = self.add_new_track(
@@ -1095,12 +1106,12 @@ class LibraryManager:
                     with open(cover_path, "rb") as f:
                         ext = image_mime(f.read(20)).split("/")[1]
                     save_file_from_url(album.cover_uri, cover_path)
-                    cover_id = self.save_object(
+                    cover_object = self.save_object(
                         session,
                         str(cover_path),
                         f"{album.artists[0]}/{album.title}/cover.{ext}",
                     )
-                    db_album.cover_path = cover_id
+                    db_album.cover_path = cover_object.id
                     session.flush()
                     album_map[album_id] = db_album.id
                     track_links = []
@@ -1137,10 +1148,12 @@ class LibraryManager:
                     save_file_from_url(artist.cover_uri, cover_path)
                     with open(cover_path, "rb") as f:
                         ext = image_mime(f.read(20)).split("/")[1]
-                    cover_id = self.save_object(
-                        session, cover_path, f"{artist.name}/cover.{ext}"
+                    cover_object = self.save_object(
+                        session,
+                        str(cover_path),
+                        f"{artist.name}/cover.{ext}",
                     )
-                    db_artist.cover_path = cover_id
+                    db_artist.cover_path = cover_object.id
                     session.add(db_artist)
                     session.flush()
                     genre_links = []
@@ -1228,24 +1241,14 @@ class LibraryManager:
                         )
                         session.add(new_lyrics)
                         session.flush()
-                    best_storage = find_best_storage(
-                        self.storages, track_info.get("size", 0)
-                    )
                     saving_path = (
                         f"{track.artists[0].name}/{track.albums[0].title}/{name}"
                     )
-                    saved_link = best_storage.instance.save_file(
-                        saved_path, saving_path
+                    lyrics_object = self.save_object(
+                        session, str(saved_path), saving_path
                     )
-                    lyrics_path = ObjectStorageORM(
-                        link_type="storage",
-                        link_provider=best_storage.id,
-                        link=saved_link,
-                        lyrics_id=new_lyrics.id,
-                        file_name=saved_path.name,
-                    )
-                    new_lyrics.path.append(lyrics_path)
-                    session.add(lyrics_path)
+                    new_lyrics.path.append(lyrics_object)
+                    session.add(lyrics_object)
                     session.flush()
                 except Exception as e:
                     self.logger.warning(
@@ -1274,26 +1277,17 @@ class LibraryManager:
                         track.title,
                         video_dst,
                     )
-                    best_storage = find_best_storage(
-                        self.storages, track_info.get("size", 0)
-                    )
-
                     music_video = MusicVideoORM(track_id=track.id)
                     session.add(music_video)
                     session.flush()
                     saving_path = (
                         f"{track.artists[0].name}/{track.albums[0].title}/{name}"
                     )
-                    saved_link = best_storage.instance.save_file(video_dst, saving_path)
-                    video_path = ObjectStorageORM(
-                        link_type="storage",
-                        link_provider=best_storage.id,
-                        link=saved_link,
-                        music_video_id=music_video.id,
-                        file_name=name,
+                    video_object = self.save_object(
+                        session, str(video_dst), saving_path
                     )
-                    music_video.local_link.append(video_path)
-                    session.add(video_path)
+                    music_video.local_link.append(video_object)
+                    session.add(video_object)
                     session.flush()
                 except Exception as e:
                     self.logger.warning(
