@@ -14,9 +14,7 @@ import requests
 import re
 from core.loader import StorageEntry
 from core.schemas.schemas import Track
-from PIL import Image, ImageFile
-from PIL.ExifTags import Base
-from PIL.PngImagePlugin import PngInfo
+import pyexiv2
 import io
 from core.schemas.schemas import TrackMetadata, TrackAlbumMetadata
 
@@ -256,33 +254,33 @@ def write_video_metadata(artist: str, album: str, title: str, path: str):
     video_metadata["stik"] = 6
 
 
-def get_cover_metadata(bytes: bytes, is_png: bool) -> str | None:
+def get_cover_metadata(bytes: bytes) -> dict | None:
     try:
-        with Image.open(io.BytesIO(bytes)) as img:
-            if is_png:
-                img.load()
-                return img.info.get("contentId")
-            else:
-                exif = img.getexif()
-                return exif.get(Base.UserComment)
-    except:
+        with pyexiv2.ImageData(bytes) as img:
+            return img.read_xmp()
+    except Exception:
         return None
 
 
-def write_cover_metadata(path: str, id: str):
-    norm_path = Path(path)
-    img = Image.open(norm_path)
-    if norm_path.suffix == ".png":
-        img.load()
-        pnginfo = PngInfo()
-        for key, value in img.info.items():
-            if isinstance(value, (str, int, float, bytes)):
-                pnginfo.add_text(str(key), str(value))
-        img.save(norm_path, pnginfo=pnginfo)
-    else:
-        exif = img.getexif()
-        exif[Base.UserComment] = id
-        img.save(norm_path, exif=exif)
+def write_cover_metadata(
+    path: str,
+    album: str | None = None,
+    artists: list[str] | None = None,
+    genres: list[str] | None = None,
+):
+    try:
+        metadata = {}
+        if album:
+            metadata[f"Xmp.xmpDM.album"] = album
+        if artists and len(artists) > 0:
+            metadata[f"Xmp.xmpDM.artist"] = ",".join(artists)
+        if genres and len(genres) > 0:
+            metadata[f"Xmp.xmpDM.genre"] = ",".join(genres)
+        with pyexiv2.Image(path) as img:
+            img.modify_xmp(metadata)
+        return True
+    except Exception:
+        return False
 
 
 def write_track_metadata(

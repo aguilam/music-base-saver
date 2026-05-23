@@ -773,82 +773,79 @@ class LibraryManager:
                             )
                             track_added_count += 1
                             self._update_sync_progress(task_id, added=1)
-                    if storage.id in cover_to_adding:
-                        for cover in cover_to_adding[storage.id]:
-                            content_id = None
-                            content_type = None
-                            entity = None
-                            range_bytes: bytes = current_storage.get_range_bytes(
-                                cover.link, 0, 99999999
-                            )["bytes"]
-                            id_from_cover = get_cover_metadata(
-                                range_bytes, "png" in cover.filename
-                            )
-                            if id_from_cover is None:
-                                if "-" not in cover.filename:
-                                    continue
-                                subject, subject_id = cover.filename.split("-")
-                                subject_id = int(subject_id)
-                                if subject == "al":
-                                    album = self.db_manager.get_album_by_id(
-                                        session, subject_id
-                                    )
-                                    if album is None:
-                                        continue
-                                    content_type = "al"
-                                    content_id = album.id
-                                elif subject == "ar":
-                                    artist = self.db_manager.get_artist_by_id(
-                                        session, subject_id
-                                    )
-                                    if artist is None:
-                                        continue
-                                    content_type = "ar"
-                                    content_id = artist.id
-                                elif subject == "pl":
-                                    playlist = self.db_manager.get_playlist_by_id(
-                                        session, subject_id
-                                    )
-                                    if playlist is None:
-                                        continue
-                                    content_type = "pl"
-                                    content_id = playlist.id
-                                file_path = current_storage.get_file(cover.link)
-                                write_cover_metadata(
-                                    file_path, f"{content_type}-{content_id}"
-                                )
-                            else:
-                                subject, subject_id = id_from_cover.split("-")
-                                content_type = subject
-                                content_id = int(subject_id)
-                            if content_id is None or content_type is None:
-                                continue
-                            if content_type == "al":
-                                entity = self.db_manager.get_album_orm_by_id(
-                                    session, content_id
-                                )
-                            elif content_type == "ar":
-                                entity = self.db_manager.get_artist_orm_by_id(
-                                    session, content_id
-                                )
-                            elif content_type == "pl":
-                                entity = self.db_manager.get_playlist_orm_by_id(
-                                    session, content_id
-                                )
-                            if entity is None:
-                                continue
-                            cover_storage = ObjectStorageORM(
-                                link_type="storage",
-                                link_provider=storage.id,
-                                link=cover.link,
-                                file_name=cover.filename,
-                            )
-                            session.add(cover_storage)
-                            session.flush()
-                            entity.cover_path = cover_storage.id
-                            session.flush()
-                            cover_added_count += 1
-                            self._update_sync_progress(task_id, added=1)
+                    # if storage.id in cover_to_adding:
+                    # for cover in cover_to_adding[storage.id]:
+                    # content_id = None
+                    # content_type = None
+                    # entity = None
+                    # range_bytes: bytes = current_storage.get_range_bytes(
+                    #    cover.link, 0, 99999999
+                    # )["bytes"]
+                    # id_from_cover = get_cover_metadata(
+                    #    range_bytes, "png" in cover.filename
+                    # )
+                    # if id_from_cover is None:
+                    #    if "-" not in cover.filename:
+                    #        continue
+                    #    subject, subject_id = cover.filename.split("-")
+                    #    subject_id = int(subject_id)
+                    #    if subject == "al":
+                    #        album = self.db_manager.get_album_by_id(
+                    #            session, subject_id
+                    #        )
+                    #        if album is None:
+                    #            continue
+                    #        content_type = "al"
+                    #        content_id = album.id
+                    #    elif subject == "ar":
+                    #        artist = self.db_manager.get_artist_by_id(
+                    #            session, subject_id
+                    #        )
+                    #        if artist is None:
+                    #            continue
+                    #        content_type = "ar"
+                    #        content_id = artist.id
+                    #    elif subject == "pl":
+                    #        playlist = self.db_manager.get_playlist_by_id(
+                    #            session, subject_id
+                    #        )
+                    #        if playlist is None:
+                    #            continue
+                    #        content_type = "pl"
+                    #        content_id = playlist.id
+                    #    file_path = current_storage.get_file(cover.link)
+                    # else:
+                    #    subject, subject_id = id_from_cover.split("-")
+                    #    content_type = subject
+                    #    content_id = int(subject_id)
+                    # if content_id is None or content_type is None:
+                    #    continue
+                    # if content_type == "al":
+                    #    entity = self.db_manager.get_album_orm_by_id(
+                    #        session, content_id
+                    #    )
+                    # elif content_type == "ar":
+                    #    entity = self.db_manager.get_artist_orm_by_id(
+                    #        session, content_id
+                    #    )
+                    # elif content_type == "pl":
+                    #    entity = self.db_manager.get_playlist_orm_by_id(
+                    #        session, content_id
+                    #    )
+                    # if entity is None:
+                    #    continue
+                    # cover_storage = ObjectStorageORM(
+                    #    link_type="storage",
+                    #    link_provider=storage.id,
+                    #    link=cover.link,
+                    #    file_name=cover.filename,
+                    # )
+                    # session.add(cover_storage)
+                    # session.flush()
+                    # entity.cover_path = cover_storage.id
+                    # session.flush()
+                    # cover_added_count += 1
+                    # self._update_sync_progress(task_id, added=1)
                     if storage.id in lyrics_to_adding:
                         for lyrics in lyrics_to_adding[storage.id]:
                             range_bytes: bytes = current_storage.get_range_bytes(
@@ -1103,6 +1100,12 @@ class LibraryManager:
                     session.add_all(genre_links)
                     session.flush()
                     cover_path = dst / f"al-{db_album.title}.jpg"
+                    write_cover_metadata(
+                        cover_path,
+                        album=album.title,
+                        artists=[artist.name for artist in album.artists],
+                        genres=album.genres,
+                    )
                     with open(cover_path, "rb") as f:
                         ext = image_mime(f.read(20)).split("/")[1]
                     save_file_from_url(album.cover_uri, cover_path)
@@ -1146,6 +1149,9 @@ class LibraryManager:
                     db_artist.description = artist.description
                     cover_path = dst / f"{artist.name}.jpg"
                     save_file_from_url(artist.cover_uri, cover_path)
+                    write_cover_metadata(
+                        cover_path, artists=[artist.name], genres=album.genres
+                    )
                     with open(cover_path, "rb") as f:
                         ext = image_mime(f.read(20)).split("/")[1]
                     cover_object = self.save_object(
@@ -1272,8 +1278,8 @@ class LibraryManager:
                     video_dst = dst / name
                     save_file_from_url(url, video_dst)
                     write_video_metadata(
-                        track.artists[0].name,
-                        track.albums[0].title,
+                        ",".join(artist.name for artist in track.artists),
+                        ",".join(album.title for album in track.albums),
                         track.title,
                         video_dst,
                     )

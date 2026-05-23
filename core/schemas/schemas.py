@@ -253,7 +253,7 @@ class ImporterArtist:
     id: int | str
     name: str
     cover_uri: str | None = None
-    genres: str | None = None
+    genres: list[str] = field(default_factory=list)
     description: str | None = None
 
 
@@ -274,7 +274,7 @@ class ImporterAlbum:
     year: str
     type: str
     cover_uri: str
-    genres: str | None = None
+    genres: list[str] = field(default_factory=list)
     description: str | None = None
 
 
