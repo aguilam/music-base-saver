@@ -272,7 +272,7 @@ class ImporterAlbum:
     artists: list[str]
     title: str
     year: str
-    type: str
+    album_type: str
     cover_uri: str
     genres: list[str] = field(default_factory=list)
     description: str | None = None

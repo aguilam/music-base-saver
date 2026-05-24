@@ -1086,7 +1086,7 @@ class LibraryManager:
                     db_album = AlbumORM(
                         title=album.title,
                         year=album.year,
-                        type=album.type,
+                        type=album.album_type,
                         description=album.description,
                     )
                     session.add(db_album)
@@ -1103,7 +1103,7 @@ class LibraryManager:
                     write_cover_metadata(
                         cover_path,
                         album=album.title,
-                        artists=[artist.name for artist in album.artists],
+                        artists=album.artists,
                         genres=album.genres,
                     )
                     with open(cover_path, "rb") as f:
