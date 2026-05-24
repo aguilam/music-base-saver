@@ -1,5 +1,6 @@
 import typer
 from core.library_manager import LibraryManager
+from core.schemas.schemas import Task, DownloadTaskResult
 from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress
@@ -23,19 +24,19 @@ def search_track(
     library_manager = LibraryManager()
     console = Console()
     console.print(f"Начат поиск и загрузка трека - {query}", style="green")
-    track_id = library_manager.post_download(query=query, id=id)
+    task_id = library_manager.post_task(query=query, object_id=id)
     track = None
     with Progress() as progress_bar:
         download_task = progress_bar.add_task("[green]Скачка", total=100)
         while True:
-            task = library_manager.get_download_task(track_id)
-            progress_bar.update(download_task, completed=task["progress"])
-            if task["status"] == "Finished":
-                track = task.get("result")
+            task: Task[DownloadTaskResult] | None = library_manager.get_task(task_id)
+            progress_bar.update(download_task, completed=task.progress)
+            if task.status == "finished":
+                track = task.result
                 break
             time.sleep(0.3)
     console.print(
-        f" \nЗагрузка с [bold green]{track["download_source"]}[/] завершена, трек сохранён в [bold blue]{track["storage"]}[/] по пути [yellow]{track["saved_path"]}[/]"
+        f" \nЗагрузка с [bold green]{track.title}[/] завершена, трек сохранён в [bold blue]{track.storage}[/] по пути [yellow]{track.saved_path}[/]"
     )
     table = Table(title="Метаданные сохранённого трека")
     table.add_column("Title", style="magenta")

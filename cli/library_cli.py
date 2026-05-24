@@ -1,5 +1,6 @@
 import typer
 from core.library_manager import LibraryManager
+from core.schemas.schemas import Task, SyncTaskResult
 from rich.console import Console
 from rich.table import Table
 from rich.live import Live
@@ -40,17 +41,17 @@ def delete_track(track_id: int):
 @library_app.command("sync")
 def sync():
     library_manager = LibraryManager()
-    task_id = library_manager.post_sync()
+    task_id = library_manager.post_task()
     console = Console()
     added_text = Text("Added: 0")
     deleted_text = Text("Deleted: 0")
     with Live(Group(added_text, deleted_text), auto_refresh=False) as live:
         while True:
-            task = library_manager.get_sync_task(task_id)
-            added_text.plain = f"Added: {task["added"]}"
-            deleted_text.plain = f"Deleted: {task["deleted"]}"
+            task: Task[SyncTaskResult] | None = library_manager.get_task(task_id)
+            added_text.plain = f"Added: {task.result.added}"
+            deleted_text.plain = f"Deleted: {task.result.deleted}"
             live.refresh()
-            if task["status"] == "Finished":
+            if task.status == "finished":
                 break
             time.sleep(0.2)
     console.print("Scanning finished")

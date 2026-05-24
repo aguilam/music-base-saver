@@ -266,6 +266,30 @@ class ImporterPlaylist:
 
 
 @dataclass(slots=True)
+class Task[T]:
+    result: T | None = None
+    progress: int = 0
+    status: str = "processing"
+    error: str | None = None
+
+
+@dataclass(slots=True)
+class DownloadTaskResult:
+    title: str
+    artist: list[str]
+    length: int
+    storage: str
+    download_source: str
+    saved_path: str
+
+
+@dataclass(slots=True)
+class SyncTaskResult:
+    added: int = 0
+    deleted: int = 0
+
+
+@dataclass(slots=True)
 class ImporterAlbum:
     id: int | str
     artist_ids: list[int | str]

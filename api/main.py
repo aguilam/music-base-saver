@@ -18,6 +18,7 @@ from api.mappers import (
     external_track_to_subsonic,
 )
 import json
+from core.schemas.schemas import Task, DownloadTaskResult, SyncTaskResult
 
 
 class SubsonicException(Exception):
@@ -354,7 +355,7 @@ def local_serch(
 
 @subsonic_router.post("/globalDownload")
 def global_download(query: str = None, id: str = None):
-    task_id = library_manager.post_download(query=query, id=id)
+    task_id = library_manager.post_task(query=query, object_id=id)
     return {
         "taskId": task_id,
     }
@@ -362,14 +363,18 @@ def global_download(query: str = None, id: str = None):
 
 @subsonic_router.get("/checkGlobalDownload")
 def check_global_download(id: str):
-    download = library_manager.checks_status(id)
-    return {
+    download: Task[DownloadTaskResult] | None = library_manager.get_task(id)
+    if download is None:
+        raise_subsonic_error(70)
+    download_response = {
         "download": {
-            "status": download["status"],
-            "progress": download["progress"],
-            "result": download.get("result"),
-        },
+            "status": download.status,
+            "progress": download.progress,
+        }
     }
+    if download.result:
+        download_response["result"] = (download.result.__dict__,)
+    return download_response
 
 
 @subsonic_router.get("/globalSearch")
@@ -403,7 +408,7 @@ def get_artist(id: str):
         artist = library_manager.get_global_object("artist", id)
         parsed_artist = external_artist_to_subsonic(artist)
         parsed_artist["album"] = [
-            external_album_to_subsonic(album) for album in artist["albums"]
+            external_album_to_subsonic(album) for album in artist.albums
         ]
     else:
         artist = library_manager.get_artist_by_id(int(id))
@@ -429,7 +434,7 @@ def get_artists():
         index.append({"name": k, "artist": v})
     return {
         "artists": {
-            "ignoredArticles": "The An A Die Das Ein Eine Les Le La",
+            "ignoredArticles": "",
             "index": index,
         },
     }
@@ -460,7 +465,7 @@ def get_album(id: str):
         album = library_manager.get_global_object("album", id)
         parsed_album = external_album_to_subsonic(album)
         parsed_album["song"] = [
-            external_track_to_subsonic(track) for track in album["tracks"]
+            external_track_to_subsonic(track) for track in album.tracks
         ]
     else:
         album = library_manager.get_album_by_id(int(id))
@@ -623,7 +628,7 @@ def download_to_user():
 
 @subsonic_router.get("/startScan")
 def start_scan():
-    library_manager.post_sync(sync_id="sub")
+    library_manager.post_task(sync_id="sub")
     return {
         "scanStatus": {"scanning": True, "count": 0},
     }
@@ -631,11 +636,12 @@ def start_scan():
 
 @subsonic_router.get("/scanStatus")
 def scan_status():
-    task = library_manager.get_sync_task("sub")
-    is_scanning = True if task["status"] == "Processing" else False
-    count = task["added"]
+    task: Task[SyncTaskResult] | None = library_manager.get_task("sub")
+    if task is None:
+        raise_subsonic_error(70)
+    is_scanning = True if task.status == "processing" else False
     return {
-        "scanStatus": {"scanning": is_scanning, "count": count},
+        "scanStatus": {"scanning": is_scanning, "count": task.result.added},
     }
 
 

@@ -65,12 +65,15 @@ from .schemas.schemas import (
     SearchResults,
     BinaryBlob,
     FilePathInfo,
+    Task,
+    SyncTaskResult,
+    DownloadTaskResult,
 )
 from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
-from typing import Literal, overload
+from typing import Literal, overload, cast
 import time
 import os
 from sqlmodel import Session
@@ -97,8 +100,7 @@ class LibraryManager:
             config = tomllib.load(config_file)
         self.config = config
         self.temp_dir = Path("temp_tracks")
-        self.download_queue = {}
-        self.sync_queue = {}
+        self.task_queue: dict[str, Task] = {}
         self.search_engines = load_modules(
             config.get("search", {}), import_modules("search", BaseSearch)
         )
@@ -211,18 +213,6 @@ class LibraryManager:
                     for album in artist.albums:
                         album.external_id = f"{engine.tag}-{album.external_id}"
                     return artist
-
-    def get_download_task(self, task_id: str):
-        return self.download_queue.get(task_id)
-
-    def post_download(self, query: str | None = None, object_id: str | None = None):
-        task_id = str(uuid4())[:8]
-        self.download_queue[task_id] = {"status": "Processing", "progress": 0}
-        self.executor.submit(self.download, task_id, query, object_id)
-        return task_id
-
-    def _update_progress(self, task_id: str, progress: int):
-        self.download_queue[task_id]["progress"] = progress
 
     def add_new_track(
         self,
@@ -379,15 +369,15 @@ class LibraryManager:
                     cover.id,
                 )
                 session.commit()
-            self.download_queue[task_id]["result"] = {
-                "title": title,
-                "artist": track.artists,
-                "length": track.length,
-                "storage": best_storage.name,
-                "download_source": downloader.TAG,
-                "saved_path": saved_path,
-            }
-            self.download_queue[task_id]["status"] = "Finished"
+            self.task_queue[task_id].result = DownloadTaskResult(
+                title=title,
+                artist=track.artists,
+                length=track.length,
+                storage=best_storage.name,
+                download_source=downloader.TAG,
+                saved_path=saved_path,
+            )
+            self._update_task(task_id, status="finished")
 
     def get_file(self, path: str, storage_id: str):
         for storage in self.storages:
@@ -661,18 +651,20 @@ class LibraryManager:
                     )
                     return track
 
-    def get_sync_task(self, task_id: str):
-        return self.sync_queue.get(task_id)
+    def get_task(self, task_id: str) -> Task | None:
+        task = self.task_queue.get(task_id)
+        return task
 
-    def post_sync(self, storage_id: str | None = None, sync_id: str | None = None):
-        task_id = str(uuid4())[:8] if sync_id is None else sync_id
-        self.sync_queue[task_id] = {"status": "Processing", "deleted": 0, "added": 0}
-        self.executor.submit(self.sync, task_id)
+    def post_task(self, func, task_id: str | None = None, *args, **kwargs):
+        task_id = str(uuid4())[:8] if task_id is None else task_id
+        self.task_queue[task_id] = Task()
+        self.executor.submit(func, task_id, *args, **kwargs)
         return task_id
 
-    def _update_sync_progress(self, task_id: str, deleted: int = 0, added: int = 0):
-        self.sync_queue[task_id]["deleted"] += deleted
-        self.sync_queue[task_id]["added"] += added
+    def _update_task(self, task_id: str, **kwargs):
+        task = self.task_queue[task_id]
+        for k, v in kwargs.items():
+            setattr(task, k, v)
 
     def save_object(
         self,
@@ -715,7 +707,7 @@ class LibraryManager:
                 deleted_count = self.db_manager.bulk_delete_by_links(
                     session, objects_for_deleting
                 )
-                self._update_sync_progress(task_id, deleted=deleted_count)
+                self.task_queue[task_id].result = SyncTaskResult(deleted=deleted_count)
                 tracks_to_adding: dict[str, list[FilePathInfo]] = {}
                 cover_to_adding: dict[str, list[FilePathInfo]] = {}
                 lyrics_to_adding: dict[str, list[FilePathInfo]] = {}
@@ -772,7 +764,7 @@ class LibraryManager:
                                 session, track_metadata, track, storage.id
                             )
                             track_added_count += 1
-                            self._update_sync_progress(task_id, added=1)
+                            self.task_queue[task_id].result.added = track_added_count
                     # if storage.id in cover_to_adding:
                     # for cover in cover_to_adding[storage.id]:
                     # content_id = None
@@ -845,7 +837,7 @@ class LibraryManager:
                     # entity.cover_path = cover_storage.id
                     # session.flush()
                     # cover_added_count += 1
-                    # self._update_sync_progress(task_id, added=1)
+                    # self.task_queue[task_id].result.added = track_added_count
                     if storage.id in lyrics_to_adding:
                         for lyrics in lyrics_to_adding[storage.id]:
                             range_bytes: bytes = current_storage.get_range_bytes(
@@ -936,7 +928,7 @@ class LibraryManager:
                             session.add(music_video)
                             session.flush()
                 session.commit()
-                self.sync_queue[task_id]["status"] = "Finished"
+                self._update_task(task_id, status="finished")
                 self.logger.info("Syncing succesful completed")
         except:
             self.logger.warning("Problem in library syncing")
