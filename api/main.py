@@ -355,7 +355,7 @@ def local_serch(
 
 @subsonic_router.post("/globalDownload")
 def global_download(query: str = None, id: str = None):
-    task_id = library_manager.post_task(query=query, object_id=id)
+    task_id = library_manager.download(query=query, object_id=id)
     return {
         "taskId": task_id,
     }
@@ -628,7 +628,7 @@ def download_to_user():
 
 @subsonic_router.get("/startScan")
 def start_scan():
-    library_manager.post_task(sync_id="sub")
+    library_manager.sync(sync_id="sub")
     return {
         "scanStatus": {"scanning": True, "count": 0},
     }

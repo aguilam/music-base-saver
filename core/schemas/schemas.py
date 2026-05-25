@@ -290,6 +290,23 @@ class SyncTaskResult:
 
 
 @dataclass(slots=True)
+class ImportMetric:
+    searched: int = 0
+    saved: int = 0
+
+
+@dataclass(slots=True)
+class ImportTaskResult:
+    tracks: ImportMetric = field(default_factory=ImportMetric)
+    covers: ImportMetric = field(default_factory=ImportMetric)
+    videos: ImportMetric = field(default_factory=ImportMetric)
+    lyrics: ImportMetric = field(default_factory=ImportMetric)
+    albums: ImportMetric = field(default_factory=ImportMetric)
+    artists: ImportMetric = field(default_factory=ImportMetric)
+    playlists: ImportMetric = field(default_factory=ImportMetric)
+
+
+@dataclass(slots=True)
 class ImporterAlbum:
     id: int | str
     artist_ids: list[int | str]
@@ -297,7 +314,7 @@ class ImporterAlbum:
     title: str
     year: str
     album_type: str
-    cover_uri: str
+    cover_uri: str | None = None
     genres: list[str] = field(default_factory=list)
     description: str | None = None
 
