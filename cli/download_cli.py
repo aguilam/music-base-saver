@@ -24,7 +24,7 @@ def search_track(
     library_manager = LibraryManager()
     console = Console()
     console.print(f"Начат поиск и загрузка трека - {query}", style="green")
-    task_id = library_manager.post_task(query=query, object_id=id)
+    task_id = library_manager.download(query=query, object_id=id)
     track = None
     with Progress() as progress_bar:
         download_task = progress_bar.add_task("[green]Скачка", total=100)

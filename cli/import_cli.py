@@ -7,5 +7,5 @@ import_app = typer.Typer(help="Позволяет импортировать т�
 @import_app.command("from")
 def import_local(importer_tag: str):
     library_manager = LibraryManager()
-    library_manager.import_tracks(importer_tag, 0)
+    library_manager.import_library(importer_tag=importer_tag)
     pass

@@ -41,7 +41,7 @@ def delete_track(track_id: int):
 @library_app.command("sync")
 def sync():
     library_manager = LibraryManager()
-    task_id = library_manager.post_task()
+    task_id = library_manager.sync()
     console = Console()
     added_text = Text("Added: 0")
     deleted_text = Text("Deleted: 0")
