@@ -258,10 +258,16 @@ class ImporterArtist:
 
 
 @dataclass(slots=True)
+class ImporterPlaylistTrack:
+    id: int | str
+    playlist_position: int
+
+
+@dataclass(slots=True)
 class ImporterPlaylist:
     id: int | str
     title: str
-    track_ids: list[int | str]
+    tracks: list[ImporterPlaylistTrack]
     cover_uri: str | None = None
 
 

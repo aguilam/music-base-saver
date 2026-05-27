@@ -153,7 +153,13 @@ class DBManager:
         return new_artist
 
     def find_or_create_album(
-        self, session: Session, title: str, artists_names: list[str] | None = None
+        self,
+        session: Session,
+        title: str,
+        artists_names: list[str] | None = None,
+        year: int | None = None,
+        description: str | None = None,
+        type: str | None = None,
     ):
         normalized_title = title.lower().strip()
         stmt = select(AlbumORM).where(AlbumORM.title == normalized_title)
@@ -166,7 +172,7 @@ class DBManager:
         existed_album = session.exec(stmt).first()
         if existed_album:
             return existed_album
-        new_album = AlbumORM(title=title)
+        new_album = AlbumORM(title=title, year=year, description=description, type=type)
         session.add(new_album)
         session.flush()
         return new_album

@@ -69,6 +69,7 @@ from .schemas.schemas import (
     SyncTaskResult,
     DownloadTaskResult,
     ImportTaskResult,
+    ImporterPlaylistTrack,
 )
 from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
@@ -986,7 +987,7 @@ class LibraryManager:
             unique_albums_ids = {*favorited_albums}
             unique_artists_ids = {*favorited_artists}
             unique_playlists_ids = {*favorited_playlists}
-            playlist_tracks_to_add: list[tuple[int, list[int | str]]] = []
+            playlist_tracks_to_add: list[tuple[int, list[ImporterPlaylistTrack]]] = []
             artist_map: dict[int | str, int] = {}
             album_map: dict[int | str, int] = {}
             track_map: dict[int | str, int] = {}
@@ -1002,7 +1003,9 @@ class LibraryManager:
             for playlist_id in unique_playlists_ids:
                 try:
                     playlist_info = selected_importer.get_playlist(playlist_id)
-                    unique_tracks_ids.update(playlist_info.track_ids)
+                    unique_tracks_ids.update(
+                        [track.id for track in playlist_info.tracks]
+                    )
                     task.result.tracks.searched = len(unique_tracks_ids)
                     db_playlist = PlaylistORM(name=playlist_info.title, is_public=False)
                     session.add(db_playlist)
@@ -1014,7 +1017,7 @@ class LibraryManager:
                     session.flush()
                     task.result.playlists.saved += 1
                     playlist_tracks_to_add.append(
-                        (db_playlist.id, playlist_info.track_ids)
+                        (db_playlist.id, playlist_info.tracks)
                     )
                     cover_path = dst / f"pl-{db_playlist.id}.jpg"
                     task.result.covers.searched += 1
@@ -1114,15 +1117,14 @@ class LibraryManager:
                 try:
                     album = selected_importer.get_album(album_id)
                     unique_artists_ids.update(album.artist_ids)
-
-                    db_album = AlbumORM(
-                        title=album.title,
+                    db_album = self.db_manager.find_or_create_album(
+                        session,
+                        album.title,
+                        artists_names=album.artists,
                         year=album.year,
                         type=album.album_type,
                         description=album.description,
                     )
-                    session.add(db_album)
-                    session.flush()
                     task.result.albums.saved += 1
                     task.result.covers.searched += 1
                     genre_links = []
@@ -1234,13 +1236,14 @@ class LibraryManager:
                     )
 
             for playlist_entry in playlist_tracks_to_add:
-                playlist_id, track_ids = playlist_entry
+                playlist_id, tracks = playlist_entry
                 try:
-                    for track in track_ids:
-                        if track in track_map:
+                    for track in tracks:
+                        if track.id in track_map:
                             link = PlaylistTrackLink(
                                 playlist_id=playlist_id,
-                                track_id=track_map[track],
+                                track_id=track_map[track.id],
+                                position=track.playlist_position,
                             )
                             session.add(link)
                             session.flush()
