@@ -1,4 +1,4 @@
-from .base import Tool
+from tool.base import Tool
 from structlog import get_logger
 from structlog.stdlib import BoundLogger
 

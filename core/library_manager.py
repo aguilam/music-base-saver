@@ -300,7 +300,9 @@ class LibraryManager:
         query: str | None = None,
         object_id: str | None = None,
     ):
-        task_id = self.post_task(task_id=task_id, query=query, object_id=object_id)
+        task_id = self.post_task(
+            func=self.download_task, task_id=task_id, query=query, object_id=object_id
+        )
         return task_id
 
     def download_track(
@@ -698,6 +700,7 @@ class LibraryManager:
 
     def sync(self, task_id: str | None = None):
         task_id = self.post_task(self.sync_library, task_id)
+        self.task_queue[task_id].result = SyncTaskResult()
         return task_id
 
     def sync_library(self, task_id: str):
@@ -955,8 +958,12 @@ class LibraryManager:
         user_id: int | None = None,
     ):
         task_id = self.post_task(
-            task_id=task_id, importer_tag=importer_tag, user_id=user_id
+            func=self.import_tracks,
+            task_id=task_id,
+            importer_tag=importer_tag,
+            user_id=user_id,
         )
+        self.task_queue[task_id].result = ImportTaskResult()
         return task_id
 
     def import_tracks(
@@ -983,10 +990,10 @@ class LibraryManager:
             task.result.albums.searched = len(favorited_albums)
             task.result.artists.searched = len(favorited_artists)
             task.result.playlists.searched = len(favorited_playlists)
-            unique_tracks_ids = {*favorited_tracks}
-            unique_albums_ids = {*favorited_albums}
-            unique_artists_ids = {*favorited_artists}
-            unique_playlists_ids = {*favorited_playlists}
+            unique_tracks_ids = {*favorited_tracks[:3]}
+            unique_albums_ids = {*favorited_albums[:10]}
+            unique_artists_ids = {*favorited_artists[:10]}
+            unique_playlists_ids = {*favorited_playlists[:10]}
             playlist_tracks_to_add: list[tuple[int, list[ImporterPlaylistTrack]]] = []
             artist_map: dict[int | str, int] = {}
             album_map: dict[int | str, int] = {}
@@ -1019,30 +1026,36 @@ class LibraryManager:
                     playlist_tracks_to_add.append(
                         (db_playlist.id, playlist_info.tracks)
                     )
-                    cover_path = dst / f"pl-{db_playlist.id}.jpg"
-                    task.result.covers.searched += 1
-                    save_file_from_url(playlist_info.cover_uri, cover_path)
-                    with open(cover_path, "rb") as f:
-                        ext = image_mime(f.read(20)).split("/")[1]
-                    cover_name = f"pl-{db_playlist.id}.{ext}"
-                    cover_object = self.save_object(
-                        session,
-                        str(cover_path),
-                        cover_name,
-                    )
-                    db_playlist.cover_path = cover_object.id
-                    session.flush()
+                    if playlist_info.cover_uri:
+                        cover_path = dst / f"pl-{db_playlist.id}.jpg"
+                        task.result.covers.searched += 1
+                        save_file_from_url(playlist_info.cover_uri, cover_path)
+                        with open(cover_path, "rb") as f:
+                            ext = image_mime(f.read(20)).split("/")[1]
+                        cover_name = f"pl-{db_playlist.id}.{ext}"
+                        cover_object = self.save_object(
+                            session,
+                            str(cover_path),
+                            cover_name,
+                        )
+                        db_playlist.cover_path = cover_object.id
+                        session.flush()
+                    session.commit()
                     task.result.covers.saved += 1
-                except:
+                except Exception as e:
+                    session.rollback()
                     self.logger.warning(
                         "Problem in importing playlist",
                         importer=importer_tag,
                         user_id=user_id,
                         playlist_id=playlist_id,
+                        error=str(e),
                     )
 
             for track_id in unique_tracks_ids:
                 try:
+                    if track_id is None:
+                        continue
                     track_info = selected_importer.get_track(track_id)
                     if track_info.has_lyrics:
                         tracks_with_lyrics.append(track_id)
@@ -1071,7 +1084,9 @@ class LibraryManager:
                         },
                     )
                     saving_path = Path(
-                        (f"{track_info.artists[0]}/{track_info.albums[0]}/{name}")
+                        (
+                            f'{track_info.artists[0]}/{track_info.albums[0].title}/{track_info.title}.{name.split(".")[1]}'
+                        )
                     )
                     best_storage = find_best_storage(
                         self.storages,
@@ -1094,6 +1109,7 @@ class LibraryManager:
                         FilePathInfo(link=saved_path, filename=name),
                         best_storage.id,
                     )
+                    session.commit()
                     for album_id in track_info.albums:
                         if album_id in track_album_link:
                             track_album_link[album_id] = [db_track_id]
@@ -1105,6 +1121,7 @@ class LibraryManager:
                         else:
                             track_artist_link[artist_id].append(db_track_id)
                 except Exception as e:
+                    session.rollback()
                     self.logger.warning(
                         "Problem in importing track",
                         importer=importer_tag,
@@ -1115,6 +1132,8 @@ class LibraryManager:
 
             for album_id in unique_albums_ids:
                 try:
+                    if album_id is None:
+                        continue
                     album = selected_importer.get_album(album_id)
                     unique_artists_ids.update(album.artist_ids)
                     db_album = self.db_manager.find_or_create_album(
@@ -1135,24 +1154,25 @@ class LibraryManager:
                         )
                     session.add_all(genre_links)
                     session.flush()
-                    cover_path = dst / f"al-{db_album.title}.jpg"
-                    with open(cover_path, "rb") as f:
-                        ext = image_mime(f.read(20)).split("/")[1]
-                    save_file_from_url(album.cover_uri, cover_path)
-                    write_cover_metadata(
-                        cover_path,
-                        album=album.title,
-                        artists=album.artists,
-                        genres=album.genres,
-                    )
-                    cover_object = self.save_object(
-                        session,
-                        str(cover_path),
-                        f"{album.artists[0]}/{album.title}/cover.{ext}",
-                    )
-                    task.result.covers.saved += 1
-                    db_album.cover_path = cover_object.id
-                    session.flush()
+                    if album.cover_uri:
+                        cover_path = dst / f"al-{db_album.title}.jpg"
+                        with open(cover_path, "rb") as f:
+                            ext = image_mime(f.read(20)).split("/")[1]
+                        save_file_from_url(album.cover_uri, cover_path)
+                        write_cover_metadata(
+                            cover_path,
+                            album=album.title,
+                            artists=album.artists,
+                            genres=album.genres,
+                        )
+                        cover_object = self.save_object(
+                            session,
+                            str(cover_path),
+                            f"{album.artists[0]}/{album.title}/cover.{ext}",
+                        )
+                        task.result.covers.saved += 1
+                        db_album.cover_path = cover_object.id
+                        session.flush()
                     album_map[album_id] = db_album.id
                     track_links = []
                     for track_id in track_album_link:
@@ -1160,13 +1180,14 @@ class LibraryManager:
                             TrackAlbumLink(track_id=track_id, album_id=db_album.id)
                         )
                     session.add_all(track_links)
-                    session.flush()
+                    session.commit()
                     for artist_id in track_info.artists:
                         if artist_id in album_artist_link:
                             album_artist_link[artist_id] = [album_id]
                         else:
                             album_artist_link[artist_id].append(album_id)
                 except Exception as e:
+                    session.rollback()
                     self.logger.warning(
                         "Problem in importing album",
                         importer=importer_tag,
@@ -1177,6 +1198,8 @@ class LibraryManager:
 
             for artist_id in unique_artists_ids:
                 try:
+                    if artist_id is None:
+                        continue
                     artist = selected_importer.get_artist(artist_id)
 
                     db_artist = self.db_manager.find_or_create_artist(
@@ -1185,23 +1208,24 @@ class LibraryManager:
                     task.result.artists.saved += 1
                     db_artist.description = artist.description
                     task.result.covers.searched += 1
-                    cover_path = dst / f"{artist.name}.jpg"
-                    save_file_from_url(artist.cover_uri, cover_path)
-                    task.result.covers.saved += 1
-                    write_cover_metadata(
-                        cover_path, artists=[artist.name], genres=album.genres
-                    )
-                    with open(cover_path, "rb") as f:
-                        ext = image_mime(f.read(20)).split("/")[1]
-                    cover_object = self.save_object(
-                        session,
-                        str(cover_path),
-                        f"{artist.name}/cover.{ext}",
-                    )
-                    task.result.covers.saved += 1
-                    db_artist.cover_path = cover_object.id
-                    session.add(db_artist)
-                    session.flush()
+                    if artist.cover_uri:
+                        cover_path = dst / f"{artist.name}.jpg"
+                        save_file_from_url(artist.cover_uri, cover_path)
+                        task.result.covers.saved += 1
+                        write_cover_metadata(
+                            cover_path, artists=[artist.name], genres=album.genres
+                        )
+                        with open(cover_path, "rb") as f:
+                            ext = image_mime(f.read(20)).split("/")[1]
+                        cover_object = self.save_object(
+                            session,
+                            str(cover_path),
+                            f"{artist.name}/cover.{ext}",
+                        )
+                        task.result.covers.saved += 1
+                        db_artist.cover_path = cover_object.id
+                        session.add(db_artist)
+                        session.flush()
                     genre_links = []
                     for genre in album.genres:
                         db_genre = self.db_manager.find_or_create_genre(session, genre)
@@ -1224,9 +1248,10 @@ class LibraryManager:
                         )
                     session.add_all(album_artist_links)
                     session.add_all(track_artist_links)
-                    session.flush()
+                    session.commit()
                     artist_map[artist_id] = db_artist.id
                 except Exception as e:
+                    session.rollback()
                     self.logger.warning(
                         "Problem in importing artist",
                         importer=importer_tag,
@@ -1246,8 +1271,9 @@ class LibraryManager:
                                 position=track.playlist_position,
                             )
                             session.add(link)
-                            session.flush()
+                            session.commit()
                 except Exception as e:
+                    session.rollback()
                     self.logger.warning(
                         "Problem in importing playlist",
                         importer=importer_tag,
@@ -1268,6 +1294,7 @@ class LibraryManager:
                     saved_path = dst / name
                     save_file_from_url(url, saved_path)
                     text = saved_path.read_text()
+                    ext = ""
                     if ".lrc" in name:
                         file_content = analyze_lrc(text.splitlines())
                         new_lyrics = LyricsORM(
@@ -1279,6 +1306,7 @@ class LibraryManager:
                         )
                         session.add(new_lyrics)
                         session.flush()
+                        ext = "lrc"
                     elif ".txt" in name:
                         new_lyrics = LyricsORM(
                             is_synced=False,
@@ -1288,17 +1316,17 @@ class LibraryManager:
                         )
                         session.add(new_lyrics)
                         session.flush()
-                    saving_path = (
-                        f"{track.artists[0].name}/{track.albums[0].title}/{name}"
-                    )
+                        ext = "txt"
+                    saving_path = f"{track.artists[0].name}/{track.albums[0].title}/.{track.title}.{ext}"
                     lyrics_object = self.save_object(
                         session, str(saved_path), saving_path
                     )
                     task.result.lyrics.saved += 1
                     new_lyrics.path.append(lyrics_object)
                     session.add(lyrics_object)
-                    session.flush()
+                    session.commit()
                 except Exception as e:
+                    session.rollback()
                     self.logger.warning(
                         "Problem in importing track lyrics",
                         importer=importer_tag,
@@ -1337,8 +1365,9 @@ class LibraryManager:
                     task.result.videos.saved += 1
                     music_video.local_link.append(video_object)
                     session.add(video_object)
-                    session.flush()
+                    session.commit()
                 except Exception as e:
+                    session.rollback()
                     self.logger.warning(
                         "Problem in adding imported music video",
                         importer=importer_tag,

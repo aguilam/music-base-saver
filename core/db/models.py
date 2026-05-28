@@ -25,7 +25,7 @@ class AlbumArtistLink(SQLModel, table=True):
 
 
 class ArtistGenreLink(SQLModel, table=True):
-    __tablename__ = "track_genre"
+    __tablename__ = "artist_genre"
     artist_id: int | None = Field(
         default=None, foreign_key="artist.id", primary_key=True
     )
@@ -33,7 +33,7 @@ class ArtistGenreLink(SQLModel, table=True):
 
 
 class AlbumGenreLink(SQLModel, table=True):
-    __tablename__ = "track_genre"
+    __tablename__ = "album_genre"
     album_id: int | None = Field(default=None, foreign_key="album.id", primary_key=True)
     genre_id: int | None = Field(default=None, foreign_key="genre.id", primary_key=True)
 
@@ -172,7 +172,7 @@ class UserORM(SQLModel, table=True):
 
 class TrackAlbumLink(SQLModel, table=True):
     __tablename__ = "track_album"
-    track_id: int = Field(Primary_key=True, foreign_key="track.id")
+    track_id: int = Field(primary_key=True, foreign_key="track.id")
     album_id: int = Field(primary_key=True, foreign_key="album.id")
     album_position: int
     disc_number: int | None = None

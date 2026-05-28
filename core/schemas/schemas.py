@@ -7,28 +7,28 @@ from typing import NamedTuple
 @dataclass(slots=True)
 class Artist:
     name: str
-    albums: list[Album] = field(default_factory=list)
     id: int | None = None
     description: str | None = None
-    genres: list[str] = field(default_factory=list)
     cover_path: int | None = None
     external_id: str | None = None
+    genres: list[str] = field(default_factory=list)
+    albums: list[Album] = field(default_factory=list)
 
 
 @dataclass(slots=True)
 class Mood:
-    tracks: list[TrackShort] = field(default_factory=list)
     name: str
     id: int | None = None
+    tracks: list[TrackShort] = field(default_factory=list)
 
 
 @dataclass(slots=True)
 class Genre:
     name: str
+    id: int | None = None
     artists: list[ArtistShort] = field(default_factory=list)
     albums: list[AlbumShort] = field(default_factory=list)
     tracks: list[TrackShort] = field(default_factory=list)
-    id: int | None = None
 
 
 @dataclass(slots=True)
@@ -36,9 +36,9 @@ class ArtistShort:
     name: str
     id: int | None = None
     description: str | None = None
-    genres: list[str] = field(default_factory=list)
     cover_path: int | None = None
     external_id: str | None = None
+    genres: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -48,13 +48,13 @@ class Album:
     year: int | None = None
     tracks_count: int | None = None
     description: str | None = None
-    tracks: list[Track] = field(default_factory=list)
-    artists: list[ArtistShort] = field(default_factory=list)
-    genres: list[str] = field(default_factory=list)
     id: int | None = None
     cover_path: int | None = None
     created_at: datetime | None = None
     external_id: str | None = None
+    tracks: list[Track] = field(default_factory=list)
+    artists: list[ArtistShort] = field(default_factory=list)
+    genres: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -63,13 +63,13 @@ class AlbumShort:
     duration: int | None = None
     tracks_count: int | None = None
     description: str | None = None
-    tracks: list[TrackShort] = field(default_factory=list)
-    artists: list[ArtistShort] = field(default_factory=list)
-    genres: list[str] = field(default_factory=list)
     id: int | None = None
     cover_path: int | None = None
     created_at: datetime | None = None
     external_id: str | None = None
+    tracks: list[TrackShort] = field(default_factory=list)
+    artists: list[ArtistShort] = field(default_factory=list)
+    genres: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -78,22 +78,18 @@ class Playlist:
     owners: list[User]
     tracks_count: int
     duration: int
-    tracks: list[Track] = field(default_factory=list)
     id: int | None = None
     cover_path: int | None = None
     is_public: bool = False
     created_at: datetime | None = None
+    tracks: list[Track] = field(default_factory=list)
 
 
 @dataclass(slots=True)
 class Track:
     title: str
     length: int
-    artists: list[ArtistShort] = field(default_factory=list)
-    lyrics: list[Lyrics] = field(default_factory=list)
-    music_videos: list[MusicVideo] = field(default_factory=list)
     id: int | None = None
-    albums: list[TrackAlbum] = field(default_factory=list)
     cover_path: int | None = None
     path: str | None = None
     bpm: int | None = None
@@ -102,6 +98,10 @@ class Track:
     year: int | None = None
     created_at: datetime | None = None
     external_id: str | None = None
+    artists: list[ArtistShort] = field(default_factory=list)
+    albums: list[TrackAlbum] = field(default_factory=list)
+    lyrics: list[Lyrics] = field(default_factory=list)
+    music_videos: list[MusicVideo] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -109,7 +109,6 @@ class TrackShort:
     title: str
     length: int
     id: int | None = None
-    albums: list[TrackAlbum] = field(default_factory=list)
     cover_path: int | None = None
     path: str | None = None
     bpm: int | None = None
@@ -118,6 +117,7 @@ class TrackShort:
     year: int | None = None
     created_at: datetime | None = None
     external_id: str | None = None
+    albums: list[TrackAlbum] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -186,13 +186,13 @@ class TrackAlbumMetadata:
 class TrackMetadata:
     title: str | None
     length: int | None = None
+    year: int | None = None
+    bitrate: int | None = None
+    bpm: int | None = None
     artists: list[str] = field(default_factory=list)
     albums: list[TrackAlbumMetadata] = field(default_factory=list)
     genres: list[str] = field(default_factory=list)
     moods: list[str] = field(default_factory=list)
-    year: int | None = None
-    bitrate: int | None = None
-    bpm: int | None = None
 
 
 @dataclass(slots=True)
@@ -200,7 +200,6 @@ class TrackAlbum:
     title: str
     duration: int | None = None
     tracks_count: int | None = None
-    artists: list[ArtistShort] = field(default_factory=list)
     id: int | None = None
     cover_path: int | None = None
     created_at: datetime | None = None
@@ -208,6 +207,7 @@ class TrackAlbum:
     album_position: int | None = None
     is_primary: bool = False
     external_id: str | None = None
+    artists: list[ArtistShort] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -253,8 +253,8 @@ class ImporterArtist:
     id: int | str
     name: str
     cover_uri: str | None = None
-    genres: list[str] = field(default_factory=list)
     description: str | None = None
+    genres: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -321,14 +321,14 @@ class ImporterAlbum:
     year: str
     album_type: str
     cover_uri: str | None = None
-    genres: list[str] = field(default_factory=list)
     description: str | None = None
+    genres: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
 class ImporterTrack(TrackMetadata):
-    id: int | str
-    artist_ids: list[str | int]
-    album_ids: list[str | int]
-    has_lyrics: bool
-    has_video: bool
+    id: int | str | None = None
+    artist_ids: list[str | int] = field(default_factory=list)
+    album_ids: list[str | int] = field(default_factory=list)
+    has_lyrics: bool = False
+    has_video: bool = False
