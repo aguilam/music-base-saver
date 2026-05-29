@@ -162,7 +162,7 @@ class DBManager:
         type: str | None = None,
     ):
         normalized_title = title.lower().strip()
-        stmt = select(AlbumORM).where(AlbumORM.title == normalized_title)
+        stmt = select(AlbumORM).where(func.lower(AlbumORM.title) == normalized_title)
         if artists_names:
             stmt = (
                 stmt.join(AlbumORM.artists)
@@ -180,7 +180,7 @@ class DBManager:
     def find_or_create_mood(self, session: Session, mood_name: str):
         normalized_name = mood_name.lower().strip()
         mood = session.exec(
-            select(MoodORM).where(MoodORM.name.lower() == normalized_name)
+            select(MoodORM).where(func.lower(MoodORM.name) == normalized_name)
         ).first()
         if mood:
             return mood
@@ -192,7 +192,7 @@ class DBManager:
     def find_or_create_genre(self, session: Session, genre_name: str):
         normalized_name = genre_name.lower().strip()
         genre = session.exec(
-            select(GenreORM).where(GenreORM.name.lower() == normalized_name)
+            select(GenreORM).where(func.lower(GenreORM.name) == normalized_name)
         ).first()
         if genre:
             return genre

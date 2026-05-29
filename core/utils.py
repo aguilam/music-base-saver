@@ -271,11 +271,11 @@ def write_cover_metadata(
     try:
         metadata = {}
         if album:
-            metadata[f"Xmp.xmpDM.album"] = album
+            metadata[f"Xmp.dc.title"] = f"lang='x-default' {album}"
         if artists and len(artists) > 0:
-            metadata[f"Xmp.xmpDM.artist"] = ",".join(artists)
+            metadata[f"Xmp.dc.creator"] = ",".join(artists)
         if genres and len(genres) > 0:
-            metadata[f"Xmp.xmpDM.genre"] = ",".join(genres)
+            metadata[f"Xmp.dc.subject"] = ",".join(genres)
         with pyexiv2.Image(path) as img:
             img.modify_xmp(metadata)
         return True
@@ -292,3 +292,7 @@ def write_track_metadata(
             continue
         track_file[key] = value
     track_file.save()
+
+
+def sanitize_filename(filename: str) -> str:
+    return re.sub(r'[\\/*?:"<>|]', "", filename).strip()

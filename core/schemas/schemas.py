@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import NamedTuple
+from enum import Enum
 
 
 @dataclass(slots=True)
@@ -279,6 +280,13 @@ class Task[T]:
     error: str | None = None
 
 
+class AlbumType(str, Enum):
+    ALBUM = "album"
+    EP = "ep"
+    SINGLE = "single"
+    COMPILATION = "compilation"
+
+
 @dataclass(slots=True)
 class DownloadTaskResult:
     title: str
@@ -318,10 +326,10 @@ class ImporterAlbum:
     artist_ids: list[int | str]
     artists: list[str]
     title: str
-    year: str
-    album_type: str
+    year: int | None = None
     cover_uri: str | None = None
     description: str | None = None
+    album_type: AlbumType = field(default=AlbumType.ALBUM)
     genres: list[str] = field(default_factory=list)
 
 
