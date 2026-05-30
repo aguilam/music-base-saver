@@ -185,7 +185,9 @@ class ArtistORM(SQLModel, table=True):
     __tablename__ = "artist"
     id: int | None = Field(default=None, primary_key=True)
     name: str
-    cover_path: int | None = Field(default=None, foreign_key="object_storage.id")
+    cover_path: int | None = Field(
+        default=None, foreign_key="object_storage.id", ondelete="SET NULL"
+    )
     description: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     albums: list["AlbumORM"] = Relationship(
@@ -218,7 +220,9 @@ class AlbumORM(SQLModel, table=True):
     title: str
     type: str | None = None
     year: int | None = Field(default=None)
-    cover_path: int | None = Field(default=None, foreign_key="object_storage.id")
+    cover_path: int | None = Field(
+        default=None, foreign_key="object_storage.id", ondelete="SET NULL"
+    )
     artists: list[ArtistORM] = Relationship(
         back_populates="albums", link_model=AlbumArtistLink
     )
@@ -331,11 +335,11 @@ class AudioFileORM(SQLModel, table=True):
     trackGain: float | None = None
     trackPeak: float | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    track_id: int = Field(foreign_key="track.id")
+    track_id: int = Field(foreign_key="track.id", ondelete="CASCADE")
     links: list["ObjectStorageORM"] = Relationship(
         sa_relationship_kwargs={
             "cascade": "all, delete-orphan",
-            "foreign_keys": ObjectStorageORM.audio_id,
+            "foreign_keys": "ObjectStorageORM.audio_id",
         },
     )
 
@@ -358,7 +362,7 @@ class TrackORM(SQLModel, table=True):
     files: list["AudioFileORM"] = Relationship(
         sa_relationship_kwargs={
             "cascade": "all, delete-orphan",
-            "foreign_keys": AudioFileORM.track_id,
+            "foreign_keys": "AudioFileORM.track_id",
         },
     )
 
@@ -425,7 +429,9 @@ class PlaylistORM(SQLModel, table=True):
     __tablename__ = "playlist"
     id: int | None = Field(default=None, primary_key=True)
     name: str
-    cover_path: int | None = Field(default=None, foreign_key="object_storage.id")
+    cover_path: int | None = Field(
+        default=None, foreign_key="object_storage.id", ondelete="SET NULL"
+    )
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_public: bool = Field(default=False)
 

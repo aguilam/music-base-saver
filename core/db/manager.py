@@ -468,8 +468,14 @@ class DBManager:
     def get_album_orm_by_id(self, session: Session, id: int) -> AlbumORM | None:
         return session.get(AlbumORM, id)
 
+    def get_album_orm_by_title(self, session: Session, title: str) -> AlbumORM | None:
+        return session.exec(select(AlbumORM).where(AlbumORM.title == title)).first()
+
     def get_artist_orm_by_id(self, session: Session, id: int) -> ArtistORM | None:
         return session.get(ArtistORM, id)
+
+    def get_artist_orm_by_name(self, session: Session, name: str) -> ArtistORM | None:
+        return session.exec(select(ArtistORM).where(ArtistORM.name == name)).first()
 
     def get_playlist_orm_by_id(self, session: Session, id: int) -> PlaylistORM | None:
         return session.get(PlaylistORM, id)

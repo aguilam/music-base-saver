@@ -21,7 +21,7 @@ class Storage(Service, ABC):
         pass
 
     @abstractmethod
-    def get_all_tracks_paths(self) -> list[tuple[str, str]]:
+    def get_all_files_paths(self) -> list[tuple[str, str]]:
         pass
 
     @abstractmethod

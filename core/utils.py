@@ -240,10 +240,10 @@ def get_track_metadata_by_bytes(bytes: bytes):
 def get_video_metadata(video_bytes: bytes) -> dict:
     video_metadata = MP4(io.BytesIO(video_bytes))
     title = video_metadata.get("\xa9nam", None)
-    artist = video_metadata.get("\xa9ART", None)
+    artists = video_metadata.get("\xa9ART", None)
     album = video_metadata.get("\xa9alb", None)
     video_type = video_metadata.get("stik", None)
-    return {"title": title, "artist": artist, "album": album}
+    return {"title": title, "artists": artists, "album": album}
 
 
 def write_video_metadata(artist: str, album: str, title: str, path: str):
@@ -306,3 +306,11 @@ def read_lyrics_text(text: str) -> tuple[str, str | dict]:
         return ("lrc", analyze_lrc(lines))
     else:
         return ("txt", text)
+
+
+def get_id_from_string(string: str, prefix: str = "al|tr|ar|pl"):
+    if re.match(rf"^{(prefix)}-\d+$", string):
+        parts = string.split("-")
+        return (parts[0], int(parts[1]))
+    else:
+        return None

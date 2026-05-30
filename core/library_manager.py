@@ -8,6 +8,7 @@ from storage.base import Storage as BaseStorage
 from importer.base import Importer as BaseImporter
 from scrobbler.base import Scrobbler as BaseScrobbler
 from tool.base import Tool as BaseTool
+from collections import defaultdict
 from core.utils import (
     compare_tracks,
     find_best_track,
@@ -25,6 +26,7 @@ from core.utils import (
     write_video_metadata,
     sanitize_filename,
     read_lyrics_text,
+    get_id_from_string,
 )
 import shutil
 from .db.manager import DBManager
@@ -715,12 +717,13 @@ class LibraryManager:
 
     def sync_library(self, task_id: str):
         try:
+            task: Task[SyncTaskResult] = self.task_queue[task_id]
             with self.db_manager.get_session() as session:
                 db_tracks = self.db_manager.get_all_tracks_storage_links(session)
                 storaged_tracks: set[tuple[str, str]] = set()
                 for storage in self.storages:
                     current_storage = storage.instance
-                    tracks_path = current_storage.get_all_tracks_paths()
+                    tracks_path = current_storage.get_all_files_paths()
                     named_paths = [
                         (f"{storage.id}///{link}", file_name)
                         for link, file_name in tracks_path
@@ -735,226 +738,166 @@ class LibraryManager:
                 deleted_count = self.db_manager.bulk_delete_by_links(
                     session, objects_for_deleting
                 )
-                self.task_queue[task_id].result = SyncTaskResult(deleted=deleted_count)
-                tracks_to_adding: dict[str, list[FilePathInfo]] = {}
-                cover_to_adding: dict[str, list[FilePathInfo]] = {}
-                lyrics_to_adding: dict[str, list[FilePathInfo]] = {}
-                videos_to_adding: dict[str, list[FilePathInfo]] = {}
-                track_added_count = 0
-                cover_added_count = 0
+                task.result.deleted = deleted_count
+                tracks_to_adding: defaultdict[str, list[FilePathInfo]] = defaultdict(
+                    list
+                )
+                cover_to_adding: defaultdict[str, list[FilePathInfo]] = defaultdict(
+                    list
+                )
+                lyrics_to_adding: defaultdict[str, list[FilePathInfo]] = defaultdict(
+                    list
+                )
+                videos_to_adding: defaultdict[str, list[FilePathInfo]] = defaultdict(
+                    list
+                )
                 for link, file_name in added_object_links:
-                    k, v = link.split("///")
+                    k, v = link.split("///", 1)
+                    file_info = FilePathInfo(link=v, filename=file_name)
                     if any(ext in v for ext in ["jpeg", "jpg", "png"]):
-                        if k in cover_to_adding:
-                            cover_to_adding[k].append(
-                                FilePathInfo(link=v, filename=file_name)
-                            )
-                        else:
-                            cover_to_adding[k] = [
-                                FilePathInfo(link=v, filename=file_name)
-                            ]
+                        cover_to_adding[k].append(file_info)
                     elif any(ext in v for ext in ["lrc", "txt"]):
-                        if k in lyrics_to_adding:
-                            lyrics_to_adding[k].append(
-                                FilePathInfo(link=v, filename=file_name)
-                            )
-                        else:
-                            lyrics_to_adding[k] = [
-                                FilePathInfo(link=v, filename=file_name)
-                            ]
+                        lyrics_to_adding[k].append(file_info)
                     elif "mp4" in v:
-                        if k in videos_to_adding:
-                            videos_to_adding[k].append(
-                                FilePathInfo(link=v, filename=file_name)
-                            )
-                        else:
-                            videos_to_adding[k] = [
-                                FilePathInfo(link=v, filename=file_name)
-                            ]
+                        videos_to_adding[k].append(file_info)
                     elif any(ext in v for ext in ["m4a", "flac", "mp3", "opus"]):
-                        if k in tracks_to_adding:
-                            tracks_to_adding[k].append(
-                                FilePathInfo(link=v, filename=file_name)
-                            )
-                        else:
-                            tracks_to_adding[k] = [
-                                FilePathInfo(link=v, filename=file_name)
-                            ]
+                        tracks_to_adding[k].append(file_info)
                 for storage in self.storages:
                     current_storage = storage.instance
-                    if storage.id in tracks_to_adding:
-                        for track in tracks_to_adding[storage.id]:
-                            track_bytes = current_storage.get_range_bytes(
-                                track.link, 0, 1024 * 1024 * 5
-                            )["bytes"]
-                            track_metadata = get_track_metadata_by_bytes(track_bytes)
-                            self.add_new_track(
-                                session, track_metadata, track, storage.id
-                            )
-                            track_added_count += 1
-                            self.task_queue[task_id].result.added = track_added_count
-                    # if storage.id in cover_to_adding:
-                    # for cover in cover_to_adding[storage.id]:
-                    # content_id = None
-                    # content_type = None
-                    # entity = None
-                    # range_bytes: bytes = current_storage.get_range_bytes(
-                    #    cover.link, 0, 99999999
-                    # )["bytes"]
-                    # id_from_cover = get_cover_metadata(
-                    #    range_bytes, "png" in cover.filename
-                    # )
-                    # if id_from_cover is None:
-                    #    if "-" not in cover.filename:
-                    #        continue
-                    #    subject, subject_id = cover.filename.split("-")
-                    #    subject_id = int(subject_id)
-                    #    if subject == "al":
-                    #        album = self.db_manager.get_album_by_id(
-                    #            session, subject_id
-                    #        )
-                    #        if album is None:
-                    #            continue
-                    #        content_type = "al"
-                    #        content_id = album.id
-                    #    elif subject == "ar":
-                    #        artist = self.db_manager.get_artist_by_id(
-                    #            session, subject_id
-                    #        )
-                    #        if artist is None:
-                    #            continue
-                    #        content_type = "ar"
-                    #        content_id = artist.id
-                    #    elif subject == "pl":
-                    #        playlist = self.db_manager.get_playlist_by_id(
-                    #            session, subject_id
-                    #        )
-                    #        if playlist is None:
-                    #            continue
-                    #        content_type = "pl"
-                    #        content_id = playlist.id
-                    #    file_path = current_storage.get_file(cover.link)
-                    # else:
-                    #    subject, subject_id = id_from_cover.split("-")
-                    #    content_type = subject
-                    #    content_id = int(subject_id)
-                    # if content_id is None or content_type is None:
-                    #    continue
-                    # if content_type == "al":
-                    #    entity = self.db_manager.get_album_orm_by_id(
-                    #        session, content_id
-                    #    )
-                    # elif content_type == "ar":
-                    #    entity = self.db_manager.get_artist_orm_by_id(
-                    #        session, content_id
-                    #    )
-                    # elif content_type == "pl":
-                    #    entity = self.db_manager.get_playlist_orm_by_id(
-                    #        session, content_id
-                    #    )
-                    # if entity is None:
-                    #    continue
-                    # cover_storage = ObjectStorageORM(
-                    #    link_type="storage",
-                    #    link_provider=storage.id,
-                    #    link=cover.link,
-                    #    file_name=cover.filename,
-                    # )
-                    # session.add(cover_storage)
-                    # session.flush()
-                    # entity.cover_path = cover_storage.id
-                    # session.flush()
-                    # cover_added_count += 1
-                    # self.task_queue[task_id].result.added = track_added_count
-                    if storage.id in lyrics_to_adding:
-                        for lyrics in lyrics_to_adding[storage.id]:
-                            range_bytes: bytes = current_storage.get_range_bytes(
-                                lyrics.link, 0, 9999999
-                            )["bytes"]
-                            text = range_bytes.decode()
-                            if ".lrc" in lyrics.link:
-                                file_content = analyze_lrc(text.splitlines())
-                                track = self.db_manager.get_track_by_name(
-                                    session, file_content["title"]
+                    for track in tracks_to_adding.get(storage.id, []):
+                        track_bytes = current_storage.get_range_bytes(
+                            track.link, 0, 1024 * 1024 * 5
+                        )["bytes"]
+                        track_metadata = get_track_metadata_by_bytes(track_bytes)
+                        self.add_new_track(session, track_metadata, track, storage.id)
+                        task.result.added += 1
+                    for cover in cover_to_adding.get(storage.id, []):
+                        cover_link, cover_name = cover
+                        entity = None
+                        range_bytes: bytes = current_storage.get_range_bytes(
+                            cover_link, 0, 99999999
+                        )["bytes"]
+                        cover_metadata = get_cover_metadata(
+                            range_bytes,
+                        )
+                        if cover_metadata:
+                            title = cover_metadata.get("Xmp.dc.title")
+                            artists = cover_metadata.get("Xmp.dc.creator")
+                            if title:
+                                entity = self.db_manager.get_album_orm_by_title(
+                                    session, title
                                 )
-                                if track is None:
-                                    continue
-                                new_lyrics = LyricsORM(
-                                    is_synced=True,
-                                    language="und",
-                                    synced_text=file_content["text"],
-                                    offset=file_content["offset"],
-                                    track_id=track.id,
+                            elif artists and len(artists) > 1:
+                                entity = self.db_manager.get_artist_orm_by_name(
+                                    session, artists[0]
                                 )
-                                session.add(new_lyrics)
-                                session.flush()
-                                lyrics_path = ObjectStorageORM(
-                                    link_type="storage",
-                                    link_provider=storage.id,
-                                    link=lyrics.link,
-                                    file_name=lyrics.filename,
+                        id_tuple = get_id_from_string(cover_name)
+                        if id_tuple and not entity:
+                            content_type, content_id = id_tuple[0]
+                            if content_type == "al":
+                                entity = self.db_manager.get_album_orm_by_id(
+                                    session, content_id
                                 )
-                                new_lyrics.path.append(lyrics_path)
-                                session.add(lyrics_path)
-                                session.flush()
-                            elif ".txt" in lyrics.link:
-                                track = self.db_manager.get_track_by_name(
-                                    session, lyrics.filename.split(".")[0]
+                            elif content_type == "ar":
+                                entity = self.db_manager.get_artist_orm_by_id(
+                                    session, content_id
                                 )
-                                if track is None:
-                                    continue
-                                new_lyrics = LyricsORM(
-                                    is_synced=False,
-                                    language="und",
-                                    plain_text=text,
-                                    track_id=track.id,
+                            elif content_type == "pl":
+                                entity = self.db_manager.get_playlist_orm_by_id(
+                                    session, content_id
                                 )
-                                session.add(new_lyrics)
-                                session.flush()
-                                lyrics_path = ObjectStorageORM(
-                                    link_type="storage",
-                                    link_provider=storage.id,
-                                    link=lyrics.link,
-                                    lyrics_id=new_lyrics.id,
-                                    file_name=lyrics.filename,
-                                )
-                                new_lyrics.path.append(lyrics_path)
-                                session.add(lyrics_path)
-                                session.flush()
-                    if storage.id in videos_to_adding:
-                        for video in videos_to_adding[storage.id]:
-                            video_bytes = current_storage.get_range_bytes(
-                                video.link, 0, 1024 * 1024 * 5
-                            )["bytes"]
-                            video_metadata = get_video_metadata(video_bytes)
-                            video_title = video_metadata["title"]
-                            if video_title is None:
-                                video_title = video.filename.split(".")[0]
+                        if entity is None:
+                            continue
+                        cover_storage = ObjectStorageORM(
+                            link_type="storage",
+                            link_provider=storage.id,
+                            link=cover_link,
+                            file_name=cover_name,
+                        )
+                        session.add(cover_storage)
+                        session.flush()
+                        entity.cover_path = cover_storage.id
+                        session.flush()
+                        task.result.added += 1
+                    for lyrics in lyrics_to_adding.get(storage.id, []):
+                        link, filename = lyrics
+                        range_bytes: bytes = current_storage.get_range_bytes(
+                            lyrics.link, 0, 9999999
+                        )["bytes"]
+                        decoded_text = range_bytes.decode()
+                        lyrics_type, lyrics_text = read_lyrics_text(decoded_text)
+                        if lyrics_type == "lrc":
                             track = self.db_manager.get_track_by_name(
-                                session, video_title
+                                session, lyrics_text["title"]
                             )
-                            if track is None:
-                                id_parts = video.filename.split(".")[0].rsplit("-")
-                                if len(id_parts) == 2 and id_parts[0] == "tr":
-                                    track = self.db_manager.get_track_by_id(id_parts[1])
-
                             if track is None:
                                 continue
-                            music_video = MusicVideoORM(
-                                is_external_link=False,
+                            new_lyrics = LyricsORM(
+                                is_synced=True,
+                                language="und",
+                                synced_text=lyrics_text["text"],
+                                offset=lyrics_text["offset"],
                                 track_id=track.id,
                             )
-                            session.add(music_video)
+                            session.add(new_lyrics)
                             session.flush()
-                            video_storage = ObjectStorageORM(
-                                link_type="storage",
-                                link_provider=storage.id,
-                                link=video.link,
-                                file_name=video.filename,
+                        elif lyrics_type == "txt":
+                            track = self.db_manager.get_track_by_name(
+                                session, filename.split(".")[0]
                             )
-                            music_video.local_link.append(video_storage)
-                            session.add(music_video)
+                            if track is None:
+                                continue
+                            new_lyrics = LyricsORM(
+                                is_synced=False,
+                                language="und",
+                                plain_text=lyrics_text,
+                                track_id=track.id,
+                            )
+                            session.add(new_lyrics)
                             session.flush()
+                        lyrics_path = ObjectStorageORM(
+                            link_type="storage",
+                            link_provider=storage.id,
+                            link=link,
+                            lyrics_id=new_lyrics.id,
+                            file_name=filename,
+                        )
+                        new_lyrics.path.append(lyrics_path)
+                        session.add(lyrics_path)
+                        session.flush()
+                    for video in videos_to_adding.get(storage.id, []):
+                        link, filename = video
+                        video_bytes = current_storage.get_range_bytes(
+                            video.link, 0, 1024 * 1024 * 5
+                        )["bytes"]
+                        video_metadata = get_video_metadata(video_bytes)
+                        video_title = video_metadata.get("title")
+                        if video_title is None:
+                            video_title = filename.rsplit(".", 1)[0]
+                        track = self.db_manager.get_track_by_name(session, video_title)
+                        if track is None:
+                            id_tuple = get_id_from_string(filename, "tr")
+                            if id_tuple:
+                                track = self.db_manager.get_track_by_id(
+                                    session, id_tuple[1]
+                                )
+                        if track is None:
+                            continue
+                        music_video = MusicVideoORM(
+                            is_external_link=False,
+                            track_id=track.id,
+                        )
+                        session.add(music_video)
+                        session.flush()
+                        video_storage = ObjectStorageORM(
+                            link_type="storage",
+                            link_provider=storage.id,
+                            link=link,
+                            file_name=filename,
+                        )
+                        music_video.local_link.append(video_storage)
+                        session.add(music_video)
+                        session.flush()
                 session.commit()
                 self._update_task(task_id, status="finished")
                 self.logger.info("Syncing succesful completed")
