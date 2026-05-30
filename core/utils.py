@@ -31,13 +31,13 @@ def analyze_lrc(lines: list[str]):
             continue
         text = content.group(1)
         time = re.search(r"^(\d{2}):(\d{2}).(\d{2})$", text)
-        if "ar" in text:
+        if text.startswith("ar:"):
             artist = _get_tag_value(text)
-        elif "al" in text:
+        elif text.startswith("al:"):
             album = _get_tag_value(text)
-        elif "ti" in text:
+        elif text.startswith("ti:"):
             title = _get_tag_value(text)
-        elif "offset" in text:
+        elif text.startswith("offset"):
             offset = _get_tag_value(text)
         elif time:
             mil_time = 0
@@ -145,7 +145,7 @@ def full_track_save(best_storage: Storage, dst, saving_path):
 
 
 def save_file_from_url(url: str, dst: Path):
-    with requests.get(url, stream=True) as response:
+    with requests.get(url, stream=True, timeout=(10, 20)) as response:
         response.raise_for_status()
         with open(dst, "wb") as file:
             for chunk in response.iter_content(chunk_size=16384):
@@ -248,10 +248,11 @@ def get_video_metadata(video_bytes: bytes) -> dict:
 
 def write_video_metadata(artist: str, album: str, title: str, path: str):
     video_metadata = MP4(Path(path))
-    video_metadata["\xa9nam"] = title
-    video_metadata["\xa9ART"] = artist
-    video_metadata["\xa9alb"] = album
-    video_metadata["stik"] = 6
+    video_metadata["\xa9nam"] = [title]
+    video_metadata["\xa9ART"] = [artist]
+    video_metadata["\xa9alb"] = [album]
+    video_metadata["stik"] = [6]
+    video_metadata.save()
 
 
 def get_cover_metadata(bytes: bytes) -> dict | None:
@@ -268,19 +269,15 @@ def write_cover_metadata(
     artists: list[str] | None = None,
     genres: list[str] | None = None,
 ):
-    try:
-        metadata = {}
-        if album:
-            metadata[f"Xmp.dc.title"] = f"lang='x-default' {album}"
-        if artists and len(artists) > 0:
-            metadata[f"Xmp.dc.creator"] = ",".join(artists)
-        if genres and len(genres) > 0:
-            metadata[f"Xmp.dc.subject"] = ",".join(genres)
-        with pyexiv2.Image(path) as img:
-            img.modify_xmp(metadata)
-        return True
-    except Exception:
-        return False
+    metadata = {}
+    if album:
+        metadata[f"Xmp.dc.title"] = album
+    if artists and len(artists) > 0:
+        metadata[f"Xmp.dc.creator"] = artists
+    if genres and len(genres) > 0:
+        metadata[f"Xmp.dc.subject"] = genres
+    with pyexiv2.Image(path) as img:
+        img.modify_xmp(metadata)
 
 
 def write_track_metadata(
@@ -296,3 +293,16 @@ def write_track_metadata(
 
 def sanitize_filename(filename: str) -> str:
     return re.sub(r'[\\/*?:"<>|]', "", filename).strip()
+
+
+def read_lyrics_text(text: str) -> tuple[str, str | dict]:
+    lines = text.splitlines()
+
+    lrc_line_re = re.compile(r"^\s*\[\d{2}:\d{2}\.\d{2,3}\]")
+
+    is_lrc = any(lrc_line_re.match(line) for line in lines)
+
+    if is_lrc:
+        return ("lrc", analyze_lrc(lines))
+    else:
+        return ("txt", text)

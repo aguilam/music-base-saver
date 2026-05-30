@@ -36,6 +36,7 @@ from core.db.models import (
     ProviderKeyORM,
     PlaylistTrackLink,
     AudioFileORM,
+    TrackAlbumLink,
 )
 
 
@@ -444,6 +445,8 @@ class DBManager:
                 selectinload(TrackORM.files),
                 selectinload(TrackORM.artists),
                 selectinload(TrackORM.lyrics),
+                selectinload(TrackORM.music_videos),
+                selectinload(TrackORM.albums_links).selectinload(TrackAlbumLink.album),
             )
         )
         orm_track = session.exec(statement).first()
@@ -455,7 +458,7 @@ class DBManager:
             .where(AlbumORM.id == id)
             .options(
                 selectinload(AlbumORM.tracks).selectinload(TrackORM.files),
-                selectinload(AlbumORM.tracks).selectinload(TrackORM.album),
+                selectinload(AlbumORM.tracks).selectinload(TrackORM.albumы),
                 selectinload(AlbumORM.artist_rel),
             )
         )

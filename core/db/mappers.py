@@ -120,7 +120,7 @@ def track_from_orm(track: TrackORM) -> Track:
         title=track.title,
         length=track.length,
         artists=[artist_short_from_orm(artist) for artist in track.artists],
-        albums=[track_album_from_orm(link.album) for link in track.albums_links],
+        albums=[track_album_from_orm(link) for link in track.albums_links],
         cover_path=primary_album.cover_path if primary_album else primary_album,
         path=(
             next((link.id for link in primary_file.links), None)

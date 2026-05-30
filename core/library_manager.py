@@ -24,6 +24,7 @@ from core.utils import (
     write_track_metadata,
     write_video_metadata,
     sanitize_filename,
+    read_lyrics_text,
 )
 import shutil
 from .db.manager import DBManager
@@ -250,10 +251,18 @@ class LibraryManager:
                 self.db_manager.find_or_create_artist(session, artist)
                 for artist in album.album_artists
             ]
-            album_artists = [
-                AlbumArtistLink(artist_id=artist.id, album_id=db_album.id)
-                for artist in db_album_artists
-            ]
+            for artist in db_album_artists:
+                exists = session.exec(
+                    select(AlbumArtistLink).where(
+                        AlbumArtistLink.artist_id == artist.id,
+                        AlbumArtistLink.album_id == db_album.id,
+                    )
+                ).first()
+
+                if not exists:
+                    session.add(
+                        AlbumArtistLink(artist_id=artist.id, album_id=db_album.id)
+                    )
             track_album = TrackAlbumLink(
                 track_id=new_track.id,
                 album_id=db_album.id,
@@ -261,7 +270,6 @@ class LibraryManager:
                 disc_number=album.disc_number,
             )
             session.add(track_album)
-            session.add_all(album_artists)
             session.flush()
         for genre in track_metadata.genres:
             track_genre = self.db_manager.find_or_create_genre(session, genre)
@@ -1144,14 +1152,24 @@ class LibraryManager:
                     if album.cover_uri:
                         task.result.covers.searched += 1
                         sanitized_title = sanitize_filename(db_album.title)
-                        cover_path = dst / f"{sanitized_title}.jpg"
+                        cover_path = dst / f"al-{db_album.id}.jpg"
                         save_file_from_url(album.cover_uri, cover_path)
-                        write_cover_metadata(
-                            cover_path,
-                            album=album.title,
-                            artists=album.artists,
-                            genres=album.genres,
-                        )
+                        try:
+                            write_cover_metadata(
+                                str(cover_path),
+                                album=album.title,
+                                artists=album.artists,
+                                genres=album.genres,
+                            )
+                        except Exception as e:
+                            self.logger.warning(
+                                "Problem in writing imported cover metadata",
+                                importer=importer_tag,
+                                user_id=user_id,
+                                album_id=album_id,
+                                cover_path=str(cover_path),
+                                error=str(e),
+                            )
                         with open(cover_path, "rb") as f:
                             ext = image_mime(f.read(20)).split("/")[1]
                         cover_object = self.save_object(
@@ -1165,11 +1183,20 @@ class LibraryManager:
                     genre_links = []
                     for genre in album.genres:
                         db_genre = self.db_manager.find_or_create_genre(session, genre)
-                        genre_links.append(
-                            AlbumGenreLink(album_id=db_album.id, genre_id=db_genre.id)
-                        )
+                        exists = session.exec(
+                            select(AlbumGenreLink).where(
+                                AlbumGenreLink.album_id == db_album.id,
+                                AlbumGenreLink.genre_id == db_genre.id,
+                            )
+                        ).first()
+
+                        if not exists:
+                            session.add(
+                                AlbumGenreLink(
+                                    album_id=db_album.id, genre_id=db_genre.id
+                                )
+                            )
                     session.add_all(genre_links)
-                    session.flush()
                     session.commit()
                     for artist_id in album.artist_ids:
                         if artist_id in album_artist_link:
@@ -1201,20 +1228,41 @@ class LibraryManager:
                     db_artist.description = artist.description
                     db_album_artist_links = []
                     for album_id in album_artist_link.get(artist_id, {}):
-                        db_album_artist_links.append(
-                            AlbumArtistLink(album_id=album_id, artist_id=db_artist.id)
-                        )
+                        exists = session.exec(
+                            select(AlbumArtistLink).where(
+                                AlbumArtistLink.album_id == album_id,
+                                AlbumArtistLink.artist_id == db_artist.id,
+                            )
+                        ).first()
+
+                        if not exists:
+                            db_album_artist_links.append(
+                                AlbumArtistLink(
+                                    album_id=album_id, artist_id=db_artist.id
+                                )
+                            )
                     session.add_all(db_album_artist_links)
                     session.commit()
                     if artist.cover_uri:
                         task.result.covers.searched += 1
                         sanitized_name = sanitize_filename(artist.name)
-                        cover_path = dst / f"{sanitized_name}.jpg"
+                        cover_path = dst / f"ar-{db_artist.id}.jpg"
                         save_file_from_url(artist.cover_uri, cover_path)
-                        task.result.covers.saved += 1
-                        write_cover_metadata(
-                            cover_path, artists=[artist.name], genres=artist.genres
-                        )
+                        try:
+                            write_cover_metadata(
+                                str(cover_path),
+                                artists=[artist.name],
+                                genres=artist.genres,
+                            )
+                        except Exception as e:
+                            self.logger.warning(
+                                "Problem in writing imported cover metadata",
+                                importer=importer_tag,
+                                user_id=user_id,
+                                artist_id=artist_id,
+                                cover_path=str(cover_path),
+                                error=str(e),
+                            )
                         with open(cover_path, "rb") as f:
                             ext = image_mime(f.read(20)).split("/")[1]
                         cover_object = self.save_object(
@@ -1226,16 +1274,22 @@ class LibraryManager:
                         db_artist.cover_path = cover_object.id
                         session.add(db_artist)
                         session.flush()
-                    genre_links = []
                     for genre in artist.genres:
                         db_genre = self.db_manager.find_or_create_genre(session, genre)
-                        genre_links.append(
-                            ArtistGenreLink(
-                                artist_id=db_artist.id, genre_id=db_genre.id
+                        exists = session.exec(
+                            select(ArtistGenreLink).where(
+                                ArtistGenreLink.artist_id == db_artist.id,
+                                ArtistGenreLink.genre_id == db_genre.id,
                             )
-                        )
-                    session.add_all(genre_links)
-                    session.flush()
+                        ).first()
+
+                        if not exists:
+                            session.add(
+                                ArtistGenreLink(
+                                    artist_id=db_artist.id, genre_id=db_genre.id
+                                )
+                            )
+                    session.commit()
                 except Exception as e:
                     session.rollback()
                     self.logger.warning(
@@ -1280,30 +1334,25 @@ class LibraryManager:
                     saved_path = dst / sanitize_filename(name)
                     save_file_from_url(url, saved_path)
                     text = saved_path.read_text(encoding="utf-8")
-                    ext = ""
-                    if ".lrc" in name.lower():
-                        file_content = analyze_lrc(text.splitlines())
+                    lyrics_type, lyrics_content = read_lyrics_text(text)
+                    if lyrics_type == "lrc":
                         new_lyrics = LyricsORM(
                             is_synced=True,
                             language="und",
-                            synced_text=file_content["text"],
-                            offset=file_content["offset"],
+                            synced_text=lyrics_content["text"],
+                            offset=lyrics_content["offset"],
                             track_id=track.id,
                         )
                         session.add(new_lyrics)
-                        session.flush()
-                        ext = "lrc"
-                    elif ". " in name.lower():
+                    else:
                         new_lyrics = LyricsORM(
                             is_synced=False,
                             language="und",
-                            plain_text=text,
+                            plain_text=lyrics_content,
                             track_id=track.id,
                         )
                         session.add(new_lyrics)
-                        session.flush()
-                        ext = "txt"
-                    saving_path = f"{sanitize_filename(track.artists[0].name)}/{sanitize_filename(track.albums[0].title)}/.{sanitize_filename(track.title)}.{ext}"
+                    saving_path = f"{sanitize_filename(track.artists[0].name)}/{sanitize_filename(track.albums[0].title)}/{sanitize_filename(track.title)}.{lyrics_type}"
                     lyrics_object = self.save_object(
                         session, str(saved_path), saving_path
                     )
@@ -1342,7 +1391,13 @@ class LibraryManager:
                     music_video = MusicVideoORM(track_id=track.id)
                     session.add(music_video)
                     session.flush()
-                    saving_path = f"{sanitize_filename(track.artists[0].name)}/{sanitize_filename(track.albums[0].title)}/{sanitize_filename(name)}"
+                    splitted_name = name.rsplit(".", 1)
+                    ext = (
+                        splitted_name[1]
+                        if len(splitted_name) > 1 and splitted_name[1]
+                        else "mp4"
+                    )
+                    saving_path = f"{sanitize_filename(track.artists[0].name)}/{sanitize_filename(track.albums[0].title)}/{sanitize_filename(track.title)}.{ext}"
                     video_object = self.save_object(
                         session, str(video_dst), saving_path
                     )

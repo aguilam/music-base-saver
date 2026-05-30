@@ -54,7 +54,7 @@ class PlaylistTrackLink(SQLModel, table=True):
     __tablename__ = "playlist_track_link"
     __table_args__ = (
         UniqueConstraint("playlist_id", "position", name="uq_playlist_position"),
-        CheckConstraint("position > 0", name="ck_position_positive"),
+        CheckConstraint("position >= 0", name="ck_position_positive"),
     )
     playlist_id: int | None = Field(
         default=None,
@@ -232,32 +232,41 @@ class AlbumORM(SQLModel, table=True):
     )
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+    duration: ClassVar[int]
+
     @hybrid_property
     def duration(self) -> int:
-        return sum(t.length for t in self.tracks)
-
-    duration: ClassVar[hybrid_property]
+        if "duration" in self.__dict__:
+            return self.__dict__["duration"]
+        if not self.tracks_links:
+            return 0
+        return sum(link.track.length for link in self.tracks_links if link.track)
 
     @duration.expression
     def duration(cls):
         return (
-            select(func.sum(TrackORM.length))
-            .where(TrackORM.album_id == cls.id)
+            select(func.coalesce(func.sum(TrackORM.length), 0))
+            .select_from(TrackAlbumLink)
+            .join(TrackORM, TrackAlbumLink.track_id == TrackORM.id)
+            .where(TrackAlbumLink.album_id == cls.id)
             .scalar_subquery()
         )
 
+    track_count: ClassVar[int]
+
     @hybrid_property
     def track_count(self) -> int:
-        return len(self.tracks)
-
-    track_count: ClassVar[hybrid_property]
+        if "track_count" in self.__dict__:
+            return self.__dict__["track_count"]
+        if not self.tracks_links:
+            return 0
+        return len(self.tracks_links)
 
     @track_count.expression
     def track_count(cls):
         return (
-            select(func.count(TrackORM.id))
-            .select_from(TrackORM)
-            .where(TrackORM.album_id == cls.id)
+            select(func.count(TrackAlbumLink.track_id))
+            .where(TrackAlbumLink.album_id == cls.id)
             .scalar_subquery()
         )
 
