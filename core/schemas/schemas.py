@@ -298,9 +298,25 @@ class DownloadTaskResult:
 
 
 @dataclass(slots=True)
-class SyncTaskResult:
+class SyncMetric:
     added: int = 0
     deleted: int = 0
+
+
+@dataclass(slots=True)
+class UnboundFiles:
+    covers: set[tuple[str, str]] = field(default_factory=set)
+    lyrics: set[tuple[str, str]] = field(default_factory=set)
+    videos: set[tuple[str, str]] = field(default_factory=set)
+
+
+@dataclass(slots=True)
+class SyncTaskResult:
+    tracks: SyncMetric = field(default_factory=SyncMetric)
+    covers: SyncMetric = field(default_factory=SyncMetric)
+    lyrics: SyncMetric = field(default_factory=SyncMetric)
+    videos: SyncMetric = field(default_factory=SyncMetric)
+    unbound_files: UnboundFiles = field(default_factory=UnboundFiles)
 
 
 @dataclass(slots=True)

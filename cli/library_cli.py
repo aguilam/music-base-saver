@@ -1,10 +1,12 @@
 import typer
 from core.library_manager import LibraryManager
-from core.schemas.schemas import Task, SyncTaskResult
+from core.schemas.schemas import Task, SyncTaskResult, SyncMetric
 from rich.console import Console
+from rich.spinner import Spinner
 from rich.table import Table
 from rich.live import Live
 from rich.console import Group
+from rich.padding import Padding
 from rich.text import Text
 import time
 
@@ -43,15 +45,32 @@ def sync():
     library_manager = LibraryManager()
     task_id = library_manager.sync()
     console = Console()
-    added_text = Text("Added: 0")
-    deleted_text = Text("Deleted: 0")
-    with Live(Group(added_text, deleted_text), auto_refresh=False) as live:
+    with Live() as live:
         while True:
             task: Task[SyncTaskResult] | None = library_manager.get_task(task_id)
-            added_text.plain = f"Added: {task.result.added}"
-            deleted_text.plain = f"Deleted: {task.result.deleted}"
-            live.refresh()
+            texts = _create_sync_text(
+                ["tracks", "covers", "lyrics", "videos"], task.result
+            )
+            live.update(
+                Group(
+                    Spinner("dots", text=task.status.capitalize()),
+                    *texts,
+                ),
+                refresh=True,
+            )
             if task.status == "finished":
+                console.print("Scanning finished")
                 break
             time.sleep(0.2)
-    console.print("Scanning finished")
+
+
+def _create_sync_text(entities: list[str], import_result: SyncTaskResult):
+    console_text = []
+    for entity in entities:
+        result_info: SyncMetric = getattr(import_result, entity)
+        console_text.append(Text(entity.capitalize(), style="bold"))
+        metrics_text = Text(
+            f"Added: {result_info.added}\nDeleted: {result_info.deleted}"
+        )
+        console_text.append(Padding(metrics_text, (0, 0, 1, 4)))
+    return console_text

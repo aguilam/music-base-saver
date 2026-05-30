@@ -36,7 +36,7 @@ class LocalStorage(Storage):
         if Path(norm_path).exists():
             return norm_path
 
-    def get_all_tracks_paths(
+    def get_all_files_paths(
         self,
     ):
         files = []

@@ -738,7 +738,7 @@ class LibraryManager:
                 deleted_count = self.db_manager.bulk_delete_by_links(
                     session, objects_for_deleting
                 )
-                task.result.deleted = deleted_count
+                task.result.tracks.deleted = deleted_count
                 tracks_to_adding: defaultdict[str, list[FilePathInfo]] = defaultdict(
                     list
                 )
@@ -770,7 +770,7 @@ class LibraryManager:
                         )["bytes"]
                         track_metadata = get_track_metadata_by_bytes(track_bytes)
                         self.add_new_track(session, track_metadata, track, storage.id)
-                        task.result.added += 1
+                        task.result.tracks.added += 1
                     for cover in cover_to_adding.get(storage.id, []):
                         cover_link, cover_name = cover
                         entity = None
@@ -807,6 +807,9 @@ class LibraryManager:
                                     session, content_id
                                 )
                         if entity is None:
+                            task.result.unbound_files.covers.add(
+                                f"{storage.id}///{cover_link}", cover_name
+                            )
                             continue
                         cover_storage = ObjectStorageORM(
                             link_type="storage",
@@ -818,7 +821,7 @@ class LibraryManager:
                         session.flush()
                         entity.cover_path = cover_storage.id
                         session.flush()
-                        task.result.added += 1
+                        task.result.covers.added += 1
                     for lyrics in lyrics_to_adding.get(storage.id, []):
                         link, filename = lyrics
                         range_bytes: bytes = current_storage.get_range_bytes(
@@ -831,7 +834,9 @@ class LibraryManager:
                                 session, lyrics_text["title"]
                             )
                             if track is None:
-                                continue
+                                task.result.unbound_files.lyrics.add(
+                                    f"{storage.id}///{link}", filename
+                                )
                             new_lyrics = LyricsORM(
                                 is_synced=True,
                                 language="und",
@@ -846,6 +851,9 @@ class LibraryManager:
                                 session, filename.split(".")[0]
                             )
                             if track is None:
+                                task.result.unbound_files.lyrics.add(
+                                    f"{storage.id}///{link}", filename
+                                )
                                 continue
                             new_lyrics = LyricsORM(
                                 is_synced=False,
@@ -865,6 +873,7 @@ class LibraryManager:
                         new_lyrics.path.append(lyrics_path)
                         session.add(lyrics_path)
                         session.flush()
+                        task.result.lyrics.added += 1
                     for video in videos_to_adding.get(storage.id, []):
                         link, filename = video
                         video_bytes = current_storage.get_range_bytes(
@@ -882,6 +891,9 @@ class LibraryManager:
                                     session, id_tuple[1]
                                 )
                         if track is None:
+                            task.result.unbound_files.videos.add(
+                                f"{storage.id}///{link}", filename
+                            )
                             continue
                         music_video = MusicVideoORM(
                             is_external_link=False,
@@ -898,6 +910,7 @@ class LibraryManager:
                         music_video.local_link.append(video_storage)
                         session.add(music_video)
                         session.flush()
+                        task.result.videos.added += 1
                 session.commit()
                 self._update_task(task_id, status="finished")
                 self.logger.info("Syncing succesful completed")
