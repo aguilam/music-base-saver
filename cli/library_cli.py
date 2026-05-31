@@ -5,6 +5,13 @@ from rich.console import Console
 from rich.spinner import Spinner
 from rich.table import Table
 from rich.live import Live
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    BarColumn,
+    MofNCompleteColumn,
+)
 from rich.console import Group
 from rich.padding import Padding
 from rich.text import Text
@@ -45,16 +52,40 @@ def sync():
     library_manager = LibraryManager()
     task_id = library_manager.sync()
     console = Console()
-    with Live() as live:
+    progress_bar = Progress(
+        SpinnerColumn(),
+        TextColumn("{task.description}"),
+        BarColumn(),
+        MofNCompleteColumn(),
+    )
+    sync_progress_task = progress_bar.add_task("Syncing...", total=None)
+    with Live(progress_bar) as live:
         while True:
             task: Task[SyncTaskResult] | None = library_manager.get_task(task_id)
-            texts = _create_sync_text(
-                ["tracks", "covers", "lyrics", "videos"], task.result
+            entities = ["tracks", "covers", "lyrics", "videos"]
+            results: list[SyncMetric] = [
+                getattr(task.result, entity) for entity in entities
+            ]
+            searched = sum([result.searched_new for result in results])
+            processed = sum([result.processed for result in results])
+            unbound_count = sum(
+                [
+                    len(getattr(task.result.unbound_files, entity))
+                    for entity in ["covers", "lyrics", "videos"]
+                ]
             )
+            progress_bar.update(
+                sync_progress_task,
+                description=f"[bold yellow]{task.status.capitalize()}",
+                total=searched,
+                completed=processed,
+            )
+            texts = _create_sync_text(entities, task.result)
             live.update(
                 Group(
-                    Spinner("dots", text=task.status.capitalize()),
+                    progress_bar,
                     *texts,
+                    Text(f"Undbound Files: {unbound_count}"),
                 ),
                 refresh=True,
             )
@@ -72,8 +103,8 @@ def _create_sync_text(entities: list[str], import_result: SyncTaskResult):
     for entity in entities:
         result_info: SyncMetric = getattr(import_result, entity)
         console_text.append(Text(entity.capitalize(), style="bold"))
-        metrics_text = Text(
-            f"Added: {result_info.added}\nDeleted: {result_info.deleted}"
+        deleted_text = Text(
+            f"New found: {result_info.searched_new}\nProcessed: {result_info.processed}\nAdded: {result_info.added}\nDeleted: {result_info.deleted}"
         )
-        console_text.append(Padding(metrics_text, (0, 0, 1, 4)))
+        console_text.append(Padding(deleted_text, (0, 0, 1, 4)))
     return console_text

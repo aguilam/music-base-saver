@@ -299,6 +299,8 @@ class DownloadTaskResult:
 
 @dataclass(slots=True)
 class SyncMetric:
+    searched_new: int = 0
+    processed: int = 0
     added: int = 0
     deleted: int = 0
 

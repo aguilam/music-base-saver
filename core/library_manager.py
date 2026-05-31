@@ -759,12 +759,16 @@ class LibraryManager:
                     file_info = FilePathInfo(link=v, filename=file_name)
                     if any(ext in v for ext in ["jpeg", "jpg", "png"]):
                         cover_to_adding[k].append(file_info)
+                        task.result.covers.searched_new += 1
                     elif any(ext in v for ext in ["lrc", "txt"]):
                         lyrics_to_adding[k].append(file_info)
+                        task.result.lyrics.searched_new += 1
                     elif "mp4" in v:
                         videos_to_adding[k].append(file_info)
+                        task.result.videos.searched_new += 1
                     elif any(ext in v for ext in ["m4a", "flac", "mp3", "opus"]):
                         tracks_to_adding[k].append(file_info)
+                        task.result.tracks.searched_new += 1
                 for storage in self.storages:
                     current_storage = storage.instance
                     for track in tracks_to_adding.get(storage.id, []):
@@ -773,6 +777,7 @@ class LibraryManager:
                         )["bytes"]
                         track_metadata = get_track_metadata_by_bytes(track_bytes)
                         self.add_new_track(session, track_metadata, track, storage.id)
+                        task.result.tracks.processed += 1
                         task.result.tracks.added += 1
                     for cover in cover_to_adding.get(storage.id, []):
                         cover_link, cover_name = cover
@@ -813,6 +818,7 @@ class LibraryManager:
                             task.result.unbound_files.covers.add(
                                 (f"{storage.id}///{cover_link}", cover_name)
                             )
+                            task.result.covers.processed += 1
                             continue
                         cover_storage = ObjectStorageORM(
                             link_type="storage",
@@ -824,6 +830,7 @@ class LibraryManager:
                         session.flush()
                         entity.cover_path = cover_storage.id
                         session.flush()
+                        task.result.covers.processed += 1
                         task.result.covers.added += 1
                     for lyrics in lyrics_to_adding.get(storage.id, []):
                         link, filename = lyrics
@@ -832,14 +839,20 @@ class LibraryManager:
                         )["bytes"]
                         decoded_text = range_bytes.decode()
                         lyrics_type, lyrics_text = read_lyrics_text(decoded_text)
+                        name = filename.split(".")[0]
                         if lyrics_type == "lrc":
                             track = self.db_manager.get_track_by_name(
                                 session, lyrics_text["title"]
                             )
                             if track is None:
+                                track = track = self.db_manager.get_track_by_name(
+                                    session, name
+                                )
+                            if track is None:
                                 task.result.unbound_files.lyrics.add(
                                     (f"{storage.id}///{link}", filename)
                                 )
+                                task.result.lyrics.processed += 1
                                 continue
                             new_lyrics = LyricsORM(
                                 is_synced=True,
@@ -851,13 +864,12 @@ class LibraryManager:
                             session.add(new_lyrics)
                             session.flush()
                         elif lyrics_type == "txt":
-                            track = self.db_manager.get_track_by_name(
-                                session, filename.split(".")[0]
-                            )
+                            track = self.db_manager.get_track_by_name(session, name)
                             if track is None:
                                 task.result.unbound_files.lyrics.add(
                                     (f"{storage.id}///{link}", filename)
                                 )
+                                task.result.lyrics.processed += 1
                                 continue
                             new_lyrics = LyricsORM(
                                 is_synced=False,
@@ -877,6 +889,7 @@ class LibraryManager:
                         new_lyrics.path.append(lyrics_path)
                         session.add(lyrics_path)
                         session.flush()
+                        task.result.lyrics.processed += 1
                         task.result.lyrics.added += 1
                     for video in videos_to_adding.get(storage.id, []):
                         link, filename = video
@@ -898,6 +911,7 @@ class LibraryManager:
                             task.result.unbound_files.videos.add(
                                 (f"{storage.id}///{link}", filename)
                             )
+                            task.result.videos.processed += 1
                             continue
                         music_video = MusicVideoORM(
                             is_external_link=False,
@@ -914,6 +928,7 @@ class LibraryManager:
                         music_video.local_link.append(video_storage)
                         session.add(music_video)
                         session.flush()
+                        task.result.videos.processed += 1
                         task.result.videos.added += 1
                 session.commit()
                 self._update_task(task_id, status="finished")
