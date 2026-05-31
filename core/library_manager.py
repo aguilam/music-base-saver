@@ -719,8 +719,8 @@ class LibraryManager:
         try:
             task: Task[SyncTaskResult] = self.task_queue[task_id]
             with self.db_manager.get_session() as session:
-                db_tracks = self.db_manager.get_all_tracks_storage_links(session)
-                storaged_tracks: set[tuple[str, str]] = set()
+                db_files = self.db_manager.get_all_tracks_storage_links(session)
+                storaged_files: set[tuple[str, str]] = set()
                 for storage in self.storages:
                     current_storage = storage.instance
                     tracks_path = current_storage.get_all_files_paths()
@@ -728,17 +728,20 @@ class LibraryManager:
                         (f"{storage.id}///{link}", file_name)
                         for link, file_name in tracks_path
                     ]
-                    storaged_tracks.update(named_paths)
-                deleted_objects_links = db_tracks - storaged_tracks
-                added_object_links = storaged_tracks - db_tracks
+                    storaged_files.update(named_paths)
+                deleted_objects_links = db_files - storaged_files
+                added_object_links = storaged_files - db_files
                 objects_for_deleting = [
                     (track.split("///")[0], track.split("///")[1])
                     for track, _ in deleted_objects_links
                 ]
-                deleted_count = self.db_manager.bulk_delete_by_links(
-                    session, objects_for_deleting
+                deleted_tracks, deleted_covers, deleted_lyrics, deleted_videos = (
+                    self.db_manager.bulk_delete_by_links(session, objects_for_deleting)
                 )
-                task.result.tracks.deleted = deleted_count
+                task.result.tracks.deleted = deleted_tracks
+                task.result.covers.deleted = deleted_covers
+                task.result.lyrics.deleted = deleted_lyrics
+                task.result.videos.deleted = deleted_videos
                 tracks_to_adding: defaultdict[str, list[FilePathInfo]] = defaultdict(
                     list
                 )
@@ -808,7 +811,7 @@ class LibraryManager:
                                 )
                         if entity is None:
                             task.result.unbound_files.covers.add(
-                                f"{storage.id}///{cover_link}", cover_name
+                                (f"{storage.id}///{cover_link}", cover_name)
                             )
                             continue
                         cover_storage = ObjectStorageORM(
@@ -835,8 +838,9 @@ class LibraryManager:
                             )
                             if track is None:
                                 task.result.unbound_files.lyrics.add(
-                                    f"{storage.id}///{link}", filename
+                                    (f"{storage.id}///{link}", filename)
                                 )
+                                continue
                             new_lyrics = LyricsORM(
                                 is_synced=True,
                                 language="und",
@@ -852,7 +856,7 @@ class LibraryManager:
                             )
                             if track is None:
                                 task.result.unbound_files.lyrics.add(
-                                    f"{storage.id}///{link}", filename
+                                    (f"{storage.id}///{link}", filename)
                                 )
                                 continue
                             new_lyrics = LyricsORM(
@@ -892,7 +896,7 @@ class LibraryManager:
                                 )
                         if track is None:
                             task.result.unbound_files.videos.add(
-                                f"{storage.id}///{link}", filename
+                                (f"{storage.id}///{link}", filename)
                             )
                             continue
                         music_video = MusicVideoORM(
@@ -914,8 +918,11 @@ class LibraryManager:
                 session.commit()
                 self._update_task(task_id, status="finished")
                 self.logger.info("Syncing succesful completed")
-        except:
-            self.logger.warning("Problem in library syncing")
+        except Exception as e:
+            self._update_task(task_id, status="error", error=str(e))
+            self.logger.warning(
+                "Problem in library syncing", task_id=task_id, error=str(e)
+            )
 
     def import_library(
         self,

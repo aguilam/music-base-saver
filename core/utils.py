@@ -1,4 +1,5 @@
 from pathlib import Path
+from collections.abc import Mapping
 from mutagen import File
 import mutagen.flac
 from mutagen.mp3 import MP3
@@ -199,16 +200,53 @@ def image_mime(data: bytes) -> str:
     return "application/octet-stream"
 
 
+def _clean_track_tag_value(tag) -> str | None:
+    while True:
+        if tag is None:
+            return None
+
+        if isinstance(tag, (list, tuple)):
+            tag = next((item for item in tag if item is not None), None)
+            continue
+
+        if isinstance(tag, Mapping):
+            tag = (
+                tag.get('lang="x-default"')
+                or tag.get("x-default")
+                or next(iter(tag.values()), None)
+            )
+            continue
+
+        value = tag.strip() if hasattr(tag, "strip") else str(tag).strip()
+        return value or None
+
+
+def _get_clear_track_tag(name_tag: str, metadata):
+    return _clean_track_tag_value(metadata.get(name_tag))
+
+
+def _get_clear_track_tags(name_tag: str, metadata) -> list[str]:
+    tags = metadata.get(name_tag, [])
+    if not isinstance(tags, (list, tuple)):
+        tags = [tags]
+    return [value for tag in tags if (value := _clean_track_tag_value(tag)) is not None]
+
+
 def _get_track_metadata(track_metadata):
-    title = track_metadata.get("title", [None])[0]
-    artists_names = track_metadata.get("artist", [])
-    album_artist = track_metadata.get("albumartist", [None])[0] or artists_names
-    album_title = track_metadata.get("album", [None])[0]
-    album_position = track_metadata.get("tracknumber", [None])[0]
-    disc_number = track_metadata.get("discnumber", [None])[0]
-    date = track_metadata.get("date", [None])[0]
-    genres = track_metadata.get("genre", [])
-    moods = track_metadata.get("mood", [])
+    title = _get_clear_track_tag("title", track_metadata)
+    artists_names = _get_clear_track_tags("artist", track_metadata)
+    album_artist_tag = _get_clear_track_tag("albumartist", track_metadata)
+    album_artist = (
+        [artist.strip() for artist in album_artist_tag.split(",") if artist.strip()]
+        if album_artist_tag
+        else artists_names
+    )
+    album_title = _get_clear_track_tag("album", track_metadata)
+    album_position = _get_clear_track_tag("tracknumber", track_metadata)
+    disc_number = _get_clear_track_tag("discnumber", track_metadata)
+    date = _get_clear_track_tag("date", track_metadata)
+    genres = _get_clear_track_tags("genre", track_metadata)
+    moods = _get_clear_track_tags("mood", track_metadata)
     length = int(getattr(track_metadata.info, "length", 0) * 1000)
     bpm = getattr(track_metadata.info, "bpm", [None])[0]
     bitrate = getattr(track_metadata.info, "bitrate", None)
@@ -218,7 +256,7 @@ def _get_track_metadata(track_metadata):
         albums=[
             TrackAlbumMetadata(
                 title=album_title,
-                album_artists=[album_artist],
+                album_artists=album_artist,
                 disc_number=disc_number,
                 album_position=album_position,
             )
@@ -258,7 +296,12 @@ def write_video_metadata(artist: str, album: str, title: str, path: str):
 def get_cover_metadata(bytes: bytes) -> dict | None:
     try:
         with pyexiv2.ImageData(bytes) as img:
-            return img.read_xmp()
+            tags = img.read_xmp()
+            return {
+                "title": _get_clear_track_tag("Xmp.dc.title", tags),
+                "creator": _get_clear_track_tags("Xmp.dc.creator", tags),
+                "subject": _get_clear_track_tags("Xmp.dc.subject", tags),
+            }
     except Exception:
         return None
 

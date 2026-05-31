@@ -61,6 +61,9 @@ def sync():
             if task.status == "finished":
                 console.print("Scanning finished")
                 break
+            if task.status == "error":
+                console.print(f"Error while library sync: {task.error}")
+                break
             time.sleep(0.2)
 
 

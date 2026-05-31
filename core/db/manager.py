@@ -37,6 +37,7 @@ from core.db.models import (
     PlaylistTrackLink,
     AudioFileORM,
     TrackAlbumLink,
+    LyricsORM,
 )
 
 
@@ -391,22 +392,73 @@ class DBManager:
     def bulk_delete_by_links(
         self, session: Session, provider_link: list[tuple[str, str]]
     ):
-        select_ids = select(ObjectStorageORM.id, ObjectStorageORM.audio_id).where(
+        select_ids = select(
+            ObjectStorageORM.id,
+            ObjectStorageORM.audio_id,
+            ObjectStorageORM.lyrics_id,
+            ObjectStorageORM.music_video_id,
+        ).where(
             tuple_(ObjectStorageORM.link_provider, ObjectStorageORM.link).in_(
                 provider_link
             )
         )
         ids_statement = session.exec(select_ids).all()
         links_ids = [r[0] for r in ids_statement]
-        track_ids = [r[1] for r in ids_statement]
-        delete_links_statement = delete(ObjectStorageORM).where(
-            ObjectStorageORM.id.in_(links_ids)
+        audio_ids = [r[1] for r in ids_statement]
+        lyrics_ids = [r[2] for r in ids_statement]
+        videos_ids = [r[3] for r in ids_statement]
+        covers_links_count = (
+            session.exec(
+                select(func.count(ObjectStorageORM.id)).where(
+                    ObjectStorageORM.id.in_(links_ids),
+                    ObjectStorageORM.audio_id.is_(None),
+                    ObjectStorageORM.lyrics_id.is_(None),
+                    ObjectStorageORM.music_video_id.is_(None),
+                )
+            ).one()
+            or 0
         )
-        session.exec(delete_links_statement)
-        delete_tracks_statement = delete(TrackORM).where(TrackORM.id.in_(track_ids))
-        tracks = session.exec(delete_tracks_statement)
+        session.exec(delete(ObjectStorageORM).where(ObjectStorageORM.id.in_(links_ids)))
+        session.flush()
+        audio_statement = select(AudioFileORM).where(AudioFileORM.id.in_(audio_ids))
+        searched_audios = session.exec(audio_statement).all()
+        audios_for_deleting = []
+        for audio in searched_audios:
+            if len(audio.links) == 0:
+                audios_for_deleting.append(audio.id)
+        deleted_audio = session.exec(
+            delete(AudioFileORM).where(AudioFileORM.id.in_(audios_for_deleting))
+        )
+
+        searched_lyrics = session.exec(
+            select(LyricsORM).where(LyricsORM.id.in_(lyrics_ids))
+        ).all()
+        lyrics_for_deleting = []
+        for lyrics in searched_lyrics:
+            if len(lyrics.path) == 0:
+                lyrics_for_deleting.append(lyrics.id)
+        deleted_lyrics = session.exec(
+            delete(LyricsORM).where(LyricsORM.id.in_(lyrics_for_deleting))
+        )
+
+        searched_videos = session.exec(
+            select(MusicVideoORM).where(MusicVideoORM.id.in_(videos_ids))
+        ).all()
+        videos_for_deleting = []
+        for video in searched_videos:
+            if len(video.local_link) == 0:
+                videos_for_deleting.append(video.id)
+        deleted_videos = session.exec(
+            delete(MusicVideoORM).where(MusicVideoORM.id.in_(videos_for_deleting))
+        )
+
         session.commit()
-        return tracks.rowcount
+        return (
+            deleted_audio.rowcount,
+            covers_links_count,
+            deleted_lyrics.rowcount,
+            deleted_videos.rowcount,
+        )
 
     def get_all_tracks(self, session: Session):
         statement = select(TrackORM).options(selectinload(TrackORM.files))

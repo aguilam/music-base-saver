@@ -42,7 +42,7 @@ class LocalStorage(Storage):
         files = []
         for f in self.save_directory.rglob("*"):
             if f.is_file():
-                files.append((f"{f.parent}:{f.name}", f.name))
+                files.append((str(f), f.name))
         return files
 
     def get_range_bytes(self, path: str, start: int, end: int):
