@@ -9,7 +9,7 @@ from sqlmodel import (
     col,
 )
 
-from sqlalchemy import tuple_, or_, func
+from sqlalchemy import tuple_, or_, func, not_
 from core.db.mappers import (
     artist_from_orm,
     album_from_orm,
@@ -543,3 +543,32 @@ class DBManager:
         )
         orm_artist = session.exec(statement).first()
         return artist_from_orm(orm_artist) if orm_artist else None
+
+    def get_model_count(self, session: Session, model):
+        model_count = session.scalar(select(func.count(model.id))) or 0
+        return model_count
+
+    def get_count_with_lyrics(self, session: Session):
+        tracks_count: int = (
+            session.scalar(select(func.count(TrackORM.id)).where(TrackORM.lyrics.any()))
+            or 0
+        )
+        return tracks_count
+
+    def get_count_with_videos(self, session: Session):
+        tracks_count: int = (
+            session.scalar(
+                select(func.count(TrackORM.id)).where(TrackORM.music_videos.any())
+            )
+            or 0
+        )
+        return tracks_count
+
+    def get_count_with_cover(self, session: Session, model):
+        model_count = (
+            session.scalar(
+                select(func.count(model.id)).where(model.cover_path.is_not(None))
+            )
+            or 0
+        )
+        return model_count

@@ -74,6 +74,7 @@ from .schemas.schemas import (
     DownloadTaskResult,
     ImportTaskResult,
     ImporterPlaylistTrack,
+    LibraryStats,
 )
 from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
@@ -1441,3 +1442,32 @@ class LibraryManager:
                 for storage in self.storages
             ],
         )
+
+    def get_library_stats(self):
+        with self.db_manager.get_session() as session:
+            tracks_total = self.db_manager.get_model_count(session, TrackORM)
+            tracks_with_lyrics = self.db_manager.get_count_with_lyrics(session)
+            tracks_with_videos = self.db_manager.get_count_with_videos(session)
+
+            albums_total = self.db_manager.get_model_count(session, AlbumORM)
+            albums_with_cover = self.db_manager.get_count_with_cover(session, AlbumORM)
+
+            artists_total = self.db_manager.get_model_count(session, ArtistORM)
+            artists_with_cover = self.db_manager.get_count_with_cover(
+                session, ArtistORM
+            )
+
+            lyrics_total = self.db_manager.get_model_count(session, LyricsORM)
+            videos_total = self.db_manager.get_model_count(session, MusicVideoORM)
+
+            return LibraryStats(
+                tracks_total=tracks_total,
+                tracks_with_lyrics=tracks_with_lyrics,
+                tracks_with_videos=tracks_with_videos,
+                albums_total=albums_total,
+                albums_with_cover=albums_with_cover,
+                artists_total=artists_total,
+                artists_with_cover=artists_with_cover,
+                lyrics_total=lyrics_total,
+                videos_total=videos_total,
+            )

@@ -18,11 +18,11 @@ from rich.text import Text
 import time
 
 library_app = typer.Typer(help="Действия с музыкальной библиотекой")
+library_manager = LibraryManager()
 
 
 @library_app.command("list")
 def track_list():
-    library_manager = LibraryManager()
 
     tracks = library_manager.get_all_tracks()
     table = Table(title="Music Library")
@@ -43,13 +43,11 @@ def track_list():
 
 @library_app.command("del")
 def delete_track(track_id: int):
-    library_manager = LibraryManager()
     track = library_manager.delete_track(track_id)
 
 
 @library_app.command("sync")
 def sync():
-    library_manager = LibraryManager()
     task_id = library_manager.sync()
     console = Console()
     progress_bar = Progress(
@@ -108,3 +106,25 @@ def _create_sync_text(entities: list[str], import_result: SyncTaskResult):
         )
         console_text.append(Padding(deleted_text, (0, 0, 1, 4)))
     return console_text
+
+
+@library_app.command("stats")
+def library_stats():
+    console = Console()
+    stats = library_manager.get_library_stats()
+    stats_text = Group(
+        Text(f"Total tracks: {stats.tracks_total}"),
+        Text(f"Tracks with lyrics: {stats.tracks_with_lyrics}"),
+        Text(f"Tracks with videos: {stats.tracks_with_videos}"),
+        Text(""),
+        Text(f"Total albums: {stats.albums_total}"),
+        Text(f"Albums with cover: {stats.albums_with_cover}"),
+        Text(""),
+        Text(f"Total artists: {stats.artists_total}"),
+        Text(f"Artists with cover {stats.artists_with_cover}"),
+        Text(""),
+        Text(f"Total lyrics: {stats.lyrics_total}"),
+        Text(""),
+        Text(f"Total videos: {stats.videos_total}"),
+    )
+    console.print(stats_text)

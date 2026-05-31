@@ -358,3 +358,16 @@ class ImporterTrack(TrackMetadata):
     album_ids: list[str | int] = field(default_factory=list)
     has_lyrics: bool = False
     has_video: bool = False
+
+
+@dataclass(slots=True)
+class LibraryStats:
+    tracks_total: int
+    tracks_with_lyrics: int
+    tracks_with_videos: int
+    albums_total: int
+    albums_with_cover: int
+    artists_total: int
+    artists_with_cover: int
+    lyrics_total: int
+    videos_total: int

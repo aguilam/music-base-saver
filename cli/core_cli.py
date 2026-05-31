@@ -22,7 +22,7 @@ def check_status():
 
 
 def _print_statuses_table(console: Console, title: str, statuses: list[ServiceStatus]):
-    if len(statuses) < 0:
+    if len(statuses) == 0:
         return
     table = Table()
     table.add_column("Name")
@@ -30,5 +30,5 @@ def _print_statuses_table(console: Console, title: str, statuses: list[ServiceSt
     table.add_column("Is Active")
     for status in statuses:
         table.add_row(status.tag, status.health.message, str(status.health.ok))
-    console.print(Text(title))
+    console.print(Text(title, style="bold"))
     console.print(table)
