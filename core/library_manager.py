@@ -790,13 +790,13 @@ class LibraryManager:
                             range_bytes,
                         )
                         if cover_metadata:
-                            title = cover_metadata.get("Xmp.dc.title")
-                            artists = cover_metadata.get("Xmp.dc.creator")
+                            title = cover_metadata.get("title")
+                            artists = cover_metadata.get("creator")
                             if title:
                                 entity = self.db_manager.get_album_orm_by_title(
                                     session, title
                                 )
-                            elif artists and len(artists) > 1:
+                            elif artists and len(artists) == 1:
                                 entity = self.db_manager.get_artist_orm_by_name(
                                     session, artists[0]
                                 )
