@@ -20,34 +20,50 @@ from datetime import datetime, timezone
 
 class AlbumArtistLink(SQLModel, table=True):
     __tablename__ = "album_artist_link"
-    artist_id: int = Field(foreign_key="artist.id", primary_key=True)
-    album_id: int = Field(foreign_key="album.id", primary_key=True)
+    artist_id: int = Field(
+        foreign_key="artist.id", primary_key=True, ondelete="CASCADE"
+    )
+    album_id: int = Field(foreign_key="album.id", primary_key=True, ondelete="CASCADE")
 
 
 class ArtistGenreLink(SQLModel, table=True):
     __tablename__ = "artist_genre"
     artist_id: int | None = Field(
-        default=None, foreign_key="artist.id", primary_key=True
+        default=None, foreign_key="artist.id", primary_key=True, ondelete="CASCADE"
     )
-    genre_id: int | None = Field(default=None, foreign_key="genre.id", primary_key=True)
+    genre_id: int | None = Field(
+        default=None, foreign_key="genre.id", primary_key=True, ondelete="CASCADE"
+    )
 
 
 class AlbumGenreLink(SQLModel, table=True):
     __tablename__ = "album_genre"
-    album_id: int | None = Field(default=None, foreign_key="album.id", primary_key=True)
-    genre_id: int | None = Field(default=None, foreign_key="genre.id", primary_key=True)
+    album_id: int | None = Field(
+        default=None, foreign_key="album.id", primary_key=True, ondelete="CASCADE"
+    )
+    genre_id: int | None = Field(
+        default=None, foreign_key="genre.id", primary_key=True, ondelete="CASCADE"
+    )
 
 
 class TrackGenreLink(SQLModel, table=True):
     __tablename__ = "track_genre"
-    track_id: int | None = Field(default=None, foreign_key="track.id", primary_key=True)
-    genre_id: int | None = Field(default=None, foreign_key="genre.id", primary_key=True)
+    track_id: int | None = Field(
+        default=None, foreign_key="track.id", primary_key=True, ondelete="CASCADE"
+    )
+    genre_id: int | None = Field(
+        default=None, foreign_key="genre.id", primary_key=True, ondelete="CASCADE"
+    )
 
 
 class TrackMoodLink(SQLModel, table=True):
     __tablename__ = "track_mood"
-    track_id: int | None = Field(default=None, foreign_key="track.id", primary_key=True)
-    mood_id: int | None = Field(default=None, foreign_key="mood.id", primary_key=True)
+    track_id: int | None = Field(
+        default=None, foreign_key="track.id", primary_key=True, ondelete="CASCADE"
+    )
+    mood_id: int | None = Field(
+        default=None, foreign_key="mood.id", primary_key=True, ondelete="CASCADE"
+    )
 
 
 class PlaylistTrackLink(SQLModel, table=True):

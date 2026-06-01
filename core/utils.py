@@ -277,10 +277,10 @@ def get_track_metadata_by_bytes(bytes: bytes):
 
 def get_video_metadata(video_bytes: bytes) -> dict:
     video_metadata = MP4(io.BytesIO(video_bytes))
-    title = video_metadata.get("\xa9nam", None)
-    artists = video_metadata.get("\xa9ART", None)
-    album = video_metadata.get("\xa9alb", None)
-    video_type = video_metadata.get("stik", None)
+    title = _get_clear_track_tag("\xa9nam", video_metadata)
+    artists = _get_clear_track_tag("\xa9ART", video_metadata)
+    album = _get_clear_track_tag("\xa9alb", video_metadata)
+    video_type = _get_clear_track_tag("stik", video_metadata)
     return {"title": title, "artists": artists, "album": album}
 
 

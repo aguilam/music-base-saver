@@ -9,7 +9,7 @@ from sqlmodel import (
     col,
 )
 
-from sqlalchemy import tuple_, or_, func, not_
+from sqlalchemy import tuple_, or_, func, not_, and_
 from core.db.mappers import (
     artist_from_orm,
     album_from_orm,
@@ -38,6 +38,8 @@ from core.db.models import (
     AudioFileORM,
     TrackAlbumLink,
     LyricsORM,
+    AlbumArtistLink,
+    TrackArtistsLink,
 )
 
 
@@ -531,6 +533,47 @@ class DBManager:
 
     def get_playlist_orm_by_id(self, session: Session, id: int) -> PlaylistORM | None:
         return session.get(PlaylistORM, id)
+
+    def delete_orphans(self, session: Session):
+        deleted_tracks = session.exec(
+            delete(TrackORM).where(
+                TrackORM.id.not_in(
+                    select(AudioFileORM.track_id).where(
+                        AudioFileORM.track_id.is_not(None)
+                    )
+                )
+            )
+        )
+        session.flush()
+
+        deleted_albums = session.exec(
+            delete(AlbumORM).where(AlbumORM.id.not_in(select(TrackAlbumLink.album_id)))
+        )
+        session.flush()
+
+        deleted_artists = session.exec(
+            delete(ArtistORM).where(
+                ArtistORM.id.not_in(select(AlbumArtistLink.artist_id)),
+                ArtistORM.id.not_in(select(TrackArtistsLink.artist_id)),
+                ArtistORM.id.not_in(
+                    select(AlbumArtistLink.artist_id).where(
+                        AlbumArtistLink.album_id.is_not(None)
+                    )
+                ),
+                ArtistORM.id.not_in(
+                    select(TrackArtistsLink.artist_id).where(
+                        TrackArtistsLink.track_id.is_not(None)
+                    )
+                ),
+            )
+        )
+        session.flush()
+
+        return (
+            deleted_tracks.rowcount,
+            deleted_albums.rowcount,
+            deleted_artists.rowcount,
+        )
 
     def get_artist_by_id(self, session: Session, id: int):
         statement = (

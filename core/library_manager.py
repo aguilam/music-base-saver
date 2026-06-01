@@ -931,6 +931,7 @@ class LibraryManager:
                         session.flush()
                         task.result.videos.processed += 1
                         task.result.videos.added += 1
+                self.db_manager.delete_orphans(session)
                 session.commit()
                 self._update_task(task_id, status="finished")
                 self.logger.info("Syncing succesful completed")
