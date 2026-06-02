@@ -236,6 +236,7 @@ class LibraryManager:
         ]
         new_track = TrackORM(
             title=track_metadata.title,
+            normalized_title=track_metadata.title.strip().lower(),
             length=track_metadata.length,
             bpm=track_metadata.bpm,
             year=track_metadata.year,

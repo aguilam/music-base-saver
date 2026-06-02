@@ -94,6 +94,7 @@ class ArtistAlias(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     artist_id: int = Field(foreign_key="artist.id", ondelete="CASCADE")
     name: str
+    normalized_name: str
     artist: "ArtistORM" = Relationship(back_populates="aliases")
 
 
@@ -201,6 +202,7 @@ class ArtistORM(SQLModel, table=True):
     __tablename__ = "artist"
     id: int | None = Field(default=None, primary_key=True)
     name: str
+    normalized_name: str
     cover_path: int | None = Field(
         default=None, foreign_key="object_storage.id", ondelete="SET NULL"
     )
@@ -234,6 +236,7 @@ class AlbumORM(SQLModel, table=True):
     __tablename__ = "album"
     id: int | None = Field(default=None, primary_key=True)
     title: str
+    normalized_title: str
     type: str | None = None
     year: int | None = Field(default=None)
     cover_path: int | None = Field(
@@ -304,7 +307,7 @@ class GenreORM(SQLModel, table=True):
     __tablename__ = "genre"
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
-
+    normalized_name: str
     artists: list["ArtistORM"] = Relationship(
         back_populates="genres", link_model=ArtistGenreLink
     )
@@ -320,7 +323,7 @@ class MoodORM(SQLModel, table=True):
     __tablename__ = "mood"
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(unique=True)
-
+    normalized_name: str
     tracks: list["TrackORM"] = Relationship(
         back_populates="moods", link_model=TrackMoodLink
     )
@@ -364,6 +367,7 @@ class TrackORM(SQLModel, table=True):
     __tablename__ = "track"
     id: int | None = Field(default=None, primary_key=True)
     title: str
+    normalized_title: str
     length: int
     bpm: int | None = None
     year: int | None = None

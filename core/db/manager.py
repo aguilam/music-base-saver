@@ -142,16 +142,16 @@ class DBManager:
         existed_artist = session.exec(
             select(ArtistORM).where(
                 or_(
-                    func.lower(ArtistORM.name) == normalized_name,
+                    ArtistORM.normalized_name == normalized_name,
                     ArtistORM.aliases.any(
-                        func.lower(ArtistAlias.name) == normalized_name
+                        ArtistAlias.normalized_name == normalized_name
                     ),
                 )
             )
         ).first()
         if existed_artist:
             return existed_artist
-        new_artist = ArtistORM(name=name)
+        new_artist = ArtistORM(name=name, normalized_name=normalized_name)
         session.add(new_artist)
         session.flush()
         return new_artist
@@ -166,7 +166,7 @@ class DBManager:
         type: str | None = None,
     ):
         normalized_title = title.lower().strip()
-        stmt = select(AlbumORM).where(func.lower(AlbumORM.title) == normalized_title)
+        stmt = select(AlbumORM).where(AlbumORM.normalized_title == normalized_title)
         if artists_names:
             stmt = (
                 stmt.join(AlbumORM.artists)
@@ -176,7 +176,13 @@ class DBManager:
         existed_album = session.exec(stmt).first()
         if existed_album:
             return existed_album
-        new_album = AlbumORM(title=title, year=year, description=description, type=type)
+        new_album = AlbumORM(
+            title=title,
+            normalized_title=normalized_title,
+            year=year,
+            description=description,
+            type=type,
+        )
         session.add(new_album)
         session.flush()
         return new_album
@@ -184,11 +190,11 @@ class DBManager:
     def find_or_create_mood(self, session: Session, mood_name: str):
         normalized_name = mood_name.lower().strip()
         mood = session.exec(
-            select(MoodORM).where(func.lower(MoodORM.name) == normalized_name)
+            select(MoodORM).where(MoodORM.normalized_name == normalized_name)
         ).first()
         if mood:
             return mood
-        new_mood = MoodORM(name=mood_name.strip())
+        new_mood = MoodORM(name=mood_name.strip(), normalized_name=normalized_name)
         session.add(new_mood)
         session.flush()
         return new_mood
@@ -196,11 +202,11 @@ class DBManager:
     def find_or_create_genre(self, session: Session, genre_name: str):
         normalized_name = genre_name.lower().strip()
         genre = session.exec(
-            select(GenreORM).where(func.lower(GenreORM.name) == normalized_name)
+            select(GenreORM).where(GenreORM.normalized_name == normalized_name)
         ).first()
         if genre:
             return genre
-        new_genre = GenreORM(name=genre_name.strip())
+        new_genre = GenreORM(name=genre_name.strip(), normalized_name=normalized_name)
         session.add(new_genre)
         session.flush()
         return new_genre
