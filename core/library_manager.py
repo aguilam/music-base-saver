@@ -1461,7 +1461,10 @@ class LibraryManager:
 
             lyrics_total = self.db_manager.get_model_count(session, LyricsORM)
             videos_total = self.db_manager.get_model_count(session, MusicVideoORM)
-
+            genre_count, tracks_genre, albums_genre, artists_genre = (
+                self.db_manager.get_genre_counts(session)
+            )
+            mood_count, tracks_moods = self.db_manager.get_moods_counts(session)
             return LibraryStats(
                 tracks_total=tracks_total,
                 tracks_with_lyrics=tracks_with_lyrics,
@@ -1472,4 +1475,10 @@ class LibraryManager:
                 artists_with_cover=artists_with_cover,
                 lyrics_total=lyrics_total,
                 videos_total=videos_total,
+                genres_total=genre_count,
+                artists_with_genres=artists_genre,
+                albums_with_genres=albums_genre,
+                tracks_with_genres=tracks_genre,
+                moods_total=mood_count,
+                tracks_with_moods=tracks_moods,
             )

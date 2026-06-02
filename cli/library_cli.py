@@ -126,5 +126,13 @@ def library_stats():
         Text(f"Total lyrics: {stats.lyrics_total}"),
         Text(""),
         Text(f"Total videos: {stats.videos_total}"),
+        Text(""),
+        Text(f"Total genres: {stats.genres_total}"),
+        Text(f"Artists with genres {stats.artists_with_genres}"),
+        Text(f"Albums with genres {stats.albums_with_genres}"),
+        Text(f"Tracks with genres {stats.tracks_with_genres}"),
+        Text(""),
+        Text(f"Total moods: {stats.moods_total}"),
+        Text(f"Tracks with moods: {stats.tracks_with_moods}"),
     )
     console.print(stats_text)

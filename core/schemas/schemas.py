@@ -371,3 +371,9 @@ class LibraryStats:
     artists_with_cover: int
     lyrics_total: int
     videos_total: int
+    genres_total: int
+    artists_with_genres: int
+    albums_with_genres: int
+    tracks_with_genres: int
+    moods_total: int
+    tracks_with_moods: int

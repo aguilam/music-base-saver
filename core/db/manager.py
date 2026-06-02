@@ -9,7 +9,7 @@ from sqlmodel import (
     col,
 )
 
-from sqlalchemy import tuple_, or_, func, not_, and_
+from sqlalchemy import tuple_, or_, func, not_, and_, distinct
 from core.db.mappers import (
     artist_from_orm,
     album_from_orm,
@@ -36,6 +36,10 @@ from core.db.models import (
     ProviderKeyORM,
     PlaylistTrackLink,
     AudioFileORM,
+    AlbumGenreLink,
+    TrackGenreLink,
+    ArtistGenreLink,
+    TrackMoodLink,
     TrackAlbumLink,
     LyricsORM,
     AlbumArtistLink,
@@ -596,6 +600,27 @@ class DBManager:
     def get_model_count(self, session: Session, model):
         model_count = session.scalar(select(func.count(model.id))) or 0
         return model_count
+
+    def get_genre_counts(self, session: Session):
+        genre_count: int = session.scalar(select(func.count(GenreORM.id))) or 0
+        tracks_genre: int = (
+            session.scalar(select(func.count(distinct(TrackGenreLink.track_id)))) or 0
+        )
+        albums_genre: int = (
+            session.scalar(select(func.count(distinct(AlbumGenreLink.album_id)))) or 0
+        )
+        artists_genre: int = (
+            session.scalar(select(func.count(distinct(ArtistGenreLink.artist_id)))) or 0
+        )
+        return (genre_count, tracks_genre, albums_genre, artists_genre)
+
+    def get_moods_counts(self, session: Session):
+        mood_count: int = session.scalar(select(func.count(MoodORM.id))) or 0
+        tracks_moods: int = (
+            session.scalar(select(func.count(distinct(TrackMoodLink.track_id)))) or 0
+        )
+
+        return (mood_count, tracks_moods)
 
     def get_count_with_lyrics(self, session: Session):
         tracks_count: int = (
