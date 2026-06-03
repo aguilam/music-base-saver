@@ -24,6 +24,7 @@ from core.utils import (
     write_cover_metadata,
     write_track_metadata,
     write_video_metadata,
+    _get_runtime_errors,
     sanitize_filename,
     read_lyrics_text,
     get_id_from_string,
@@ -75,6 +76,7 @@ from .schemas.schemas import (
     ImportTaskResult,
     ImporterPlaylistTrack,
     LibraryStats,
+    StartStatuses,
 )
 from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
@@ -108,20 +110,23 @@ class LibraryManager:
         self.config = config
         self.temp_dir = Path("temp_tracks")
         self.task_queue: dict[str, Task] = {}
-        self.search_engines = load_modules(
+        self.start_errors: StartStatuses = StartStatuses()
+        self.search_engines, self.start_errors.search = load_modules(
             config.get("search", {}), import_modules("search", BaseSearch)
         )
-        self.storages = load_storages(config, import_modules("storage", BaseStorage))
-        self.downloaders = load_modules(
+        self.storages, self.start_errors.storages = load_storages(
+            config, import_modules("storage", BaseStorage)
+        )
+        self.downloaders, self.start_errors.downloaders = load_modules(
             config.get("downloader", {}), import_modules("downloader", BaseDownloader)
         )
-        self.importers = load_modules(
+        self.importers, self.start_errors.importers = load_modules(
             config.get("importer", {}), import_modules("importer", BaseImporter)
         )
-        self.scrobblers = load_modules(
+        self.scrobblers, self.start_errors.scrobblers = load_modules(
             config.get("scrobbler", {}), import_modules("scrobbler", BaseScrobbler)
         )
-        self.scrobblers = load_modules(
+        self.tools = load_modules(
             config.get("tool", {}), import_modules("tool", BaseTool)
         )
         self.db_manager = DBManager()
@@ -1420,29 +1425,22 @@ class LibraryManager:
     def check_status(self):
         return ServicesStatus(
             downloaders=[
-                ServiceStatus(
-                    tag=downloader.tag, health=downloader.instance.health_check()
-                )
-                for downloader in self.downloaders
+                *_get_runtime_errors(self.downloaders),
+                *self.start_errors.downloaders,
             ],
             importers=[
-                ServiceStatus(tag=importer.tag, health=importer.instance.health_check())
-                for importer in self.importers
+                *_get_runtime_errors(self.importers),
+                *self.start_errors.importers,
             ],
             scrobblers=[
-                ServiceStatus(
-                    tag=scrobbler.tag, health=scrobbler.instance.health_check()
-                )
-                for scrobbler in self.scrobblers
+                *_get_runtime_errors(self.scrobblers),
+                *self.start_errors.scrobblers,
             ],
             search=[
-                ServiceStatus(tag=search.tag, health=search.instance.health_check())
-                for search in self.search_engines
+                *_get_runtime_errors(self.search_engines),
+                *self.start_errors.search,
             ],
-            storages=[
-                ServiceStatus(tag=storage.tag, health=storage.instance.health_check())
-                for storage in self.storages
-            ],
+            storages=[*_get_runtime_errors(self.storages), *self.start_errors.storages],
         )
 
     def get_library_stats(self):

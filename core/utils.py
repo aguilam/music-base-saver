@@ -17,7 +17,13 @@ from core.loader import StorageEntry
 from core.schemas.schemas import Track
 import pyexiv2
 import io
-from core.schemas.schemas import TrackMetadata, TrackAlbumMetadata
+from core.loader import ModuleEntry, StorageEntry
+from core.schemas.schemas import (
+    TrackMetadata,
+    TrackAlbumMetadata,
+    HealthStatus,
+    ServiceStatus,
+)
 
 
 def analyze_lrc(lines: list[str]):
@@ -357,3 +363,19 @@ def get_id_from_string(string: str, prefix: str = "al|tr|ar|pl"):
         return (parts[0], int(parts[1]))
     else:
         return None
+
+
+def _get_runtime_errors(modules: list[ModuleEntry | StorageEntry]):
+    statuses: list[ServiceStatus] = []
+    for module in modules:
+        try:
+            status = module.instance.health_check()
+            tag = module.name if isinstance(module, StorageEntry) else module.tag
+            statuses.append(ServiceStatus(tag=tag, health=status))
+        except Exception as e:
+            statuses.append(
+                ServiceStatus(
+                    tag=module.tag, health=HealthStatus(ok=False, message=str(e))
+                )
+            )
+    return statuses

@@ -3,6 +3,7 @@ from importlib.util import spec_from_file_location, module_from_spec
 from storage.base import Storage
 import inspect
 from dataclasses import dataclass
+from core.schemas.schemas import ServiceStatus, HealthStatus
 from typing import TypeVar, Generic, Any
 
 T = TypeVar("T")
@@ -17,13 +18,9 @@ class ModuleEntry(Generic[T]):
 
 
 @dataclass(slots=True)
-class StorageEntry:
+class StorageEntry(ModuleEntry[Storage]):
     id: str
     name: str
-    tag: str
-    priority: int
-    params: dict[str, Any]
-    instance: Storage
 
 
 def import_modules(module_folder: str, BaseClass: type[T]) -> dict[str, type[T]]:
@@ -49,36 +46,56 @@ def import_modules(module_folder: str, BaseClass: type[T]) -> dict[str, type[T]]
 
 def load_modules(config: dict, module_classes: dict[str, type[T]]):
     modules: list[ModuleEntry[T]] = []
+    errors = []
     for module, settings in config.items():
-        cls = module_classes[module]
-        if cls and settings.get("enabled", True):
-            params = settings.get("params", {})
-            modules.append(
-                ModuleEntry(module, settings.get("priority", 0), params, cls(params))
+        try:
+            cls = module_classes[module]
+            if cls and settings.get("enabled", True):
+                params = settings.get("params", {})
+                modules.append(
+                    ModuleEntry(
+                        module, settings.get("priority", 0), params, cls(params)
+                    )
+                )
+        except Exception as e:
+            errors.append(
+                ServiceStatus(
+                    tag=module,
+                    health=HealthStatus(ok=False, message=str(e)),
+                )
             )
     modules.sort(key=lambda x: x.priority, reverse=True)
-    return modules
+    return modules, errors
 
 
 def load_storages(config: dict, storage_classes: dict[str, Any]):
     storages = config.get("storage", {})
     active_storages: list[StorageEntry] = []
+    errors = []
     for storage in storages:
-        if storage.get("enabled", True):
-            storage_tag = storage["tag"]
-            instance_params = storage["params"]
-            instance_params["id"] = storage["id"]
-            instance_params["name"] = storage["name"]
-            selected_storage = storage_classes[storage_tag]
-            active_storages.append(
-                StorageEntry(
-                    storage["id"],
-                    storage["name"],
-                    storage_tag,
-                    storage["priority"],
-                    storage["params"],
-                    selected_storage(instance_params),
+        try:
+            if storage.get("enabled", True):
+                storage_tag = storage["tag"]
+                instance_params = storage["params"]
+                instance_params["id"] = storage["id"]
+                instance_params["name"] = storage["name"]
+                selected_storage = storage_classes[storage_tag]
+                active_storages.append(
+                    StorageEntry(
+                        storage["id"],
+                        storage["name"],
+                        storage_tag,
+                        storage["priority"],
+                        storage["params"],
+                        selected_storage(instance_params),
+                    )
+                )
+        except Exception as e:
+            errors.append(
+                ServiceStatus(
+                    tag=storage.get("name", "Undefined"),
+                    health=HealthStatus(ok=False, message=str(e)),
                 )
             )
     active_storages.sort(key=lambda x: x.priority, reverse=True)
-    return active_storages
+    return active_storages, errors

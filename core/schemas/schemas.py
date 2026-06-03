@@ -377,3 +377,12 @@ class LibraryStats:
     tracks_with_genres: int
     moods_total: int
     tracks_with_moods: int
+
+
+@dataclass(slots=True)
+class StartStatuses:
+    downloaders: list[ServiceStatus] = field(default_factory=list)
+    importers: list[ServiceStatus] = field(default_factory=list)
+    search: list[ServiceStatus] = field(default_factory=list)
+    storages: list[ServiceStatus] = field(default_factory=list)
+    scrobblers: list[ServiceStatus] = field(default_factory=list)
