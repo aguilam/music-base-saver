@@ -612,7 +612,7 @@ def get_moods():
 
 
 @subsonic_router.get("/deleteUser")
-def delete_user(username: str, user: Annotated[User, Depends(get_user())]):
+def delete_user(username: str, user: Annotated[User, Depends(get_user)]):
     result = library_manager.delete_user_by_username(username, user.id)
     if result is None:
         raise_subsonic_error(50)
@@ -632,6 +632,14 @@ def start_scan():
     return {
         "scanStatus": {"scanning": True, "count": 0},
     }
+
+
+@subsonic_router.get("/getSimilarSongs2")
+def getSimiliarSong(id: int, count: int = 50):
+    tracks = library_manager.get_similiar_artists_random_tracks(id, count)
+    if tracks is None:
+        raise_subsonic_error(70)
+    return {"similarSongs2": {"song": [to_subsonic_song(track) for track in tracks]}}
 
 
 @subsonic_router.get("/scanStatus")

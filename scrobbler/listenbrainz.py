@@ -1,6 +1,10 @@
 from scrobbler.base import Scrobbler
-from core.schemas.schemas import HealthStatus, Track
+from core.schemas.schemas import Artist, Track
 import liblistenbrainz
+import requests
+import musicbrainzngs.musicbrainz
+
+musicbrainzngs.set_useragent("YourAppName", "0.1", "https://yourdomain.example/contact")
 
 
 class ListenBrainz(Scrobbler):
@@ -26,6 +30,25 @@ class ListenBrainz(Scrobbler):
             track_name=track.title, artist_name=artists, listened_at=time
         )
         client.submit_single_listen(listen)
+
+    def get_similiar_artists(self, artist: Artist) -> list[str]:
+        artists = musicbrainzngs.search_artists(artist.name, limit=1)
+        artist_list = artists.get("artist-list", [])
+        if not artist_list:
+            return []
+
+        artist_id = artist_list[0]["id"]
+        payload = {
+            "artist_mbids": artist_id,
+            "algorithm": "session_based_days_1825_session_300_contribution_3_threshold_10_limit_100_filter_True_skip_30",
+        }
+        response = requests.get(
+            "https://labs.api.listenbrainz.org/similar-artists/json",
+            params=payload,
+            timeout=5,
+        )
+        artists_names = [artist["name"] for artist in response.json()]
+        return artists_names
 
     def health_check(self):
         return super().health_check()

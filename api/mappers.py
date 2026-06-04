@@ -20,7 +20,9 @@ def to_subsonic_song(track: Track):
         "created": track.created_at,
         "albumId": primary_album.id if primary_album else None,
         "artistId": primary_album.artists[0].id if primary_album else None,
-        "musicVideo": "cl-" + track.music_videos[0].id,
+        "musicVideo": (
+            f"cl-{track.music_videos[0].id}" if len(track.music_videos) > 0 else None
+        ),
         "type": "music",
         "mediaType": "song",
         "isVideo": False,

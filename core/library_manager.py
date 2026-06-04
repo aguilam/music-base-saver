@@ -312,6 +312,15 @@ class LibraryManager:
         session.flush()
         return new_track.id
 
+    def get_similiar_artists_random_tracks(self, artist_id: int, count: int):
+        with self.db_manager.get_session() as session:
+            artist = self.db_manager.get_artist_by_id(session, artist_id)
+            if artist is None:
+                return None
+            artists = self.scrobblers[0].instance.get_similiar_artists(artist)
+            tracks = self.db_manager.get_artists_random_tracks(session, artists, count)
+            return tracks
+
     def download(
         self,
         task_id: str | None = None,
@@ -319,7 +328,7 @@ class LibraryManager:
         object_id: str | None = None,
     ):
         task_id = self.post_task(
-            func=self.download_task, task_id=task_id, query=query, object_id=object_id
+            func=self.download_track, task_id=task_id, query=query, object_id=object_id
         )
         return task_id
 

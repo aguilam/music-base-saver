@@ -119,6 +119,7 @@ class TrackShort:
     created_at: datetime | None = None
     external_id: str | None = None
     albums: list[TrackAlbum] = field(default_factory=list)
+    artists: list[ArtistShort] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -173,6 +174,13 @@ class ObjectStorage:
     track_id: int | None = None
     music_video_id: int | None = None
     lyrics_id: int | None = None
+
+
+@dataclass(slots=True)
+class ShortTrackInfo:
+    title: str
+    album: str
+    artists: list[str]
 
 
 @dataclass(slots=True)

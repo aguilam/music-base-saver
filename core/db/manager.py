@@ -44,6 +44,7 @@ from core.db.models import (
     LyricsORM,
     AlbumArtistLink,
     TrackArtistsLink,
+    ApiKeyORM,
 )
 
 
@@ -305,7 +306,7 @@ class DBManager:
 
     def get_user_by_apikey(self, session: Session, api_key: str):
         orm_user = session.exec(
-            select(UserORM).where(UserORM.api_key == api_key)
+            select(UserORM).join(UserORM.api_keys).where(ApiKeyORM.key == api_key)
         ).first()
         return user_from_orm(orm_user) if orm_user else None
 
@@ -590,8 +591,8 @@ class DBManager:
             select(ArtistORM)
             .where(ArtistORM.id == id)
             .options(
-                selectinload(ArtistORM.albums).selectinload(AlbumORM.tracks),
-                selectinload(ArtistORM.albums).selectinload(AlbumORM.artist_rel),
+                selectinload(ArtistORM.albums).selectinload(AlbumORM.tracks_links),
+                selectinload(ArtistORM.albums).selectinload(AlbumORM.artists),
             )
         )
         orm_artist = session.exec(statement).first()
@@ -646,3 +647,39 @@ class DBManager:
             or 0
         )
         return model_count
+
+    def find_track(
+        self,
+        session: Session,
+        title: str,
+        album_title: str | None = None,
+        artists: list[str] | None = None,
+    ):
+        normalized_title = title.strip().lower()
+        stmt = select(TrackORM).where(TrackORM.normalized_title == normalized_title)
+        if album_title:
+            normalized_album = album_title.strip().lower()
+            stmt.join(TrackORM.albums_links).where(
+                TrackAlbumLink.album.normalized_title == normalized_album
+            ).distinct()
+        if artists:
+            normalized_names = [name.strip().lower() for name in artists]
+            stmt.join(TrackORM.artists).where(
+                ArtistORM.normalized_name.in_(normalized_names)
+            ).distinct()
+        track = session.exec(stmt).first()
+        return track_from_orm(track) if track else None
+
+    def get_artists_random_tracks(
+        self, session: Session, artists: list[str], count: int
+    ):
+        normalized_names = [name.strip().lower() for name in artists]
+        stmt = (
+            select(TrackORM)
+            .join(TrackORM.artists)
+            .where(ArtistORM.normalized_name.in_(normalized_names))
+            .order_by(func.random())
+            .limit(count)
+        )
+        tracks = session.exec(stmt).all()
+        return [track_from_orm(track) for track in tracks]
