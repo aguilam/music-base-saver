@@ -143,7 +143,7 @@ def track_short_from_orm(track: TrackORM) -> TrackShort:
         id=track.id,
         title=track.title,
         length=track.length,
-        cover_path=track.albums_links[0].cover_path,
+        cover_path=track.albums_links[0].album.cover_path,
         path=(
             next((link.id for link in primary_file.links), None)
             if primary_file
@@ -215,7 +215,7 @@ def object_storage_from_orm(storage: ObjectStorageORM) -> ObjectStorage:
         link=storage.link,
         id=storage.id,
         created_at=storage.created_at,
-        track_id=storage.track_idd,
+        track_id=storage.audio_id,
         music_video_id=storage.music_video_id,
         lyrics_id=storage.lyrics_id,
     )

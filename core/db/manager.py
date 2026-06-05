@@ -231,14 +231,14 @@ class DBManager:
             select(PlaylistORM)
             .where(PlaylistORM.id == id)
             .options(
-                selectinload(PlaylistORM.owner),
+                selectinload(PlaylistORM.owners),
                 selectinload(PlaylistORM.track_links)
                 .selectinload(PlaylistTrackLink.track)
                 .selectinload(TrackORM.files),
                 selectinload(PlaylistORM.track_links)
                 .selectinload(PlaylistTrackLink.track)
-                .selectinload(TrackORM.album)
-                .selectinload(AlbumORM.artist_rel),
+                .selectinload(TrackORM.albums_links)
+                .selectinload(AlbumORM.artists),
             )
         )
         orm_playlist = session.exec(statement).first()
@@ -332,9 +332,13 @@ class DBManager:
             .limit(limit)
             .offset(offset)
             .options(
-                selectinload(AlbumORM.tracks).selectinload(TrackORM.links),
-                selectinload(AlbumORM.tracks).selectinload(TrackORM.album),
-                selectinload(AlbumORM.artist_rel),
+                selectinload(AlbumORM.tracks_links)
+                .selectinload(TrackAlbumLink.track)
+                .selectinload(TrackORM.files),
+                selectinload(AlbumORM.tracks_links)
+                .selectinload(TrackAlbumLink.track)
+                .selectinload(TrackORM.albums_links),
+                selectinload(AlbumORM.artists),
             )
         )
         orm_albums = session.exec(statement).all()
@@ -347,8 +351,10 @@ class DBManager:
             .limit(limit)
             .offset(offset)
             .options(
-                selectinload(TrackORM.links),
-                selectinload(TrackORM.album).selectinload(AlbumORM.artist_rel),
+                selectinload(TrackORM.files),
+                selectinload(TrackORM.albums_links)
+                .selectinload(TrackAlbumLink.album)
+                .selectinload(AlbumORM.artists),
             )
         )
         orm_tracks = session.exec(statement).all()
@@ -364,7 +370,7 @@ class DBManager:
         return [playlist_from_orm(playlist) for playlist in orm_playlists]
 
     def get_all_user_starred(self, session: Session, user_id: int):
-        user = session.exec(select(UserORM).where(UserORM.id == id)).first()
+        user = session.exec(select(UserORM).where(UserORM.id == user_id)).first()
         starred_tracks = [track_from_orm(track) for track in user.starred_tracks]
         starred_albums = [album_from_orm(album) for album in user.starred_albums]
         starred_artists = [artist_from_orm(artist) for artist in user.starred_artists]
@@ -374,8 +380,11 @@ class DBManager:
     def get_user_playlists(self, session: Session, user_id: int):
         statement = (
             select(PlaylistORM)
-            .where(PlaylistORM.owner_id == user_id)
-            .options(selectinload(PlaylistORM.owner), selectinload(PlaylistORM.tracks))
+            .join(PlaylistORM.owners)
+            .where(UserORM.id == user_id)
+            .options(
+                selectinload(PlaylistORM.owners), selectinload(PlaylistORM.track_links)
+            )
         )
         orm_playlists = session.exec(statement).all()
         return [playlist_from_orm(playlist) for playlist in orm_playlists]
@@ -485,9 +494,13 @@ class DBManager:
 
     def get_all_albums(self, session: Session):
         statement = select(AlbumORM).options(
-            selectinload(AlbumORM.tracks).selectinload(TrackORM.files),
-            selectinload(AlbumORM.tracks).selectinload(TrackORM.album),
-            selectinload(AlbumORM.artist_rel),
+            selectinload(AlbumORM.tracks_links)
+            .selectinload(TrackAlbumLink.track)
+            .selectinload(TrackORM.files),
+            selectinload(AlbumORM.tracks_links)
+            .selectinload(TrackAlbumLink.track)
+            .selectinload(TrackORM.albums_links),
+            selectinload(AlbumORM.artists),
         )
         orm_albums = session.exec(statement).all()
         return [album_from_orm(album) for album in orm_albums]
@@ -522,9 +535,13 @@ class DBManager:
             select(AlbumORM)
             .where(AlbumORM.id == id)
             .options(
-                selectinload(AlbumORM.tracks).selectinload(TrackORM.files),
-                selectinload(AlbumORM.tracks).selectinload(TrackORM.albumы),
-                selectinload(AlbumORM.artist_rel),
+                selectinload(AlbumORM.tracks_links)
+                .selectinload(TrackAlbumLink.track)
+                .selectinload(TrackORM.files),
+                selectinload(AlbumORM.tracks_links)
+                .selectinload(TrackAlbumLink.track)
+                .selectinload(TrackORM.albums_links),
+                selectinload(AlbumORM.artists),
             )
         )
         orm_album = session.exec(statement).first()
