@@ -472,6 +472,15 @@ class LibraryManager:
                 scrobbler_class = scrobbler.instance
                 scrobbler_class.post_playing_now(track, provider_key)
 
+    def get_similiar_artists(self, id: int, count: int = 5):
+        with self.db_manager.get_session() as session:
+            artist = self.db_manager.get_artist_by_id(session, id)
+            if artist is None:
+                return None
+            artists = self.scrobblers[0].instance.get_similiar_artists(artist)
+            db_artists = self.db_manager.get_artists_by_name(session, artists, count)
+            return db_artists
+
     def get_album_by_id(self, id: int):
         with self.db_manager.get_session() as session:
             album = self.db_manager.get_album_by_id(session, id)

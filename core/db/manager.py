@@ -687,6 +687,15 @@ class DBManager:
         track = session.exec(stmt).first()
         return track_from_orm(track) if track else None
 
+    def get_artists_by_name(self, session: Session, artists: list[str], count: int):
+        normalized_names = [artist.strip().lower() for artist in artists]
+        db_artists = session.exec(
+            select(ArtistORM)
+            .where(ArtistORM.normalized_name.in_(normalized_names))
+            .limit(count)
+        ).all()
+        return [artist_from_orm(artist) for artist in db_artists]
+
     def get_artists_random_tracks(
         self, session: Session, artists: list[str], count: int
     ):
