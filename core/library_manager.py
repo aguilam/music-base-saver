@@ -321,6 +321,24 @@ class LibraryManager:
             tracks = self.db_manager.get_artists_random_tracks(session, artists, count)
             return tracks
 
+    def get_user_tracks_recommendations(self, user_id: int, count: int):
+        with self.db_manager.get_session() as session:
+            scrobbler = self.scrobblers[0]
+            api_key = self.db_manager.get_provider_key(session, scrobbler.tag, user_id)
+            if api_key is None:
+                return None
+            tracks = scrobbler.instance.get_tracks_recommendations(api_key, count)
+            db_tracks: list[Track] = []
+            for track in tracks:
+                album_name = next((album.title for album in track.albums), None)
+                artists_names = [artist.name for artist in track.artists]
+                db_track = self.db_manager.find_track(
+                    session, track.title, album_name, artists_names
+                )
+                if db_track is not None:
+                    db_tracks.append(db_track)
+            return db_tracks
+
     def download(
         self,
         task_id: str | None = None,

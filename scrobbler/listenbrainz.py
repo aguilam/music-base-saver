@@ -1,5 +1,5 @@
 from scrobbler.base import Scrobbler
-from core.schemas.schemas import Artist, Track
+from core.schemas.schemas import Artist, Track, ArtistShort, AlbumShort
 import liblistenbrainz
 import requests
 import musicbrainzngs.musicbrainz
@@ -30,6 +30,50 @@ class ListenBrainz(Scrobbler):
             track_name=track.title, artist_name=artists, listened_at=time
         )
         client.submit_single_listen(listen)
+
+    def get_tracks_recommendations(self, user_token: str, count: int) -> list[Track]:
+        client = liblistenbrainz.ListenBrainz()
+        resp = requests.get(
+            "https://api.listenbrainz.org/1/validate-token",
+            headers={"Authorization": f"Token {user_token}"},
+            timeout=5,
+        )
+        resp.raise_for_status()
+        token_data = resp.json()
+        if not token_data.get("valid"):
+            return []
+        recommendation = client.get_user_recommendation_recordings(
+            username=token_data["user_name"], count=count
+        )
+        tracks = []
+        payload = recommendation.get("payload") or {}
+        for item in payload.get("mbids", []):
+            result = musicbrainzngs.get_recording_by_id(
+                id=item["recording_mbid"],
+                includes=["artists", "releases"],
+            )
+
+            recording = result.get("recording")
+            if recording is None:
+                continue
+
+            albums = [
+                AlbumShort(title=album["title"]) for album in result.get("releases", [])
+            ]
+            artists = [
+                ArtistShort(name=artist["name"]) for artist in result.get("artists", [])
+            ]
+
+            tracks.append(
+                Track(
+                    title=recording["title"],
+                    albums=albums,
+                    artists=artists,
+                    length=recording.get("length"),
+                )
+            )
+
+        return tracks
 
     def get_similiar_artists(self, artist: Artist) -> list[str]:
         artists = musicbrainzngs.search_artists(artist.name, limit=1)

@@ -14,5 +14,9 @@ class Scrobbler(Service, ABC):
         pass
 
     @abstractmethod
+    def get_tracks_recommendations(self, user_token: str, count: int) -> list[Track]:
+        pass
+
+    @abstractmethod
     def get_similiar_artists(self, artist: Artist) -> list[str]:
         pass
