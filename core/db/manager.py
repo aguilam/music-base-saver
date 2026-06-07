@@ -20,6 +20,8 @@ from core.db.mappers import (
     object_storage_from_orm,
     mood_from_orm,
     genre_from_orm,
+    provider_key_from_orm,
+    api_key_from_orm,
 )
 from core.db.models import (
     UserORM,
@@ -99,12 +101,37 @@ class DBManager:
             ProviderKeyORM.provider == provider, ProviderKeyORM.user_id == user_id
         )
         key = session.exec(statement).first()
-        return key
+        return provider_key_from_orm(key) if key else None
 
-    def get_api_key(self, session: Session, user_id: int):
-        statement = select(ApiKeyORM.key).where(ApiKeyORM.user_id == user_id)
+    def delete_provider_key(self, session: Session, id: int):
+        session.exec(delete(ProviderKeyORM).where(ProviderKeyORM.id == id))
+        session.flush()
+
+    def get_user_provider_keys(self, session: Session, user_id: int):
+        statement = select(ProviderKeyORM).where(ProviderKeyORM.user_id == user_id)
         keys = session.exec(statement).all()
-        return keys
+        return [provider_key_from_orm(key) for key in keys]
+
+    def get_user_api_keys(self, session: Session, user_id: int):
+        statement = select(ApiKeyORM).where(ApiKeyORM.user_id == user_id)
+        keys = session.exec(statement).all()
+        return [api_key_from_orm(key) for key in keys]
+
+    def check_api_key_availability(self, session: Session, api_key: str):
+        key = session.exec(
+            select(ApiKeyORM).where(
+                ApiKeyORM.key == api_key, ApiKeyORM.revoked == False
+            )
+        ).first()
+        return api_key_from_orm(key) if key else None
+
+    def toggle_api_key_revoked(self, session: Session, id: int):
+        session.exec(
+            update(ApiKeyORM)
+            .where(ApiKeyORM.id == id)
+            .values(revoked=~ApiKeyORM.revoked)
+        )
+        session.flush()
 
     def get_moods(self, session: Session):
         moods = (

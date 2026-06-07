@@ -324,10 +324,14 @@ class LibraryManager:
     def get_user_tracks_recommendations(self, user_id: int, count: int):
         with self.db_manager.get_session() as session:
             scrobbler = self.scrobblers[0]
-            api_key = self.db_manager.get_provider_key(session, scrobbler.tag, user_id)
-            if api_key is None:
+            provider_key = self.db_manager.get_provider_key(
+                session, scrobbler.tag, user_id
+            )
+            if provider_key is None:
                 return None
-            tracks = scrobbler.instance.get_tracks_recommendations(api_key, count)
+            tracks = scrobbler.instance.get_tracks_recommendations(
+                provider_key.key, count
+            )
             db_tracks: list[Track] = []
             for track in tracks:
                 album_name = next((album.title for album in track.albums), None)
@@ -476,7 +480,7 @@ class LibraryManager:
                 if provider_key is None:
                     continue
                 scrobbler_class = scrobbler.instance
-                scrobbler_class.submit_listen(track, provider_key, listen_time)
+                scrobbler_class.submit_listen(track, provider_key.key, listen_time)
 
     def post_now_playing(self, id: int, user_id: str):
         with self.db_manager.get_session() as session:
@@ -488,7 +492,32 @@ class LibraryManager:
                 if provider_key is None:
                     continue
                 scrobbler_class = scrobbler.instance
-                scrobbler_class.post_playing_now(track, provider_key)
+                scrobbler_class.post_playing_now(track, provider_key.key)
+
+    def delete_provider_key(self, key_id: int):
+        with self.db_manager.get_session() as session:
+            self.db_manager.delete_provider_key(session, key_id)
+            session.commit()
+
+    def check_api_key_availability(self, api_key: str):
+        with self.db_manager.get_session() as session:
+            key = self.db_manager.check_api_key_availability(session, api_key)
+            return key
+
+    def get_user_provider_keys(self, user_id: int):
+        with self.db_manager.get_session() as session:
+            api_keys = self.db_manager.get_user_provider_keys(session, user_id)
+            return api_keys
+
+    def get_user_api_keys(self, user_id: int):
+        with self.db_manager.get_session() as session:
+            api_keys = self.db_manager.get_user_api_keys(session, user_id)
+            return api_keys
+
+    def toggle_api_key_revoked(self, key_id: int):
+        with self.db_manager.get_session() as session:
+            self.db_manager.toggle_api_key_revoked(session, key_id)
+            session.commit()
 
     def get_similiar_artists(self, id: int, count: int = 5):
         with self.db_manager.get_session() as session:
@@ -686,12 +715,12 @@ class LibraryManager:
                 )
             return lyrics_list
 
-    def get_user(self, username: str | None = None, apiKey: str | None = None):
+    def get_user(self, username: str | None = None, user_id: int | None = None):
         with self.db_manager.get_session() as session:
             if username is not None:
                 return self.db_manager.get_user_by_name(session, username)
-            elif apiKey is not None:
-                return self.db_manager.get_user_by_apikey(session, apiKey)
+            elif user_id is not None:
+                return self.db_manager.get_user_by_id(session, user_id)
             else:
                 return None
 

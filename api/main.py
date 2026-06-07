@@ -58,9 +58,10 @@ async def get_user(
     if username is not None and api_key is not None:
         raise_subsonic_error(43)
     if api_key is not None and username is None:
-        user = library_manager.get_user(apiKey=api_key)
-        if user is None:
+        key = library_manager.check_api_key_availability(api_key)
+        if key is None:
             raise_subsonic_error(44)
+        user = library_manager.get_user(user_id=key.user_id)
         return user
     elif (
         username is not None

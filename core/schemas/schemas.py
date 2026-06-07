@@ -394,3 +394,21 @@ class StartStatuses:
     search: list[ServiceStatus] = field(default_factory=list)
     storages: list[ServiceStatus] = field(default_factory=list)
     scrobblers: list[ServiceStatus] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class ApiKey:
+    id: int | None = None
+    key: str
+    user_id: int
+    revoked: bool = False
+    created_at: datetime | None = None
+
+
+@dataclass(slots=True)
+class ProviderKey:
+    id: int | None = None
+    provider: str
+    key: str
+    user_id: int
+    created_at: datetime | None = None

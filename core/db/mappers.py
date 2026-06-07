@@ -10,6 +10,8 @@ from core.db.models import (
     TrackAlbumLink,
     MoodORM,
     GenreORM,
+    ApiKeyORM,
+    ProviderKeyORM,
 )
 from core.schemas.schemas import (
     TrackShort,
@@ -27,6 +29,8 @@ from core.schemas.schemas import (
     Genre,
     ObjectStorage,
     TrackAlbum,
+    ApiKey,
+    ProviderKey,
 )
 
 
@@ -218,4 +222,24 @@ def object_storage_from_orm(storage: ObjectStorageORM) -> ObjectStorage:
         track_id=storage.audio_id,
         music_video_id=storage.music_video_id,
         lyrics_id=storage.lyrics_id,
+    )
+
+
+def api_key_from_orm(api_key: ApiKeyORM) -> ApiKey:
+    return ApiKey(
+        id=api_key.id,
+        key=api_key.key,
+        user_id=api_key.user_id,
+        revoked=api_key.revoked,
+        created_at=api_key.created_at,
+    )
+
+
+def provider_key_from_orm(api_key: ProviderKeyORM) -> ProviderKey:
+    return ProviderKey(
+        id=api_key.id,
+        provider=api_key.provider,
+        key=api_key.key,
+        user_id=api_key.user_id,
+        created_at=api_key.created_at,
     )
