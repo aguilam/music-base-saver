@@ -398,17 +398,17 @@ class StartStatuses:
 
 @dataclass(slots=True)
 class ApiKey:
-    id: int | None = None
     key: str
     user_id: int
     revoked: bool = False
+    id: int | None = None
     created_at: datetime | None = None
 
 
 @dataclass(slots=True)
 class ProviderKey:
-    id: int | None = None
     provider: str
     key: str
     user_id: int
+    id: int | None = None
     created_at: datetime | None = None

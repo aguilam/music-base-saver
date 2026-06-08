@@ -3,11 +3,12 @@ from fastapi.responses import Response, JSONResponse
 from core.library_manager import LibraryManager
 from collections import defaultdict
 import hashlib
+import uvicorn
 from typing import Annotated
 from core.schemas.schemas import User
 from hmac import compare_digest
 from fastapi.middleware.cors import CORSMiddleware
-from api.mappers import (
+from interface.subsonic_api.mappers import (
     to_subsonic_album,
     to_subsonic_artist,
     to_subsonic_playlist,
@@ -18,6 +19,7 @@ from api.mappers import (
     external_track_to_subsonic,
 )
 import json
+from interface.base_interface import Interface
 from core.schemas.schemas import Task, DownloadTaskResult, SyncTaskResult
 
 
@@ -45,7 +47,15 @@ def raise_subsonic_error(code: int):
     raise SubsonicException(code, message)
 
 
-async def get_user(
+def get_library_manager(request: Request) -> "LibraryManager":
+    return request.app.state.library_manager
+
+
+CurrentLibrary = Annotated["LibraryManager", Depends(get_library_manager)]
+
+
+def get_user(
+    library_manager: CurrentLibrary,
     u: str | None = None,
     t: str | None = None,
     s: str | None = None,
@@ -82,19 +92,9 @@ async def get_user(
         raise_subsonic_error(10)
 
 
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 subsonic_router = APIRouter(prefix="/rest", dependencies=[Depends(get_user)])
-library_manager = LibraryManager()
 
 
-@app.exception_handler(SubsonicException)
 async def subsonic_exception_handler(request: Request, exc: SubsonicException):
     return JSONResponse(
         status_code=200,
@@ -104,7 +104,6 @@ async def subsonic_exception_handler(request: Request, exc: SubsonicException):
     )
 
 
-@app.middleware("http")
 async def subsonic_middleware(request: Request, call_next):
     response: Response = await call_next(request)
     if not request.url.path.startswith("/rest"):
@@ -144,56 +143,8 @@ async def subsonic_middleware(request: Request, call_next):
     return new_response
 
 
-@app.get("/")
-def root():
-    return {"Hello World"}
-
-
-@app.post("/login")
-def login():
-    return {"Hello world"}
-
-
-@app.get("/config")
-def change_configuration():
-    return {"Hello World"}
-
-
-@app.patch("/config")
-def change_configuration():
-    return {"Hello World"}
-
-
-@app.get("/search")
-def search(query: str, type: str):
-    search_results = library_manager.search(query, type)
-    return search_results
-
-
-@app.get("/tracks/download/status")
-def check_status():
-    return {"hello world"}
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
-
-@app.post("/track/download")
-def download(query: str):
-    downloaded_path = library_manager.download(query)
-    return downloaded_path
-
-
-@app.get("/tracks/get")
-def get_tracks():
-    tracks = library_manager.get_all_tracks()
-    return tracks
-
-
 @subsonic_router.get("/stream", status_code=status.HTTP_206_PARTIAL_CONTENT)
-def stream_track(request: Request, id: str):
+def stream_track(library_manager: CurrentLibrary, request: Request, id: str):
     CHUNK_SIZE = 1024 * 1024
     range_header = request.headers.get("range")
     if not range_header:
@@ -220,7 +171,9 @@ def stream_track(request: Request, id: str):
 
 
 @subsonic_router.get("/getPlaylists")
-def get_user_playlists(user: Annotated[User, Depends(get_user)]):
+def get_user_playlists(
+    library_manager: CurrentLibrary, user: Annotated[User, Depends(get_user)]
+):
     user_playlists = library_manager.get_user_playlists(user.id)
     subsonic_playlists = [to_subsonic_playlist(playlist) for playlist in user_playlists]
     return {
@@ -230,6 +183,7 @@ def get_user_playlists(user: Annotated[User, Depends(get_user)]):
 
 @subsonic_router.post("/createPlaylists")
 def create_playlist(
+    library_manager: CurrentLibrary,
     user: Annotated[User, Depends(get_user)],
     songId: list[int],
     name: str | None = None,
@@ -248,14 +202,21 @@ def create_playlist(
 
 
 @subsonic_router.delete("/deletePlaylist")
-def delete_playlist(id: int, user: Annotated[User, Depends(get_user)]):
+def delete_playlist(
+    library_manager: CurrentLibrary,
+    id: int,
+    user: Annotated[User, Depends(get_user)],
+):
     library_manager.delete_playlist(id, user.id)
     return {}
 
 
 @subsonic_router.post("/changePassword")
 def change_password(
-    username: str, password: str, user: Annotated[User, Depends(get_user)]
+    library_manager: CurrentLibrary,
+    username: str,
+    password: str,
+    user: Annotated[User, Depends(get_user)],
 ):
     library_manager.update_user(user.id, username, password)
     return {}
@@ -263,6 +224,7 @@ def change_password(
 
 @subsonic_router.post("/updateUser")
 def update_user(
+    library_manager: CurrentLibrary,
     username: str,
     user: Annotated[User, Depends(get_user)],
     adminRole: bool | None = None,
@@ -273,13 +235,17 @@ def update_user(
 
 
 @subsonic_router.post("/createUser")
-def create_user(username: str, password: str, email: str):
+def create_user(
+    library_manager: CurrentLibrary, username: str, password: str, email: str
+):
     library_manager.create_user(username, password, email)
     return {}
 
 
 @subsonic_router.get("/getPlaylist")
-def get_playlist(id: int, user: Annotated[User, Depends(get_user)]):
+def get_playlist(
+    library_manager: CurrentLibrary, id: int, user: Annotated[User, Depends(get_user)]
+):
     playlist = library_manager.get_playlist_by_id(id)
     if playlist is None:
         raise_subsonic_error(70)
@@ -295,7 +261,9 @@ def get_playlist(id: int, user: Annotated[User, Depends(get_user)]):
 
 
 @subsonic_router.get("/getStarred2")
-def get_user_starred(user: Annotated[User, Depends(get_user)]):
+def get_user_starred(
+    library_manager: CurrentLibrary, user: Annotated[User, Depends(get_user)]
+):
     tracks, albums, artists = library_manager.get_all_user_starred(user.id)
     parsed_tracks = [to_subsonic_song(track) for track in tracks]
     parsed_albums = [to_subsonic_album(album) for album in albums]
@@ -310,7 +278,7 @@ def get_user_starred(user: Annotated[User, Depends(get_user)]):
 
 
 @subsonic_router.get("/getCoverArt")
-def get_cover_art(id: int):
+def get_cover_art(library_manager: CurrentLibrary, id: int):
     cover_art = library_manager.get_cover_art(id)
     if cover_art is None:
         raise_subsonic_error(70)
@@ -334,6 +302,7 @@ def get_music_directory():
 
 @subsonic_router.get("/search3")
 def local_serch(
+    library_manager: CurrentLibrary,
     query: str,
     artistCount: int = 20,
     artistOffset: int = 0,
@@ -355,7 +324,7 @@ def local_serch(
 
 
 @subsonic_router.post("/globalDownload")
-def global_download(query: str = None, id: str = None):
+def global_download(library_manager: CurrentLibrary, query: str = None, id: str = None):
     task_id = library_manager.download(query=query, object_id=id)
     return {
         "taskId": task_id,
@@ -363,7 +332,7 @@ def global_download(query: str = None, id: str = None):
 
 
 @subsonic_router.get("/checkGlobalDownload")
-def check_global_download(id: str):
+def check_global_download(library_manager: CurrentLibrary, id: str):
     download: Task[DownloadTaskResult] | None = library_manager.get_task(id)
     if download is None:
         raise_subsonic_error(70)
@@ -380,6 +349,7 @@ def check_global_download(id: str):
 
 @subsonic_router.get("/globalSearch")
 def global_search(
+    library_manager: CurrentLibrary,
     query: str,
 ):
     searched = library_manager.global_search(query)
@@ -404,7 +374,7 @@ def global_search(
 
 
 @subsonic_router.get("/getArtist")
-def get_artist(id: str):
+def get_artist(library_manager: CurrentLibrary, id: str):
     if "-" in id:
         artist = library_manager.get_global_object("artist", id)
         parsed_artist = external_artist_to_subsonic(artist)
@@ -423,7 +393,7 @@ def get_artist(id: str):
 
 
 @subsonic_router.get("/getArtists")
-def get_artists():
+def get_artists(library_manager: CurrentLibrary):
     artists = library_manager.get_all_artists()
     capitalized_artists = defaultdict(list)
     for artist in artists:
@@ -442,7 +412,7 @@ def get_artists():
 
 
 @subsonic_router.get("/getSong")
-def get_song(id: str):
+def get_song(library_manager: CurrentLibrary, id: str):
     if "-" in id:
         track = library_manager.get_global_object("track", id)
         song = external_track_to_subsonic(track)
@@ -461,7 +431,7 @@ def get_song(id: str):
 
 
 @subsonic_router.get("/getAlbum")
-def get_album(id: str):
+def get_album(library_manager: CurrentLibrary, id: str):
     if "-" in id:
         album = library_manager.get_global_object("album", id)
         parsed_album = external_album_to_subsonic(album)
@@ -490,7 +460,7 @@ def get_album(id: str):
 
 
 @subsonic_router.get("/getAlbumList2")
-def get_albums():
+def get_albums(library_manager: CurrentLibrary):
     albums = library_manager.get_all_albums()
     if albums is None:
         raise_subsonic_error(70)
@@ -507,6 +477,7 @@ def ping():
 
 @subsonic_router.post("/star")
 def star(
+    library_manager: CurrentLibrary,
     user: Annotated[User, Depends(get_user)],
     id: str | None = None,
     albumId: str | None = None,
@@ -523,6 +494,7 @@ def star(
 
 @subsonic_router.post("/unstar")
 def unstar(
+    library_manager: CurrentLibrary,
     user: Annotated[User, Depends(get_user)],
     id: str | None = None,
     albumId: str | None = None,
@@ -538,7 +510,12 @@ def unstar(
 
 
 @subsonic_router.post("/scrobble")
-def unstar(id: int, time: int | None = None, submission: bool | None = True):
+def unstar(
+    library_manager: CurrentLibrary,
+    id: int,
+    time: int | None = None,
+    submission: bool | None = True,
+):
     if submission:
         library_manager.scrobble(id, time)
     else:
@@ -547,7 +524,7 @@ def unstar(id: int, time: int | None = None, submission: bool | None = True):
 
 
 @subsonic_router.get("/getLyrics")
-def get_lyrics(title: str, artist: str | None = None):
+def get_lyrics(library_manager: CurrentLibrary, title: str, artist: str | None = None):
     track = library_manager.get_track_by_title(title)
     lyrics = library_manager.get_lyrics(track.id)
     lyric = next((lyric for lyric in lyrics if lyric.is_synced == False), None)
@@ -561,7 +538,7 @@ def get_lyrics(title: str, artist: str | None = None):
 
 
 @subsonic_router.get("/getLyricsBySongId")
-def get_lyrics(id: int, enhanced: bool | None = False):
+def get_lyrics(library_manager: CurrentLibrary, id: int, enhanced: bool | None = False):
     lyrics = library_manager.get_lyrics(id)
     sub_lyrics = [to_subsonic_lyric(lyric) for lyric in lyrics]
     return {
@@ -570,7 +547,9 @@ def get_lyrics(id: int, enhanced: bool | None = False):
 
 
 @subsonic_router.get("/getTopSongs")
-def get_artist_top_songs(artist: str, count: int | None = 50):
+def get_artist_top_songs(
+    library_manager: CurrentLibrary, artist: str, count: int | None = 50
+):
     tracks = library_manager.get_artist_top_songs(artist, count)
     artist_songs = [to_subsonic_song(track) for track in tracks]
     return {
@@ -579,7 +558,7 @@ def get_artist_top_songs(artist: str, count: int | None = 50):
 
 
 @subsonic_router.get("/getGenres")
-def get_genres():
+def get_genres(library_manager: CurrentLibrary):
     genres = library_manager.get_genres()
     sub_genres = []
     for genre in genres:
@@ -596,7 +575,7 @@ def get_genres():
 
 
 @subsonic_router.get("/getMoods")
-def get_moods():
+def get_moods(library_manager: CurrentLibrary):
     moods = library_manager.get_moods()
     sub_moods = []
     for mood in moods:
@@ -613,7 +592,11 @@ def get_moods():
 
 
 @subsonic_router.get("/deleteUser")
-def delete_user(username: str, user: Annotated[User, Depends(get_user)]):
+def delete_user(
+    library_manager: CurrentLibrary,
+    username: str,
+    user: Annotated[User, Depends(get_user)],
+):
     result = library_manager.delete_user_by_username(username, user.id)
     if result is None:
         raise_subsonic_error(50)
@@ -628,7 +611,7 @@ def download_to_user():
 
 
 @subsonic_router.get("/startScan")
-def start_scan():
+def start_scan(library_manager: CurrentLibrary):
     library_manager.sync(sync_id="sub")
     return {
         "scanStatus": {"scanning": True, "count": 0},
@@ -636,7 +619,7 @@ def start_scan():
 
 
 @subsonic_router.get("/getSimilarSongs2")
-def getSimiliarSong(id: int, count: int = 50):
+def getSimiliarSong(library_manager: CurrentLibrary, id: int, count: int = 50):
     tracks = library_manager.get_similiar_artists_random_tracks(id, count)
     if tracks is None:
         raise_subsonic_error(70)
@@ -644,7 +627,7 @@ def getSimiliarSong(id: int, count: int = 50):
 
 
 @subsonic_router.get("/scanStatus")
-def scan_status():
+def scan_status(library_manager: CurrentLibrary):
     task: Task[SyncTaskResult] | None = library_manager.get_task("sub")
     if task is None:
         raise_subsonic_error(70)
@@ -666,4 +649,24 @@ def get_license():
     }
 
 
-app.include_router(subsonic_router)
+class SubsonicApi(Interface):
+
+    async def start(self):
+        port = int(self.config.get("port", 8000))
+        host = self.config.get("host", "127.0.0.1")
+        app = FastAPI()
+        app.state.library_manager = self.library_manager
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+        app.add_exception_handler(SubsonicException, subsonic_exception_handler)
+        app.middleware("http")(subsonic_middleware)
+        app.include_router(subsonic_router)
+
+        config = uvicorn.Config(app, port=port, host=host)
+        server = uvicorn.Server(config)
+        await server.serve()
