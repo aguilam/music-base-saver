@@ -20,7 +20,6 @@ from core.schemas.schemas import (
     Artist,
     AlbumShort,
     Album,
-    AlbumShort,
     Playlist,
     MusicVideo,
     Lyrics,
@@ -79,7 +78,7 @@ def album_short_from_orm(album: AlbumORM) -> AlbumShort:
         tracks_count=album.track_count,
         genres=[genre.name for genre in album.genres],
         artists=[artist_short_from_orm(artist) for artist in album.artists],
-        tracks=[track_from_orm(link.track) for link in album.tracks_links],
+        tracks=[track_short_from_orm(link.track) for link in album.tracks_links],
         created_at=album.created_at,
     )
 
@@ -125,7 +124,7 @@ def track_from_orm(track: TrackORM) -> Track:
         length=track.length,
         artists=[artist_short_from_orm(artist) for artist in track.artists],
         albums=[track_album_from_orm(link) for link in track.albums_links],
-        cover_path=primary_album.cover_path if primary_album else primary_album,
+        cover_path=primary_album.cover_path if primary_album else None,
         path=(
             next((link.id for link in primary_file.links), None)
             if primary_file
@@ -186,7 +185,7 @@ def lyrics_from_orm(lyrics: LyricsORM) -> Lyrics:
         synced_text=lyrics.synced_text,
         plain_text=lyrics.plain_text,
         language=lyrics.language,
-        path=next((path.id for path in lyrics.path), None),
+        path=next((path.id for path in lyrics.path)),
         type=lyrics.type,
         offset=lyrics.offset,
         track_id=lyrics.track_id,

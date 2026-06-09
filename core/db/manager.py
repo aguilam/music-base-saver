@@ -313,7 +313,7 @@ class DBManager:
         self,
         session: Session,
         user_id: int,
-        name: str,
+        title: str,
         cover_path: int | None,
         is_public: bool,
         tracks_id: list[int],
@@ -322,7 +322,7 @@ class DBManager:
         if user is None:
             return None
         playlist = PlaylistORM(
-            name=name, cover_path=cover_path, is_public=is_public, owner=user
+            title=title, cover_path=cover_path, is_public=is_public, owner=user
         )
         session.add(playlist)
         session.flush()
@@ -390,7 +390,7 @@ class DBManager:
     def search_playlists(self, session: Session, query: str, limit: int, offset: int):
         orm_playlists = session.exec(
             select(PlaylistORM)
-            .where(col(PlaylistORM.name).ilike(f"%{query}%"))
+            .where(col(PlaylistORM.title).ilike(f"%{query}%"))
             .limit(limit)
             .offset(offset)
         ).all()

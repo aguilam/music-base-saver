@@ -411,7 +411,7 @@ class LyricsORM(SQLModel, table=True):
     __tablename__ = "lyrics"
     id: int | None = Field(default=None, primary_key=True)
     is_synced: bool = False
-    language: str | None = None
+    language: str = Field(default="und")
     plain_text: str | None = None
     synced_text: list[dict] | None = Field(default=None, sa_column=Column(JSON))
     type: str | None = None
@@ -439,7 +439,7 @@ class MusicVideoORM(SQLModel, table=True):
     local_link: list["ObjectStorageORM"] = Relationship(
         sa_relationship_kwargs={"foreign_keys": ObjectStorageORM.music_video_id}
     )
-    track_id: int | None = Field(
+    track_id: int = Field(
         sa_column=Column(Integer, ForeignKey("track.id", ondelete="CASCADE"))
     )
     track: TrackORM | None = Relationship(back_populates="music_videos")
@@ -448,7 +448,7 @@ class MusicVideoORM(SQLModel, table=True):
 class PlaylistORM(SQLModel, table=True):
     __tablename__ = "playlist"
     id: int | None = Field(default=None, primary_key=True)
-    name: str
+    title: str
     cover_path: int | None = Field(
         default=None, foreign_key="object_storage.id", ondelete="SET NULL"
     )

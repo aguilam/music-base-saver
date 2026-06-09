@@ -92,7 +92,7 @@ class Track:
     length: int
     id: int | None = None
     cover_path: int | None = None
-    path: str | None = None
+    path: int | None = None
     bpm: int | None = None
     track_gain: float | None = None
     track_peak: float | None = None
@@ -111,7 +111,7 @@ class TrackShort:
     length: int
     id: int | None = None
     cover_path: int | None = None
-    path: str | None = None
+    path: int | None = None
     bpm: int | None = None
     track_gain: float | None = None
     track_peak: float | None = None
@@ -125,11 +125,11 @@ class TrackShort:
 @dataclass(slots=True)
 class Lyrics:
     language: str
-    path: int
+    path: int | None
     offset: int = 0
     id: int | None = None
     is_synced: bool = False
-    synced_text: dict | None = None
+    synced_text: list[dict] | None = None
     plain_text: str | None = None
     type: str | None = None
     track_id: int | None = None
@@ -149,7 +149,7 @@ class LyricsResponse:
 
 @dataclass(slots=True)
 class MusicVideo:
-    local_link: int
+    local_link: int | None
     track_id: int
     duration_ms: int | None = None
     id: int | None = None

@@ -101,7 +101,6 @@ UNSTAR_LINK_MAP = {
 
 
 class LibraryManager:
-
     def __init__(self) -> None:
         path = Path(__file__).resolve()
         config_path = path.parents[1] / "config.toml"
@@ -294,7 +293,9 @@ class LibraryManager:
             )
             session.add(track_mood_link)
             session.flush()
-        audio_file = AudioFileORM(track_id=new_track.id, bitrate=track_metadata.bitrate)
+        audio_file = AudioFileORM(
+            track_id=new_track.id, bitrate=track_metadata.bitrate, is_primary=True
+        )
         new_track.files.append(audio_file)
         session.add(audio_file)
         session.flush()
@@ -1144,7 +1145,7 @@ class LibraryManager:
                         },
                     )
                     sanitized_name = (
-                        f"{sanitize_filename(track_info.title)}.{name.split(".")[1]}"
+                        f"{sanitize_filename(track_info.title)}.{name.split('.')[1]}"
                     )
                     saving_path = Path(
                         (
