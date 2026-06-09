@@ -1,3 +1,4 @@
+from typing import Any
 from pathlib import Path
 from collections.abc import Mapping
 from mutagen import File
@@ -13,7 +14,6 @@ from storage.base import Storage
 import mutagen
 import requests
 import re
-from core.loader import StorageEntry
 from core.schemas.schemas import Track
 import pyexiv2
 import io
@@ -26,7 +26,7 @@ from core.schemas.schemas import (
 )
 
 
-def analyze_lrc(lines: list[str]):
+def analyze_lrc(lines: list[str]) -> dict:
     artist: str = ""
     album: str = ""
     title: str = ""
@@ -45,7 +45,7 @@ def analyze_lrc(lines: list[str]):
         elif text.startswith("ti:"):
             title = _get_tag_value(text)
         elif text.startswith("offset"):
-            offset = _get_tag_value(text)
+            offset = int(_get_tag_value(text))
         elif time:
             mil_time = 0
             text_line = line[time.end() + 2 :].strip()
@@ -57,16 +57,16 @@ def analyze_lrc(lines: list[str]):
         "artist": artist,
         "album": album,
         "title": title,
-        "offset": int(offset),
+        "offset": offset,
         "text": text_list,
     }
 
 
-def _get_tag_value(text: str):
+def _get_tag_value(text: str) -> str:
     return text.split(":")[1].strip()
 
 
-def compare_tracks(original_metadata: dict, track_metadata: dict):
+def compare_tracks(original_metadata: dict, track_metadata: dict) -> float:
     similarity = 0.0
     if any(
         orig.lower() in track.lower()
@@ -87,7 +87,7 @@ def compare_tracks(original_metadata: dict, track_metadata: dict):
 
 def find_best_track(
     searched_tracks: list[Track],
-):
+) -> dict[str, list]:
     frequent_title: list[list] = []
     frequent_artists: list[list] = []
     frequent_length = []
@@ -100,14 +100,14 @@ def find_best_track(
                     frequent_artists[i].append(artist.name.lower())
                     artist_added = True
                     break
-            if artist_added == False:
+            if not artist_added:
                 frequent_artists.append([artist.name.lower()])
         for i in range(0, len(frequent_title)):
             if frequent_title[i][0].lower() == track.title.lower():
                 frequent_title[i].append(track.title.lower())
                 title_added = True
                 break
-        if title_added == False:
+        if not title_added:
             frequent_title.append([track.title.lower()])
         frequent_length.append(track.length)
     best_match_title = list(
@@ -126,7 +126,9 @@ def find_best_track(
     return best_match_track
 
 
-def find_best_storage(storages: list[StorageEntry], file_size: int):
+def find_best_storage(
+    storages: list[StorageEntry], file_size: int
+) -> StorageEntry | None:
     for storage in storages:
         current_storage = storage.instance
         free_storage = current_storage.check_storage()
@@ -134,12 +136,12 @@ def find_best_storage(storages: list[StorageEntry], file_size: int):
             return storage
 
 
-def get_track_metadata_by_path(track_path: Path):
+def get_track_metadata_by_path(track_path: Path) -> TrackMetadata:
     track_metadata = mutagen.File(track_path, easy=True)
     return _get_track_metadata(track_metadata)
 
 
-def full_track_save(best_storage: Storage, dst, saving_path):
+def full_track_save(best_storage: Storage, dst, saving_path) -> dict:
     cover = get_cover(dst)
     if cover is not None:
         bytes, ext = cover
@@ -188,7 +190,7 @@ def get_cover(filepath: str | Path) -> tuple[bytes, str] | None:
                 return bytes(covers[0]), mime.split("/")[1]
 
         return None
-    except:
+    except Exception:
         return None
 
 
@@ -206,7 +208,7 @@ def image_mime(data: bytes) -> str:
     return "application/octet-stream"
 
 
-def _clean_track_tag_value(tag) -> str | None:
+def _clean_track_tag_value(tag: Any) -> str | None:
     while True:
         if tag is None:
             return None
@@ -216,18 +218,19 @@ def _clean_track_tag_value(tag) -> str | None:
             continue
 
         if isinstance(tag, Mapping):
+            mapping_tag: Any = tag
             tag = (
-                tag.get('lang="x-default"')
-                or tag.get("x-default")
-                or next(iter(tag.values()), None)
+                mapping_tag.get('lang="x-default"')
+                or mapping_tag.get("x-default")
+                or next(iter(mapping_tag.values()), None)
             )
             continue
 
-        value = tag.strip() if hasattr(tag, "strip") else str(tag).strip()
+        value = tag.strip() if isinstance(tag, str) else str(tag).strip()
         return value or None
 
 
-def _get_clear_track_tag(name_tag: str, metadata):
+def _get_clear_track_tag(name_tag: str, metadata) -> str | None:
     return _clean_track_tag_value(metadata.get(name_tag))
 
 
@@ -238,7 +241,7 @@ def _get_clear_track_tags(name_tag: str, metadata) -> list[str]:
     return [value for tag in tags if (value := _clean_track_tag_value(tag)) is not None]
 
 
-def _get_track_metadata(track_metadata):
+def _get_track_metadata(track_metadata) -> TrackMetadata:
     title = _get_clear_track_tag("title", track_metadata)
     artists_names = _get_clear_track_tags("artist", track_metadata)
     album_artist_tag = _get_clear_track_tag("albumartist", track_metadata)
@@ -261,14 +264,14 @@ def _get_track_metadata(track_metadata):
         artists=artists_names,
         albums=[
             TrackAlbumMetadata(
-                title=album_title,
+                title=album_title or "Unknown",
                 album_artists=album_artist,
-                disc_number=disc_number,
-                album_position=album_position,
+                disc_number=int(disc_number) if disc_number else None,
+                album_position=int(album_position) if album_position else None,
             )
         ],
         length=length,
-        year=date,
+        year=int(date) if date else None,
         genres=genres,
         moods=moods,
         bitrate=bitrate,
@@ -276,7 +279,7 @@ def _get_track_metadata(track_metadata):
     )
 
 
-def get_track_metadata_by_bytes(bytes: bytes):
+def get_track_metadata_by_bytes(bytes: bytes) -> TrackMetadata:
     track_metadata = mutagen.File(io.BytesIO(bytes), easy=True)
     return _get_track_metadata(track_metadata)
 
@@ -286,7 +289,7 @@ def get_video_metadata(video_bytes: bytes) -> dict:
     title = _get_clear_track_tag("\xa9nam", video_metadata)
     artists = _get_clear_track_tag("\xa9ART", video_metadata)
     album = _get_clear_track_tag("\xa9alb", video_metadata)
-    video_type = _get_clear_track_tag("stik", video_metadata)
+    # video_type = _get_clear_track_tag("stik", video_metadata)
     return {"title": title, "artists": artists, "album": album}
 
 
@@ -320,11 +323,11 @@ def write_cover_metadata(
 ):
     metadata = {}
     if album:
-        metadata[f"Xmp.dc.title"] = album
+        metadata["Xmp.dc.title"] = album
     if artists and len(artists) > 0:
-        metadata[f"Xmp.dc.creator"] = artists
+        metadata["Xmp.dc.creator"] = artists
     if genres and len(genres) > 0:
-        metadata[f"Xmp.dc.subject"] = genres
+        metadata["Xmp.dc.subject"] = genres
     with pyexiv2.Image(path) as img:
         img.modify_xmp(metadata)
 
@@ -357,7 +360,9 @@ def read_lyrics_text(text: str) -> tuple[str, str | dict]:
         return ("txt", text)
 
 
-def get_id_from_string(string: str, prefix: str = "al|tr|ar|pl"):
+def get_id_from_string(
+    string: str, prefix: str = "al|tr|ar|pl"
+) -> tuple[str, int] | None:
     if re.match(rf"^{(prefix)}-\d+$", string):
         parts = string.split("-")
         return (parts[0], int(parts[1]))
@@ -365,7 +370,9 @@ def get_id_from_string(string: str, prefix: str = "al|tr|ar|pl"):
         return None
 
 
-def _get_runtime_errors(modules: list[ModuleEntry | StorageEntry]):
+def _get_runtime_errors(
+    modules: list[ModuleEntry | StorageEntry],
+) -> list[ServiceStatus]:
     statuses: list[ServiceStatus] = []
     for module in modules:
         try:
