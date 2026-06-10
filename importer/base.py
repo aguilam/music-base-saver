@@ -9,7 +9,6 @@ from core.base_service import Service
 
 
 class Importer(Service, ABC):
-
     def __init__(self, config):
         self.config = config
 
@@ -24,29 +23,29 @@ class Importer(Service, ABC):
         pass
 
     @abstractmethod
-    def get_artist(self, artist_id: str) -> ImporterArtist:
+    def get_artist(self, artist_id: int | str) -> ImporterArtist:
         pass
 
     @abstractmethod
-    def get_playlist(self, playlist_id: str) -> ImporterPlaylist:
+    def get_playlist(self, playlist_id: int | str) -> ImporterPlaylist:
         pass
 
     @abstractmethod
-    def get_album(self, album_id: str) -> ImporterAlbum:
+    def get_album(self, album_id: int | str) -> ImporterAlbum:
         pass
 
     @abstractmethod
-    def get_track(self, track_id: str) -> ImporterTrack:
+    def get_track(self, track_id: int | str) -> ImporterTrack:
         pass
 
     @abstractmethod
-    def get_track_download_link(self, track_id: str) -> tuple[str, str]:
+    def get_track_download_link(self, track_id: int | str) -> tuple[str, str]:
         pass
 
     @abstractmethod
-    def get_lyrics_download_link(self, track_id: str) -> tuple[str, str]:
+    def get_lyrics_download_link(self, track_id: int | str) -> tuple[str, str]:
         pass
 
     @abstractmethod
-    def get_music_video_download_link(self, track_id: str) -> tuple[str, str]:
+    def get_music_video_download_link(self, track_id: int | str) -> tuple[str, str]:
         pass

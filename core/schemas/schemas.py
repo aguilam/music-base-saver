@@ -141,7 +141,7 @@ class LyricsResponse:
     title: str
     id: int | None = None
     is_synced: bool = False
-    synced_text: dict | None = None
+    synced_text: list[dict] | None = None
     plain_text: str | None = None
     language: str = "und"
     offset: int = 0

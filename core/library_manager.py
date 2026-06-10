@@ -155,7 +155,7 @@ class LibraryManager:
                 ),
             )
 
-    def global_search(self, query: str):
+    def global_search(self, query: str) -> SearchResults:
         search_results = SearchResults(artists=[], albums=[], tracks=[])
         for engine in self.search_engines:
             search_engine = engine.instance
@@ -469,7 +469,7 @@ class LibraryManager:
             track = self.db_manager.get_track_by_id(session, id)
             return track
 
-    def scrobble(self, id: int, user_id: str, listen_time: int | None = None):
+    def scrobble(self, id: int, user_id: int, listen_time: int | None = None):
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, id)
             if listen_time is None:
@@ -483,7 +483,7 @@ class LibraryManager:
                 scrobbler_class = scrobbler.instance
                 scrobbler_class.submit_listen(track, provider_key.key, listen_time)
 
-    def post_now_playing(self, id: int, user_id: str):
+    def post_now_playing(self, id: int, user_id: int):
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, id)
             for scrobbler in self.scrobblers:
@@ -1038,6 +1038,8 @@ class LibraryManager:
             if importer.tag == importer_tag:
                 selected_importer = importer.instance
                 break
+        if selected_importer is None:
+            return
         with self.db_manager.get_session() as session:
             (
                 favorited_tracks,

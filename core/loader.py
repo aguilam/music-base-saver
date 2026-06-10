@@ -44,7 +44,9 @@ def import_modules(module_folder: str, BaseClass: type[T]) -> dict[str, type[T]]
     return modules
 
 
-def load_modules(config: dict, module_classes: dict[str, type[T]]):
+def load_modules(
+    config: dict, module_classes: dict[str, type[T]]
+) -> tuple[list[ModuleEntry[T]], list[ServiceStatus]]:
     modules: list[ModuleEntry[T]] = []
     errors = []
     for module, settings in config.items():
@@ -68,8 +70,10 @@ def load_modules(config: dict, module_classes: dict[str, type[T]]):
     return modules, errors
 
 
-def load_storages(config: dict, storage_classes: dict[str, Any]):
-    storages = config.get("storage", {})
+def load_storages(
+    config: dict, storage_classes: dict[str, Any]
+) -> tuple[list[StorageEntry], list[ServiceStatus]]:
+    storages: dict = config.get("storage", {})
     active_storages: list[StorageEntry] = []
     errors = []
     for storage in storages:

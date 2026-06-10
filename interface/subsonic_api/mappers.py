@@ -43,7 +43,7 @@ def to_subsonic_album(album: Album):
         "isDir": True,
         "songCount": len(album.tracks),
         "created": album.created_at,
-        "duration": int(album.duration / 1000),
+        "duration": int(album.duration / 1000) if album.duration else None,
         "artistId": artist.id,
         "artist": artist.name,
     }
@@ -86,8 +86,9 @@ def to_subsonic_lyric(lyrics: LyricsResponse):
         "synced": lyrics.is_synced,
         "line": [],
     }
-    for line in lyrics.synced_text:
-        sub_lyrics["line"].append({"start": line["time"], "value": line["text"]})
+    if lyrics.synced_text is not None:
+        for line in lyrics.synced_text:
+            sub_lyrics["line"].append({"start": line["time"], "value": line["text"]})
     return sub_lyrics
 
 
@@ -141,7 +142,7 @@ def external_artist_to_subsonic(artist: Artist):
     sub_artist = {
         "id": artist.external_id,
         "name": artist.name,
-        "albumCount": len(artist["albums"]),
+        "albumCount": len(artist.albums),
     }
 
     if artist.cover_path:

@@ -4,7 +4,7 @@ from core.library_manager import LibraryManager
 from collections import defaultdict
 import hashlib
 import uvicorn
-from typing import Annotated
+from typing import Annotated, NoReturn
 from core.schemas.schemas import User
 from hmac import compare_digest
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,7 +42,7 @@ opensubsonic_error = {
 }
 
 
-def raise_subsonic_error(code: int):
+def raise_subsonic_error(code: int) -> NoReturn:
     message = opensubsonic_error.get(code, "Error")
     raise SubsonicException(code, message)
 
@@ -144,7 +144,7 @@ async def subsonic_middleware(request: Request, call_next):
 
 
 @subsonic_router.get("/stream", status_code=status.HTTP_206_PARTIAL_CONTENT)
-def stream_track(library_manager: CurrentLibrary, request: Request, id: str):
+def stream_track(library_manager: CurrentLibrary, request: Request, id: int):
     CHUNK_SIZE = 1024 * 1024
     range_header = request.headers.get("range")
     if not range_header:
@@ -324,7 +324,9 @@ def local_serch(
 
 
 @subsonic_router.post("/globalDownload")
-def global_download(library_manager: CurrentLibrary, query: str = None, id: str = None):
+def global_download(
+    library_manager: CurrentLibrary, query: str | None = None, id: str | None = None
+):
     task_id = library_manager.download(query=query, object_id=id)
     return {
         "taskId": task_id,
@@ -479,9 +481,9 @@ def ping():
 def star(
     library_manager: CurrentLibrary,
     user: Annotated[User, Depends(get_user)],
-    id: str | None = None,
-    albumId: str | None = None,
-    artistId: str | None = None,
+    id: int | None = None,
+    albumId: int | None = None,
+    artistId: int | None = None,
 ):
     if id is not None:
         library_manager.star(user.id, id, "track")
@@ -496,9 +498,9 @@ def star(
 def unstar(
     library_manager: CurrentLibrary,
     user: Annotated[User, Depends(get_user)],
-    id: str | None = None,
-    albumId: str | None = None,
-    artistId: str | None = None,
+    id: int | None = None,
+    albumId: int | None = None,
+    artistId: int | None = None,
 ):
     if id is not None:
         library_manager.unstar(user.id, id, "track")
@@ -510,16 +512,17 @@ def unstar(
 
 
 @subsonic_router.post("/scrobble")
-def unstar(
+def scrobble(
     library_manager: CurrentLibrary,
+    user: Annotated[User, Depends(get_user)],
     id: int,
     time: int | None = None,
     submission: bool | None = True,
 ):
     if submission:
-        library_manager.scrobble(id, time)
+        library_manager.scrobble(id, user.id, time)
     else:
-        library_manager.post_now_playing(id)
+        library_manager.post_now_playing(id, user.id)
     return {}
 
 
@@ -527,7 +530,7 @@ def unstar(
 def get_lyrics(library_manager: CurrentLibrary, title: str, artist: str | None = None):
     track = library_manager.get_track_by_title(title)
     lyrics = library_manager.get_lyrics(track.id)
-    lyric = next((lyric for lyric in lyrics if lyric.is_synced == False), None)
+    lyric = next((lyric for lyric in lyrics if not lyric.is_synced), None)
     return {
         "lyrics": {
             "artist": lyric.artist,
@@ -538,7 +541,9 @@ def get_lyrics(library_manager: CurrentLibrary, title: str, artist: str | None =
 
 
 @subsonic_router.get("/getLyricsBySongId")
-def get_lyrics(library_manager: CurrentLibrary, id: int, enhanced: bool | None = False):
+def get_lyrics_by_song(
+    library_manager: CurrentLibrary, id: int, enhanced: bool | None = False
+):
     lyrics = library_manager.get_lyrics(id)
     sub_lyrics = [to_subsonic_lyric(lyric) for lyric in lyrics]
     return {
@@ -547,9 +552,7 @@ def get_lyrics(library_manager: CurrentLibrary, id: int, enhanced: bool | None =
 
 
 @subsonic_router.get("/getTopSongs")
-def get_artist_top_songs(
-    library_manager: CurrentLibrary, artist: str, count: int | None = 50
-):
+def get_artist_top_songs(library_manager: CurrentLibrary, artist: str, count: int = 50):
     tracks = library_manager.get_artist_top_songs(artist, count)
     artist_songs = [to_subsonic_song(track) for track in tracks]
     return {
@@ -612,7 +615,7 @@ def download_to_user():
 
 @subsonic_router.get("/startScan")
 def start_scan(library_manager: CurrentLibrary):
-    library_manager.sync(sync_id="sub")
+    library_manager.sync(task_id="sub")
     return {
         "scanStatus": {"scanning": True, "count": 0},
     }
@@ -650,7 +653,6 @@ def get_license():
 
 
 class SubsonicApi(Interface):
-
     async def start(self):
         port = int(self.config.get("port", 8000))
         host = self.config.get("host", "127.0.0.1")

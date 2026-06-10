@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
 from sqlmodel import (
     SQLModel,
     create_engine,
@@ -9,7 +11,7 @@ from sqlmodel import (
     col,
 )
 
-from sqlalchemy import tuple_, or_, func, not_, and_, distinct
+from sqlalchemy import tuple_, or_, func, not_, distinct
 from core.db.mappers import (
     artist_from_orm,
     album_from_orm,
@@ -46,8 +48,23 @@ from core.db.models import (
     LyricsORM,
     AlbumArtistLink,
     TrackArtistsLink,
-    ApiKeyORM,
 )
+from sqlalchemy.orm import selectinload
+
+if TYPE_CHECKING:
+    from core.schemas.schemas import (
+        ApiKey,
+        Album,
+        Artist,
+        Track,
+        Playlist,
+        Mood,
+        Genre,
+        User,
+        MusicVideo,
+        ObjectStorage,
+        ProviderKey,
+    )
 
 
 def admin_create(engine):
@@ -65,9 +82,6 @@ def admin_create(engine):
             session.commit()
 
 
-from sqlalchemy.orm import selectinload
-
-
 class DBManager:
     def __init__(self) -> None:
         self.engine = create_engine("sqlite:///database.db")
@@ -77,7 +91,7 @@ class DBManager:
     def get_session(self) -> Session:
         return Session(self.engine)
 
-    def get_artist_by_name(self, session: Session, name: str):
+    def get_artist_by_name(self, session: Session, name: str) -> Artist | None:
         orm_artist = session.exec(
             select(ArtistORM)
             .outerjoin(ArtistAlias)
@@ -87,7 +101,7 @@ class DBManager:
         ).first()
         return artist_from_orm(orm_artist) if orm_artist else None
 
-    def get_album_by_name(self, session: Session, title: str):
+    def get_album_by_name(self, session: Session, title: str) -> list[Track]:
         return session.exec(select(AlbumORM).where(AlbumORM.title == title)).first()
 
     def get_tracks_by_artist_name(self, session: Session, artist_name: str):
@@ -96,7 +110,9 @@ class DBManager:
         ).all()
         return [track_from_orm(track) for track in tracks]
 
-    def get_provider_key(self, session: Session, provider: str, user_id: int):
+    def get_provider_key(
+        self, session: Session, provider: str, user_id: int
+    ) -> ProviderKey | None:
         statement = select(ProviderKeyORM.key).where(
             ProviderKeyORM.provider == provider, ProviderKeyORM.user_id == user_id
         )
@@ -107,7 +123,9 @@ class DBManager:
         session.exec(delete(ProviderKeyORM).where(ProviderKeyORM.id == id))
         session.flush()
 
-    def get_user_provider_keys(self, session: Session, user_id: int):
+    def get_user_provider_keys(
+        self, session: Session, user_id: int
+    ) -> list[ProviderKey]:
         statement = select(ProviderKeyORM).where(ProviderKeyORM.user_id == user_id)
         keys = session.exec(statement).all()
         return [provider_key_from_orm(key) for key in keys]
@@ -117,11 +135,11 @@ class DBManager:
         keys = session.exec(statement).all()
         return [api_key_from_orm(key) for key in keys]
 
-    def check_api_key_availability(self, session: Session, api_key: str):
+    def check_api_key_availability(
+        self, session: Session, api_key: str
+    ) -> ApiKey | None:
         key = session.exec(
-            select(ApiKeyORM).where(
-                ApiKeyORM.key == api_key, ApiKeyORM.revoked == False
-            )
+            select(ApiKeyORM).where(ApiKeyORM.key == api_key, not_(ApiKeyORM.revoked))
         ).first()
         return api_key_from_orm(key) if key else None
 
@@ -133,7 +151,7 @@ class DBManager:
         )
         session.flush()
 
-    def get_moods(self, session: Session):
+    def get_moods(self, session: Session) -> list[Mood]:
         moods = (
             session.execute(select(MoodORM).options(selectinload(MoodORM.tracks)))
             .scalars()
@@ -141,7 +159,7 @@ class DBManager:
         )
         return [mood_from_orm(mood) for mood in moods]
 
-    def get_genres(self, session: Session):
+    def get_genres(self, session: Session) -> list[Genre]:
         genres = (
             session.execute(select(GenreORM).options(selectinload(GenreORM.tracks)))
             .scalars()
@@ -149,26 +167,28 @@ class DBManager:
         )
         return [genre_from_orm(genre) for genre in genres]
 
-    def get_storage_object_by_id(self, session: Session, id: int):
+    def get_storage_object_by_id(
+        self, session: Session, id: int
+    ) -> ObjectStorage | None:
         storage = session.exec(
             select(ObjectStorageORM).where(ObjectStorageORM.id == id)
         ).first()
 
         return object_storage_from_orm(storage) if storage else None
 
-    def get_track_by_name(self, session: Session, title: str):
+    def get_track_by_name(self, session: Session, title: str) -> Track | None:
         orm_track = session.exec(
             select(TrackORM).where(col(TrackORM.title).ilike(title))
         ).first()
         return track_from_orm(orm_track) if orm_track else None
 
-    def get_user_by_name(self, session: Session, username: str):
+    def get_user_by_name(self, session: Session, username: str) -> User | None:
         orm_user = session.exec(
             select(UserORM).where(UserORM.username == username)
         ).first()
         return user_from_orm(orm_user) if orm_user else None
 
-    def find_or_create_artist(self, session: Session, name: str):
+    def find_or_create_artist(self, session: Session, name: str) -> ArtistORM:
         normalized_name = name.lower().strip()
 
         existed_artist = session.exec(
@@ -196,7 +216,7 @@ class DBManager:
         year: int | None = None,
         description: str | None = None,
         type: str | None = None,
-    ):
+    ) -> AlbumORM:
         normalized_title = title.lower().strip()
         stmt = select(AlbumORM).where(AlbumORM.normalized_title == normalized_title)
         if artists_names:
@@ -219,7 +239,7 @@ class DBManager:
         session.flush()
         return new_album
 
-    def find_or_create_mood(self, session: Session, mood_name: str):
+    def find_or_create_mood(self, session: Session, mood_name: str) -> MoodORM:
         normalized_name = mood_name.lower().strip()
         mood = session.exec(
             select(MoodORM).where(MoodORM.normalized_name == normalized_name)
@@ -231,7 +251,7 @@ class DBManager:
         session.flush()
         return new_mood
 
-    def find_or_create_genre(self, session: Session, genre_name: str):
+    def find_or_create_genre(self, session: Session, genre_name: str) -> GenreORM:
         normalized_name = genre_name.lower().strip()
         genre = session.exec(
             select(GenreORM).where(GenreORM.normalized_name == normalized_name)
@@ -243,17 +263,17 @@ class DBManager:
         session.flush()
         return new_genre
 
-    def get_user_by_id(self, session: Session, id: int):
+    def get_user_by_id(self, session: Session, id: int) -> User | None:
         orm_user = session.exec(select(UserORM).where(UserORM.id == id)).first()
         return user_from_orm(orm_user) if orm_user else None
 
-    def get_video_by_id(self, session: Session, id: int):
+    def get_video_by_id(self, session: Session, id: int) -> MusicVideo | None:
         orm_video = session.exec(
             select(MusicVideoORM).where(MusicVideoORM.id == id)
         ).first()
         return music_video_from_orm(orm_video) if orm_video else None
 
-    def get_playlist_by_id(self, session: Session, id: int):
+    def get_playlist_by_id(self, session: Session, id: int) -> Playlist | None:
         statement = (
             select(PlaylistORM)
             .where(PlaylistORM.id == id)
@@ -271,7 +291,9 @@ class DBManager:
         orm_playlist = session.exec(statement).first()
         return playlist_from_orm(orm_playlist) if orm_playlist else None
 
-    def create_user(self, session: Session, username: str, email: str, password: str):
+    def create_user(
+        self, session: Session, username: str, email: str, password: str
+    ) -> User:
         new_user = UserORM(username=username, email=email, password=password)
         session.add(new_user)
         return user_from_orm(new_user)
@@ -283,7 +305,7 @@ class DBManager:
         username: str | None,
         password: str | None,
         is_admin: bool | None,
-    ):
+    ) -> User:
         changed_user = session.exec(
             select(UserORM).where(UserORM.username == username)
         ).first()
@@ -317,7 +339,7 @@ class DBManager:
         cover_path: int | None,
         is_public: bool,
         tracks_id: list[int],
-    ):
+    ) -> Playlist:
         user = session.exec(select(UserORM).where(UserORM.id == user_id)).first()
         if user is None:
             return None
@@ -331,13 +353,15 @@ class DBManager:
             playlist.track_links.append(trackLink)
         return playlist_from_orm(playlist)
 
-    def get_user_by_apikey(self, session: Session, api_key: str):
+    def get_user_by_apikey(self, session: Session, api_key: str) -> User | None:
         orm_user = session.exec(
             select(UserORM).join(UserORM.api_keys).where(ApiKeyORM.key == api_key)
         ).first()
         return user_from_orm(orm_user) if orm_user else None
 
-    def search_artists(self, session: Session, query: str, limit: int, offset: int):
+    def search_artists(
+        self, session: Session, query: str, limit: int, offset: int
+    ) -> list[Artist]:
         statement = (
             select(ArtistORM)
             .outerjoin(ArtistAlias)
@@ -352,7 +376,9 @@ class DBManager:
         orm_artists = session.exec(statement).all()
         return [artist_from_orm(artist) for artist in orm_artists]
 
-    def search_albums(self, session: Session, query: str, limit: int, offset: int):
+    def search_albums(
+        self, session: Session, query: str, limit: int, offset: int
+    ) -> list[Album]:
         statement = (
             select(AlbumORM)
             .where(col(AlbumORM.title).ilike(f"%{query}%"))
@@ -371,7 +397,9 @@ class DBManager:
         orm_albums = session.exec(statement).all()
         return [album_from_orm(album) for album in orm_albums]
 
-    def search_tracks(self, session: Session, query: str, limit: int, offset: int):
+    def search_tracks(
+        self, session: Session, query: str, limit: int, offset: int
+    ) -> list[Track]:
         statement = (
             select(TrackORM)
             .where(col(TrackORM.title).ilike(f"%{query}%"))
@@ -387,7 +415,9 @@ class DBManager:
         orm_tracks = session.exec(statement).all()
         return [track_from_orm(track) for track in orm_tracks]
 
-    def search_playlists(self, session: Session, query: str, limit: int, offset: int):
+    def search_playlists(
+        self, session: Session, query: str, limit: int, offset: int
+    ) -> list[Playlist]:
         orm_playlists = session.exec(
             select(PlaylistORM)
             .where(col(PlaylistORM.title).ilike(f"%{query}%"))
@@ -396,7 +426,9 @@ class DBManager:
         ).all()
         return [playlist_from_orm(playlist) for playlist in orm_playlists]
 
-    def get_all_user_starred(self, session: Session, user_id: int):
+    def get_all_user_starred(
+        self, session: Session, user_id: int
+    ) -> tuple[Track, Album, Artist]:
         user = session.exec(select(UserORM).where(UserORM.id == user_id)).first()
         starred_tracks = [track_from_orm(track) for track in user.starred_tracks]
         starred_albums = [album_from_orm(album) for album in user.starred_albums]
@@ -404,7 +436,7 @@ class DBManager:
 
         return (starred_tracks, starred_albums, starred_artists)
 
-    def get_user_playlists(self, session: Session, user_id: int):
+    def get_user_playlists(self, session: Session, user_id: int) -> list[Playlist]:
         statement = (
             select(PlaylistORM)
             .join(PlaylistORM.owners)
@@ -426,13 +458,13 @@ class DBManager:
         track = session.exec(statement).first()
         session.delete(track)
 
-    def delete_user_by_id(self, session: Session, user_id: int):
+    def delete_user_by_id(self, session: Session, user_id: int) -> int:
         stm = delete(UserORM).where(UserORM.id == user_id)
         result = session.exec(stm)
         session.commit()
         return result.rowcount
 
-    def delete_user_by_username(self, session: Session, username: str):
+    def delete_user_by_username(self, session: Session, username: str) -> int:
         stm = delete(UserORM).where(UserORM.username == username)
         result = session.exec(stm)
         session.commit()
@@ -440,7 +472,7 @@ class DBManager:
 
     def bulk_delete_by_links(
         self, session: Session, provider_link: list[tuple[str, str]]
-    ):
+    ) -> tuple[int, int, int, int]:
         select_ids = select(
             ObjectStorageORM.id,
             ObjectStorageORM.audio_id,
@@ -509,17 +541,17 @@ class DBManager:
             deleted_videos.rowcount,
         )
 
-    def get_all_tracks(self, session: Session):
+    def get_all_tracks(self, session: Session) -> list[Track]:
         statement = select(TrackORM).options(selectinload(TrackORM.files))
         orm_tracks = session.exec(statement).all()
         return [track_from_orm(track) for track in orm_tracks]
 
-    def get_all_artists(self, session: Session):
+    def get_all_artists(self, session: Session) -> list[Artist]:
         statement = select(ArtistORM).options(selectinload(ArtistORM.albums))
         orm_artists = session.exec(statement).all()
         return [artist_from_orm(artist) for artist in orm_artists]
 
-    def get_all_albums(self, session: Session):
+    def get_all_albums(self, session: Session) -> list[Album]:
         statement = select(AlbumORM).options(
             selectinload(AlbumORM.tracks_links)
             .selectinload(TrackAlbumLink.track)
@@ -532,7 +564,7 @@ class DBManager:
         orm_albums = session.exec(statement).all()
         return [album_from_orm(album) for album in orm_albums]
 
-    def get_all_tracks_storage_links(self, session: Session):
+    def get_all_tracks_storage_links(self, session: Session) -> set[tuple[str, str]]:
         combined = (
             ObjectStorageORM.link_provider + literal("///") + ObjectStorageORM.link
         ).label("combined")
@@ -542,7 +574,7 @@ class DBManager:
         result = session.exec(statement).all()
         return set(result)
 
-    def get_track_by_id(self, session: Session, id: int):
+    def get_track_by_id(self, session: Session, id: int) -> Track | None:
         statement = (
             select(TrackORM)
             .where(TrackORM.id == id)
@@ -557,7 +589,7 @@ class DBManager:
         orm_track = session.exec(statement).first()
         return track_from_orm(orm_track) if orm_track else None
 
-    def get_album_by_id(self, session: Session, id: int):
+    def get_album_by_id(self, session: Session, id: int) -> Album | None:
         statement = (
             select(AlbumORM)
             .where(AlbumORM.id == id)
@@ -589,7 +621,7 @@ class DBManager:
     def get_playlist_orm_by_id(self, session: Session, id: int) -> PlaylistORM | None:
         return session.get(PlaylistORM, id)
 
-    def delete_orphans(self, session: Session):
+    def delete_orphans(self, session: Session) -> tuple[int, int, int]:
         deleted_tracks = session.exec(
             delete(TrackORM).where(
                 TrackORM.id.not_in(
@@ -630,7 +662,7 @@ class DBManager:
             deleted_artists.rowcount,
         )
 
-    def get_artist_by_id(self, session: Session, id: int):
+    def get_artist_by_id(self, session: Session, id: int) -> Artist | None:
         statement = (
             select(ArtistORM)
             .where(ArtistORM.id == id)
@@ -642,11 +674,11 @@ class DBManager:
         orm_artist = session.exec(statement).first()
         return artist_from_orm(orm_artist) if orm_artist else None
 
-    def get_model_count(self, session: Session, model):
+    def get_model_count(self, session: Session, model) -> int:
         model_count = session.scalar(select(func.count(model.id))) or 0
         return model_count
 
-    def get_genre_counts(self, session: Session):
+    def get_genre_counts(self, session: Session) -> tuple[int, int, int, int]:
         genre_count: int = session.scalar(select(func.count(GenreORM.id))) or 0
         tracks_genre: int = (
             session.scalar(select(func.count(distinct(TrackGenreLink.track_id)))) or 0
@@ -659,7 +691,7 @@ class DBManager:
         )
         return (genre_count, tracks_genre, albums_genre, artists_genre)
 
-    def get_moods_counts(self, session: Session):
+    def get_moods_counts(self, session: Session) -> tuple(int, int):
         mood_count: int = session.scalar(select(func.count(MoodORM.id))) or 0
         tracks_moods: int = (
             session.scalar(select(func.count(distinct(TrackMoodLink.track_id)))) or 0
@@ -667,14 +699,14 @@ class DBManager:
 
         return (mood_count, tracks_moods)
 
-    def get_count_with_lyrics(self, session: Session):
+    def get_count_with_lyrics(self, session: Session) -> int:
         tracks_count: int = (
             session.scalar(select(func.count(TrackORM.id)).where(TrackORM.lyrics.any()))
             or 0
         )
         return tracks_count
 
-    def get_count_with_videos(self, session: Session):
+    def get_count_with_videos(self, session: Session) -> int:
         tracks_count: int = (
             session.scalar(
                 select(func.count(TrackORM.id)).where(TrackORM.music_videos.any())
@@ -683,7 +715,7 @@ class DBManager:
         )
         return tracks_count
 
-    def get_count_with_cover(self, session: Session, model):
+    def get_count_with_cover(self, session: Session, model) -> int:
         model_count = (
             session.scalar(
                 select(func.count(model.id)).where(model.cover_path.is_not(None))
@@ -698,7 +730,7 @@ class DBManager:
         title: str,
         album_title: str | None = None,
         artists: list[str] | None = None,
-    ):
+    ) -> Track | None:
         normalized_title = title.strip().lower()
         stmt = select(TrackORM).where(TrackORM.normalized_title == normalized_title)
         if album_title:
@@ -714,7 +746,9 @@ class DBManager:
         track = session.exec(stmt).first()
         return track_from_orm(track) if track else None
 
-    def get_artists_by_name(self, session: Session, artists: list[str], count: int):
+    def get_artists_by_name(
+        self, session: Session, artists: list[str], count: int
+    ) -> list[Artist]:
         normalized_names = [artist.strip().lower() for artist in artists]
         db_artists = session.exec(
             select(ArtistORM)
@@ -725,7 +759,7 @@ class DBManager:
 
     def get_artists_random_tracks(
         self, session: Session, artists: list[str], count: int
-    ):
+    ) -> list[Track]:
         normalized_names = [name.strip().lower() for name in artists]
         stmt = (
             select(TrackORM)
