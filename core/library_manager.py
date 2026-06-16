@@ -454,14 +454,14 @@ class LibraryManager:
             tracks = self.db_manager.get_all_tracks(session)
             return tracks
 
-    def get_all_artists(self):
+    def get_all_artists(self, size: int = 10, offset: int = 0):
         with self.db_manager.get_session() as session:
-            artists = self.db_manager.get_all_artists(session)
+            artists = self.db_manager.get_all_artists(session, size, offset)
             return artists
 
-    def get_all_albums(self):
+    def get_all_albums(self, size: int = 10, offset: int = 0):
         with self.db_manager.get_session() as session:
-            albums = self.db_manager.get_all_albums(session)
+            albums = self.db_manager.get_all_albums(session, size, offset)
             return albums
 
     def get_track_by_id(self, id: int):
@@ -529,7 +529,7 @@ class LibraryManager:
             db_artists = self.db_manager.get_artists_by_name(session, artists, count)
             return db_artists
 
-    def get_album_by_id(self, id: int):
+    def get_album_by_id(self, id: int) -> Album | None:
         with self.db_manager.get_session() as session:
             album = self.db_manager.get_album_by_id(session, id)
             return album
@@ -638,9 +638,9 @@ class LibraryManager:
                 session.delete(link)
                 session.commit()
 
-    def get_user_playlists(self, user_id: int):
+    def get_user_playlists(self, user_id: int, size: int = 10, offset: int = 10):
         with self.db_manager.get_session() as session:
-            return self.db_manager.get_user_playlists(session, user_id)
+            return self.db_manager.get_user_playlists(session, user_id, size, offset)
 
     def create_playlist(
         self,
@@ -673,18 +673,14 @@ class LibraryManager:
 
     def create_user(self, username: str, email: str, password: str):
         with self.db_manager.get_session() as session:
-            new_user = self.db_manager.create_user(username, email, password)
+            new_user = self.db_manager.create_user(session, username, email, password)
             session.commit()
             return new_user
 
     def delete_playlist(self, playlist_id: int):
         with self.db_manager.get_session() as session:
-            self.db_manager.delete_playlist(playlist_id)
+            self.db_manager.delete_playlist(session, playlist_id)
             session.commit()
-
-    def get_all_albums(self):
-        with self.db_manager.get_session() as session:
-            return self.db_manager.get_all_albums(session)
 
     def get_all_user_starred(self, user_id: int):
         with self.db_manager.get_session() as session:

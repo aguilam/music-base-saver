@@ -447,12 +447,12 @@ def get_album(library_manager: CurrentLibrary, id: str):
         parsed_album = to_subsonic_album(album)
         tracks = []
         for track in album.tracks:
-            track_link = next(
-                (link.link for link in track.links if link.link_type == "storage"), None
-            )
+            # track_link = next(
+            #    (link.link for link in track. if link.link_type == "storage"), None
+            # )
             subsonic_track = to_subsonic_song(track)
 
-            subsonic_track["path"] = track_link
+            # subsonic_track["path"] = track_link
 
             tracks.append(subsonic_track)
         parsed_album["song"] = tracks
@@ -462,8 +462,8 @@ def get_album(library_manager: CurrentLibrary, id: str):
 
 
 @subsonic_router.get("/getAlbumList2")
-def get_albums(library_manager: CurrentLibrary):
-    albums = library_manager.get_all_albums()
+def get_albums(library_manager: CurrentLibrary, size: int = 10, offset: int = 0):
+    albums = library_manager.get_all_albums(size, offset)
     if albums is None:
         raise_subsonic_error(70)
     parsed_albums = [to_subsonic_album(album) for album in albums]

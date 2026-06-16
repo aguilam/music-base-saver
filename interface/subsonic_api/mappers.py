@@ -10,7 +10,7 @@ from core.schemas.schemas import (
 def to_subsonic_song(track: Track):
     primary_album = next((album for album in track.albums if album.is_primary), None)
     song = {
-        "id": track.id,
+        "id": str(track.id),
         "parent": primary_album.id if primary_album else None,
         "isDir": False,
         "title": track.title,
@@ -18,8 +18,8 @@ def to_subsonic_song(track: Track):
         "artist": primary_album.artists[0].name if primary_album else None,
         "duration": int(track.length / 1000),
         "created": track.created_at,
-        "albumId": primary_album.id if primary_album else None,
-        "artistId": primary_album.artists[0].id if primary_album else None,
+        "albumId": str(primary_album.id) if primary_album else None,
+        "artistId": str(primary_album.artists[0].id) if primary_album else None,
         "musicVideo": (
             f"cl-{track.music_videos[0].id}" if len(track.music_videos) > 0 else None
         ),
@@ -35,8 +35,8 @@ def to_subsonic_song(track: Track):
 def to_subsonic_album(album: Album):
     artist = album.artists[0]
     sub_album = {
-        "id": album.id,
-        "parent": artist.id,
+        "id": str(album.id),
+        "parent": str(artist.id),
         "album": album.title,
         "title": album.title,
         "name": album.title,
@@ -44,7 +44,7 @@ def to_subsonic_album(album: Album):
         "songCount": len(album.tracks),
         "created": album.created_at,
         "duration": int(album.duration / 1000) if album.duration else None,
-        "artistId": artist.id,
+        "artistId": str(artist.id),
         "artist": artist.name,
     }
     if album.cover_path:
@@ -54,7 +54,7 @@ def to_subsonic_album(album: Album):
 
 def to_subsonic_artist(artist: Artist):
     sub_artist = {
-        "id": artist.id,
+        "id": str(artist.id),
         "name": artist.name,
         "albumCount": len(artist.albums),
     }
@@ -65,7 +65,7 @@ def to_subsonic_artist(artist: Artist):
 
 def to_subsonic_playlist(playlist: Playlist):
     sub_playlist = {
-        "id": playlist.id,
+        "id": str(playlist.id),
         "name": playlist.title,
         "owner": playlist.owners[0].username,
         "public": playlist.is_public,

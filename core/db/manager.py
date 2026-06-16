@@ -9,6 +9,7 @@ from sqlmodel import (
     literal,
     delete,
     col,
+    not_,
 )
 
 from sqlalchemy import tuple_, or_, func, not_, distinct
@@ -113,7 +114,7 @@ class DBManager:
     def get_provider_key(
         self, session: Session, provider: str, user_id: int
     ) -> ProviderKey | None:
-        statement = select(ProviderKeyORM.key).where(
+        statement = select(ProviderKeyORM).where(
             ProviderKeyORM.provider == provider, ProviderKeyORM.user_id == user_id
         )
         key = session.exec(statement).first()
@@ -139,7 +140,7 @@ class DBManager:
         self, session: Session, api_key: str
     ) -> ApiKey | None:
         key = session.exec(
-            select(ApiKeyORM).where(ApiKeyORM.key == api_key, not_(ApiKeyORM.revoked))
+            select(ApiKeyORM).where(ApiKeyORM.key == api_key, ~col(ApiKeyORM.revoked))
         ).first()
         return api_key_from_orm(key) if key else None
 
@@ -436,14 +437,21 @@ class DBManager:
 
         return (starred_tracks, starred_albums, starred_artists)
 
-    def get_user_playlists(self, session: Session, user_id: int) -> list[Playlist]:
+    def get_user_playlists(
+        self, session: Session, user_id: int, size: int, offset: int
+    ) -> list[Playlist]:
         statement = (
-            select(PlaylistORM)
-            .join(PlaylistORM.owners)
-            .where(UserORM.id == user_id)
-            .options(
-                selectinload(PlaylistORM.owners), selectinload(PlaylistORM.track_links)
+            (
+                select(PlaylistORM)
+                .join(PlaylistORM.owners)
+                .where(UserORM.id == user_id)
+                .options(
+                    selectinload(PlaylistORM.owners),
+                    selectinload(PlaylistORM.track_links),
+                )
             )
+            .limit(size)
+            .offset(offset)
         )
         orm_playlists = session.exec(statement).all()
         return [playlist_from_orm(playlist) for playlist in orm_playlists]
@@ -546,20 +554,30 @@ class DBManager:
         orm_tracks = session.exec(statement).all()
         return [track_from_orm(track) for track in orm_tracks]
 
-    def get_all_artists(self, session: Session) -> list[Artist]:
-        statement = select(ArtistORM).options(selectinload(ArtistORM.albums))
+    def get_all_artists(self, session: Session, size: int, offset: int) -> list[Artist]:
+        statement = (
+            select(ArtistORM)
+            .options(selectinload(ArtistORM.albums))
+            .limit(size)
+            .offset(offset)
+        )
         orm_artists = session.exec(statement).all()
         return [artist_from_orm(artist) for artist in orm_artists]
 
-    def get_all_albums(self, session: Session) -> list[Album]:
-        statement = select(AlbumORM).options(
-            selectinload(AlbumORM.tracks_links)
-            .selectinload(TrackAlbumLink.track)
-            .selectinload(TrackORM.files),
-            selectinload(AlbumORM.tracks_links)
-            .selectinload(TrackAlbumLink.track)
-            .selectinload(TrackORM.albums_links),
-            selectinload(AlbumORM.artists),
+    def get_all_albums(self, session: Session, size: int, offset: int) -> list[Album]:
+        statement = (
+            select(AlbumORM)
+            .options(
+                selectinload(AlbumORM.tracks_links)
+                .selectinload(TrackAlbumLink.track)
+                .selectinload(TrackORM.files),
+                selectinload(AlbumORM.tracks_links)
+                .selectinload(TrackAlbumLink.track)
+                .selectinload(TrackORM.albums_links),
+                selectinload(AlbumORM.artists),
+            )
+            .limit(size)
+            .offset(offset)
         )
         orm_albums = session.exec(statement).all()
         return [album_from_orm(album) for album in orm_albums]
