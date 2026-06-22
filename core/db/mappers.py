@@ -114,7 +114,9 @@ def track_album_from_orm(link: TrackAlbumLink) -> TrackAlbum:
 
 
 def track_from_orm(track: TrackORM) -> Track:
-    primary_file = next((file for file in track.files if file.is_primary), None)
+    primary_file = next(
+        (file for file in track.files if file.is_primary), track.files[0]
+    )
     primary_album = next(
         (link.album for link in track.albums_links if link.is_primary_album), None
     )
@@ -125,11 +127,7 @@ def track_from_orm(track: TrackORM) -> Track:
         artists=[artist_short_from_orm(artist) for artist in track.artists],
         albums=[track_album_from_orm(link) for link in track.albums_links],
         cover_path=primary_album.cover_path if primary_album else None,
-        path=(
-            next((link.id for link in primary_file.links), None)
-            if primary_file
-            else None
-        ),
+        path=(next((link.id for link in primary_file.links), None)),
         bpm=track.bpm,
         track_gain=primary_file.trackGain if primary_file else None,
         track_peak=primary_file.trackPeak if primary_file else None,

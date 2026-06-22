@@ -86,12 +86,12 @@ def load_storages(
                 selected_storage = storage_classes[storage_tag]
                 active_storages.append(
                     StorageEntry(
-                        storage["id"],
-                        storage["name"],
-                        storage_tag,
-                        storage["priority"],
-                        storage["params"],
-                        selected_storage(instance_params),
+                        id=storage["id"],
+                        name=storage["name"],
+                        tag=storage_tag,
+                        priority=storage["priority"],
+                        params=storage["params"],
+                        instance=selected_storage(instance_params),
                     )
                 )
         except Exception as e:

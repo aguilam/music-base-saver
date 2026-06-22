@@ -721,11 +721,11 @@ class LibraryManager:
             else:
                 return None
 
-    def stream_track(self, id: int, start_bytes: int, end_bytes: int):
+    def stream_track(self, id: str, start_bytes: int, end_bytes: int):
         with self.db_manager.get_session() as session:
             object_id = None
-            if "cl-" in str(id):
-                video_id = str(id).split("-")[1]
+            if "cl-" in id:
+                video_id = id.split("-")[1]
                 video = self.db_manager.get_video_by_id(session, int(video_id))
                 object_id = video.local_link
             else:
@@ -734,11 +734,14 @@ class LibraryManager:
             if object_id is None:
                 return None
             storage = self.db_manager.get_storage_object_by_id(session, object_id)
+
+            if storage is None:
+                return None
             media_storage = storage.link_provider
             media_link = storage.link
             for storage in self.storages:
-                current_storage = storage.instance
-                if current_storage.id == media_storage:
+                if storage.id == media_storage:
+                    current_storage = storage.instance
                     track = current_storage.get_range_bytes(
                         media_link, start_bytes, end_bytes
                     )

@@ -144,7 +144,7 @@ async def subsonic_middleware(request: Request, call_next):
 
 
 @subsonic_router.get("/stream", status_code=status.HTTP_206_PARTIAL_CONTENT)
-def stream_track(library_manager: CurrentLibrary, request: Request, id: int):
+def stream_track(library_manager: CurrentLibrary, request: Request, id: str):
     CHUNK_SIZE = 1024 * 1024
     range_header = request.headers.get("range")
     if not range_header:
@@ -166,7 +166,7 @@ def stream_track(library_manager: CurrentLibrary, request: Request, id: int):
         content=track_bytes["bytes"],
         status_code=status.HTTP_206_PARTIAL_CONTENT,
         headers=headers,
-        media_type="application/octet-stream",
+        media_type="audio/mpeg",
     )
 
 
