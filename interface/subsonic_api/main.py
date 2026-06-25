@@ -72,6 +72,8 @@ def get_user(
         if key is None:
             raise_subsonic_error(44)
         user = library_manager.get_user(user_id=key.user_id)
+        if user is None:
+            raise_subsonic_error(70)
         return user
     elif (
         username is not None
@@ -80,11 +82,14 @@ def get_user(
         and token is not None
     ):
         user = library_manager.get_user(username=username)
-        if user is None or not (
-            compare_digest(
-                hashlib.md5((user.password + salt).encode("utf-8")).hexdigest(), token
+        if user is None or (
+            not (
+                compare_digest(
+                    hashlib.md5((user.password + salt).encode("utf-8")).hexdigest(),
+                    token,
+                )
+                and compare_digest(username, user.username)
             )
-            and compare_digest(username, user.username)
         ):
             raise_subsonic_error(40)
         return user
@@ -174,6 +179,7 @@ def stream_track(library_manager: CurrentLibrary, request: Request, id: str):
 def get_user_playlists(
     library_manager: CurrentLibrary, user: Annotated[User, Depends(get_user)]
 ):
+    print(user)
     user_playlists = library_manager.get_user_playlists(user.id)
     subsonic_playlists = [to_subsonic_playlist(playlist) for playlist in user_playlists]
     return {

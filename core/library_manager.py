@@ -77,6 +77,7 @@ from .schemas.schemas import (
     ImporterPlaylistTrack,
     LibraryStats,
     StartStatuses,
+    ApiKey,
 )
 from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
@@ -500,7 +501,7 @@ class LibraryManager:
             self.db_manager.delete_provider_key(session, key_id)
             session.commit()
 
-    def check_api_key_availability(self, api_key: str):
+    def check_api_key_availability(self, api_key: str) -> ApiKey | None:
         with self.db_manager.get_session() as session:
             key = self.db_manager.check_api_key_availability(session, api_key)
             return key
