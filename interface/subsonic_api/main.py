@@ -179,7 +179,6 @@ def stream_track(library_manager: CurrentLibrary, request: Request, id: str):
 def get_user_playlists(
     library_manager: CurrentLibrary, user: Annotated[User, Depends(get_user)]
 ):
-    print(user)
     user_playlists = library_manager.get_user_playlists(user.id)
     subsonic_playlists = [to_subsonic_playlist(playlist) for playlist in user_playlists]
     return {

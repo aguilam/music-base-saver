@@ -102,7 +102,7 @@ class DBManager:
         ).first()
         return artist_from_orm(orm_artist) if orm_artist else None
 
-    def get_album_by_name(self, session: Session, title: str) -> list[Track]:
+    def get_album_by_name(self, session: Session, title: str) -> Album:
         return session.exec(select(AlbumORM).where(AlbumORM.title == title)).first()
 
     def get_tracks_by_artist_name(self, session: Session, artist_name: str):

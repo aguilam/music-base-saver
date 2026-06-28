@@ -68,8 +68,10 @@ from .schemas.schemas import (
     ServiceStatus,
     ServicesStatus,
     SearchResults,
+    ProviderKey,
     BinaryBlob,
     FilePathInfo,
+    User,
     Task,
     SyncTaskResult,
     DownloadTaskResult,
@@ -142,7 +144,7 @@ class LibraryManager:
         albumOffset: int,
         songCount: int,
         songOffset: int,
-    ):
+    ) -> SearchResults:
         with self.db_manager.get_session() as session:
             return SearchResults(
                 artists=self.db_manager.search_artists(
@@ -233,7 +235,7 @@ class LibraryManager:
         track_info: FilePathInfo,
         storage_id: str,
         cover_id: int | None = None,
-    ):
+    ) -> int:
         db_album = None
         track_artists = [
             self.db_manager.find_or_create_artist(session, artist)
@@ -314,7 +316,9 @@ class LibraryManager:
         session.flush()
         return new_track.id
 
-    def get_similiar_artists_random_tracks(self, artist_id: int, count: int):
+    def get_similiar_artists_random_tracks(
+        self, artist_id: int, count: int
+    ) -> list[Track] | None:
         with self.db_manager.get_session() as session:
             artist = self.db_manager.get_artist_by_id(session, artist_id)
             if artist is None:
@@ -323,7 +327,9 @@ class LibraryManager:
             tracks = self.db_manager.get_artists_random_tracks(session, artists, count)
             return tracks
 
-    def get_user_tracks_recommendations(self, user_id: int, count: int):
+    def get_user_tracks_recommendations(
+        self, user_id: int, count: int
+    ) -> list[Track] | None:
         with self.db_manager.get_session() as session:
             scrobbler = self.scrobblers[0]
             provider_key = self.db_manager.get_provider_key(
@@ -350,7 +356,7 @@ class LibraryManager:
         task_id: str | None = None,
         query: str | None = None,
         object_id: str | None = None,
-    ):
+    ) -> str:
         task_id = self.post_task(
             func=self.download_track, task_id=task_id, query=query, object_id=object_id
         )
@@ -443,29 +449,29 @@ class LibraryManager:
             )
             self._update_task(task_id, status="finished")
 
-    def get_file(self, path: str, storage_id: str):
+    def get_file(self, path: str, storage_id: str) -> bytes | None:
         for storage in self.storages:
             current_storage = storage.instance
             if current_storage.id == storage_id:
                 cover_path = current_storage.get_file(path)
                 return Path(cover_path).read_bytes()
 
-    def get_all_tracks(self):
+    def get_all_tracks(self) -> list[Track]:
         with self.db_manager.get_session() as session:
             tracks = self.db_manager.get_all_tracks(session)
             return tracks
 
-    def get_all_artists(self, size: int = 10, offset: int = 0):
+    def get_all_artists(self, size: int = 10, offset: int = 0) -> list[Artist]:
         with self.db_manager.get_session() as session:
             artists = self.db_manager.get_all_artists(session, size, offset)
             return artists
 
-    def get_all_albums(self, size: int = 10, offset: int = 0):
+    def get_all_albums(self, size: int = 10, offset: int = 0) -> list[Album]:
         with self.db_manager.get_session() as session:
             albums = self.db_manager.get_all_albums(session, size, offset)
             return albums
 
-    def get_track_by_id(self, id: int):
+    def get_track_by_id(self, id: int) -> Track | None:
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, id)
             return track
@@ -506,12 +512,12 @@ class LibraryManager:
             key = self.db_manager.check_api_key_availability(session, api_key)
             return key
 
-    def get_user_provider_keys(self, user_id: int):
+    def get_user_provider_keys(self, user_id: int) -> list[ProviderKey]:
         with self.db_manager.get_session() as session:
             api_keys = self.db_manager.get_user_provider_keys(session, user_id)
             return api_keys
 
-    def get_user_api_keys(self, user_id: int):
+    def get_user_api_keys(self, user_id: int) -> list[ApiKey]:
         with self.db_manager.get_session() as session:
             api_keys = self.db_manager.get_user_api_keys(session, user_id)
             return api_keys
@@ -521,7 +527,7 @@ class LibraryManager:
             self.db_manager.toggle_api_key_revoked(session, key_id)
             session.commit()
 
-    def get_similiar_artists(self, id: int, count: int = 5):
+    def get_similiar_artists(self, id: int, count: int = 5) -> list[Artist] | None:
         with self.db_manager.get_session() as session:
             artist = self.db_manager.get_artist_by_id(session, id)
             if artist is None:
@@ -535,17 +541,17 @@ class LibraryManager:
             album = self.db_manager.get_album_by_id(session, id)
             return album
 
-    def get_artist_by_id(self, id: int):
+    def get_artist_by_id(self, id: int) -> Artist | None:
         with self.db_manager.get_session() as session:
             artist = self.db_manager.get_artist_by_id(session, id)
             return artist
 
-    def get_artist_top_songs(self, name: str, count: int):
+    def get_artist_top_songs(self, name: str, count: int) -> list[Track]:
         with self.db_manager.get_session() as session:
             artist_tracks = self.db_manager.get_tracks_by_artist_name(session, name)
             return artist_tracks[:50]
 
-    def get_cover_art(self, id: int):
+    def get_cover_art(self, id: int) -> BinaryBlob | None:
         with self.db_manager.get_session() as session:
             storage = self.db_manager.get_storage_object_by_id(session, id)
             if storage is None:
@@ -554,7 +560,7 @@ class LibraryManager:
             cover_mime = image_mime(cover_art)
             return BinaryBlob(cover_art, cover_mime)
 
-    def get_genres(self):
+    def get_genres(self) -> list[dict[str, str | int]]:
         with self.db_manager.get_session() as session:
             genres = self.db_manager.get_genres(session)
             counted_genres = []
@@ -568,7 +574,7 @@ class LibraryManager:
                 )
             return counted_genres
 
-    def get_moods(self):
+    def get_moods(self) -> list[dict[str, str | int]]:
         with self.db_manager.get_session() as session:
             moods = self.db_manager.get_moods(session)
             counted_moods = []
@@ -585,7 +591,7 @@ class LibraryManager:
                 )
             return counted_moods
 
-    def get_playlist_by_id(self, id: int):
+    def get_playlist_by_id(self, id: int) -> Playlist | None:
         with self.db_manager.get_session() as session:
             playlist = self.db_manager.get_playlist_by_id(session, id)
             if playlist is None:
@@ -594,14 +600,14 @@ class LibraryManager:
                 session.expunge_all()
             return playlist
 
-    def delete_user_by_username(self, username: str, user_id: int):
+    def delete_user_by_username(self, username: str, user_id: int) -> int | None:
         with self.db_manager.get_session() as session:
             user = self.db_manager.get_user_by_id(session, user_id)
             if user.is_admin or user.username == username:
                 return self.db_manager.delete_user_by_username(session, username)
             return None
 
-    def delete_user_by_id(self, id: int, user_id: int):
+    def delete_user_by_id(self, id: int, user_id: int) -> int | None:
         with self.db_manager.get_session() as session:
             user = self.db_manager.get_user_by_id(session, user_id)
             if user.is_admin or user.id == id:
@@ -639,7 +645,9 @@ class LibraryManager:
                 session.delete(link)
                 session.commit()
 
-    def get_user_playlists(self, user_id: int, size: int = 10, offset: int = 10):
+    def get_user_playlists(
+        self, user_id: int, size: int = 10, offset: int = 10
+    ) -> list[Playlist]:
         with self.db_manager.get_session() as session:
             return self.db_manager.get_user_playlists(session, user_id, size, offset)
 
@@ -650,7 +658,7 @@ class LibraryManager:
         tracks_id: list[int],
         is_public: bool = False,
         cover_path: int | None = None,
-    ):
+    ) -> Playlist:
         with self.db_manager.get_session() as session:
             new_playlist = self.db_manager.create_playlist(
                 session, user_id, name, cover_path, is_public, tracks_id
@@ -664,7 +672,7 @@ class LibraryManager:
         username: str | None = None,
         password: str | None = None,
         is_admin: bool | None = None,
-    ):
+    ) -> User:
         with self.db_manager.get_session() as session:
             user = self.db_manager.update_user(
                 session, user_id, username, password, is_admin
@@ -672,7 +680,7 @@ class LibraryManager:
             session.commit()
             return user
 
-    def create_user(self, username: str, email: str, password: str):
+    def create_user(self, username: str, email: str, password: str) -> User:
         with self.db_manager.get_session() as session:
             new_user = self.db_manager.create_user(session, username, email, password)
             session.commit()
@@ -683,15 +691,15 @@ class LibraryManager:
             self.db_manager.delete_playlist(session, playlist_id)
             session.commit()
 
-    def get_all_user_starred(self, user_id: int):
+    def get_all_user_starred(self, user_id: int) -> tuple[Track, Album, Artist]:
         with self.db_manager.get_session() as session:
             return self.db_manager.get_all_user_starred(session, user_id)
 
-    def get_track_by_title(self, title: str):
+    def get_track_by_title(self, title: str) -> Track | None:
         with self.db_manager.get_session() as session:
             return self.db_manager.get_track_by_name(session, title)
 
-    def get_lyrics(self, track_id: int):
+    def get_lyrics(self, track_id: int) -> list[LyricsResponse] | None:
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, track_id)
             if track is None:
@@ -713,7 +721,9 @@ class LibraryManager:
                 )
             return lyrics_list
 
-    def get_user(self, username: str | None = None, user_id: int | None = None):
+    def get_user(
+        self, username: str | None = None, user_id: int | None = None
+    ) -> User | None:
         with self.db_manager.get_session() as session:
             if username is not None:
                 return self.db_manager.get_user_by_name(session, username)
@@ -752,7 +762,7 @@ class LibraryManager:
         task = self.task_queue.get(task_id)
         return task
 
-    def post_task(self, func, task_id: str | None = None, *args, **kwargs):
+    def post_task(self, func, task_id: str | None = None, *args, **kwargs) -> str:
         task_id = str(uuid4())[:8] if task_id is None else task_id
         self.task_queue[task_id] = Task()
         self.executor.submit(func, task_id, *args, **kwargs)
@@ -769,7 +779,7 @@ class LibraryManager:
         file_path: str,
         saving_path: str,
         file_size: int | None = None,
-    ):
+    ) -> ObjectStorageORM:
         file_size = os.path.getsize(file_path) if file_size is None else file_size
         best_storage = find_best_storage(self.storages, file_size)
         saved_object_path = best_storage.instance.save_file(file_path, saving_path)
@@ -783,7 +793,7 @@ class LibraryManager:
         session.flush()
         return object_storage
 
-    def sync(self, task_id: str | None = None):
+    def sync(self, task_id: str | None = None) -> str:
         task_id = self.post_task(self.sync_library, task_id)
         self.task_queue[task_id].result = SyncTaskResult()
         return task_id
@@ -1018,7 +1028,7 @@ class LibraryManager:
         task_id: str | None = None,
         importer_tag: str | None = None,
         user_id: int | None = None,
-    ):
+    ) -> str:
         task_id = self.post_task(
             func=self.import_tracks,
             task_id=task_id,
@@ -1490,7 +1500,7 @@ class LibraryManager:
                 "Succesful imported library", importer=importer_tag, user_id=user_id
             )
 
-    def check_status(self):
+    def check_status(self) -> ServicesStatus:
         return ServicesStatus(
             downloaders=[
                 *_get_runtime_errors(self.downloaders),
@@ -1511,7 +1521,7 @@ class LibraryManager:
             storages=[*_get_runtime_errors(self.storages), *self.start_errors.storages],
         )
 
-    def get_library_stats(self):
+    def get_library_stats(self) -> LibraryStats:
         with self.db_manager.get_session() as session:
             tracks_total = self.db_manager.get_model_count(session, TrackORM)
             tracks_with_lyrics = self.db_manager.get_count_with_lyrics(session)
