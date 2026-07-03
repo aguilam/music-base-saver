@@ -482,6 +482,7 @@ def ping():
     return {}
 
 
+@subsonic_router.get("/star")
 @subsonic_router.post("/star")
 def star(
     library_manager: CurrentLibrary,
@@ -499,6 +500,7 @@ def star(
     return {}
 
 
+@subsonic_router.get("/star")
 @subsonic_router.post("/unstar")
 def unstar(
     library_manager: CurrentLibrary,
