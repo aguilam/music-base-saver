@@ -709,14 +709,14 @@ class LibraryManager:
             for lyrics in track.lyrics:
                 lyrics_list.append(
                     LyricsResponse(
-                        lyrics.id,
-                        artists_name,
-                        track.title,
-                        lyrics.is_synced,
-                        lyrics.synced_text,
-                        lyrics.plain_text,
-                        lyrics.language,
-                        lyrics.offset,
+                        artist=artists_name,
+                        title=track.title,
+                        id=lyrics.id,
+                        is_synced=lyrics.is_synced,
+                        synced_text=lyrics.synced_text,
+                        plain_text=lyrics.plain_text,
+                        language=lyrics.language,
+                        offset=lyrics.offset,
                     )
                 )
             return lyrics_list
@@ -745,7 +745,6 @@ class LibraryManager:
             if object_id is None:
                 return None
             storage = self.db_manager.get_storage_object_by_id(session, object_id)
-
             if storage is None:
                 return None
             media_storage = storage.link_provider

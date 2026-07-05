@@ -89,6 +89,9 @@ def to_subsonic_lyric(lyrics: LyricsResponse):
     if lyrics.synced_text is not None:
         for line in lyrics.synced_text:
             sub_lyrics["line"].append({"start": line["time"], "value": line["text"]})
+    elif lyrics.plain_text is not None:
+        for line in lyrics.plain_text.split("\n"):
+            sub_lyrics["line"].append({"value": line})
     return sub_lyrics
 
 
