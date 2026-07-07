@@ -5,7 +5,7 @@ from collections import defaultdict
 import hashlib
 import uvicorn
 from typing import Annotated, NoReturn
-from core.schemas.schemas import User
+from core.schemas.schemas import StoredUser as User
 from hmac import compare_digest
 from fastapi.middleware.cors import CORSMiddleware
 from interface.subsonic_api.mappers import (
@@ -100,7 +100,9 @@ def get_user(
 subsonic_router = APIRouter(prefix="/rest", dependencies=[Depends(get_user)])
 
 
-async def subsonic_exception_handler(request: Request, exc: SubsonicException):
+async def subsonic_exception_handler(request: Request, exc: Exception):
+    if not isinstance(exc, SubsonicException):
+        raise exc
     return JSONResponse(
         status_code=200,
         content={
@@ -365,15 +367,15 @@ def global_search(
     tracks = []
     for artist in searched.artists:
         sub_artist = external_artist_to_subsonic(artist)
-        sub_artist["dbId"] = artist["db_id"]
+        sub_artist["dbId"] = artist.id
         artists.append(sub_artist)
     for album in searched.albums:
         sub_album = external_album_to_subsonic(album)
-        sub_album["dbId"] = album["db_id"]
+        sub_album["dbId"] = album.id
         albums.append(sub_album)
     for track in searched.tracks:
         sub_track = external_track_to_subsonic(track)
-        sub_track["dbId"] = track["db_id"]
+        sub_track["dbId"] = track.id
         tracks.append(sub_track)
     return {
         "globalSearchResult": {"artist": artists, "album": albums, "song": tracks},
@@ -427,11 +429,11 @@ def get_song(library_manager: CurrentLibrary, id: str):
         track = library_manager.get_track_by_id(int(id))
         if track is None:
             raise_subsonic_error(70)
-        song_link = next(
-            (link.link for link in track.links if link.link_type == "storage"), None
-        )
+        # song_link = next(
+        #    (link.link for link in track.links if link.link_type == "storage"), None
+        # )
         song = to_subsonic_song(track)
-        song["path"] = song_link
+        # song["path"] = song_link
     return {
         "song": song,
     }
@@ -536,8 +538,12 @@ def scrobble(
 @subsonic_router.get("/getLyrics")
 def get_lyrics(library_manager: CurrentLibrary, title: str, artist: str | None = None):
     track = library_manager.get_track_by_title(title)
+    if track is None:
+        raise_subsonic_error(70)
     lyrics = library_manager.get_lyrics(track.id)
     lyric = next((lyric for lyric in lyrics if not lyric.is_synced), None)
+    if lyric is None:
+        raise_subsonic_error(70)
     return {
         "lyrics": {
             "artist": lyric.artist,

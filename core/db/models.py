@@ -509,3 +509,11 @@ class ApiKeyORM(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     revoked: bool = False
     user: UserORM = Relationship(back_populates="api_keys")
+
+
+class StoredUserORM(SQLModel):
+    id: int
+    username: str = Field(unique=True)
+    password: str
+    email: str
+    is_admin: bool

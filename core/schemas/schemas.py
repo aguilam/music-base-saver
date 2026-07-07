@@ -156,6 +156,15 @@ class MusicVideo:
 
 
 @dataclass(slots=True)
+class StoredUser:
+    username: str
+    password: str
+    email: str
+    id: int
+    is_admin: bool = False
+
+
+@dataclass(slots=True)
 class User:
     username: str
     password: str

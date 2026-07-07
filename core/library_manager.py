@@ -62,6 +62,7 @@ from .schemas.schemas import (
     MusicVideo,
     Genre,
     Mood,
+    StoredUser,
     LyricsResponse,
     TrackMetadata,
     TrackAlbumMetadata,
@@ -691,7 +692,9 @@ class LibraryManager:
             self.db_manager.delete_playlist(session, playlist_id)
             session.commit()
 
-    def get_all_user_starred(self, user_id: int) -> tuple[Track, Album, Artist]:
+    def get_all_user_starred(
+        self, user_id: int
+    ) -> tuple[list[Track], list[Album], list[Artist]]:
         with self.db_manager.get_session() as session:
             return self.db_manager.get_all_user_starred(session, user_id)
 
@@ -699,7 +702,7 @@ class LibraryManager:
         with self.db_manager.get_session() as session:
             return self.db_manager.get_track_by_name(session, title)
 
-    def get_lyrics(self, track_id: int) -> list[LyricsResponse] | None:
+    def get_lyrics(self, track_id: int) -> list[LyricsResponse]:
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, track_id)
             if track is None:
@@ -723,7 +726,7 @@ class LibraryManager:
 
     def get_user(
         self, username: str | None = None, user_id: int | None = None
-    ) -> User | None:
+    ) -> StoredUser | None:
         with self.db_manager.get_session() as session:
             if username is not None:
                 return self.db_manager.get_user_by_name(session, username)

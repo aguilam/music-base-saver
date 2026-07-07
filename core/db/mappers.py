@@ -7,6 +7,7 @@ from core.db.models import (
     LyricsORM,
     UserORM,
     ObjectStorageORM,
+    StoredUserORM,
     TrackAlbumLink,
     MoodORM,
     GenreORM,
@@ -18,6 +19,7 @@ from core.schemas.schemas import (
     Track,
     ArtistShort,
     Artist,
+    StoredUser,
     AlbumShort,
     Album,
     Playlist,
@@ -201,6 +203,16 @@ def music_video_from_orm(music_video: MusicVideoORM) -> MusicVideo:
 
 def user_from_orm(user: UserORM) -> User:
     return User(
+        id=user.id,
+        username=user.username,
+        password=user.password,
+        email=user.email,
+        is_admin=user.is_admin,
+    )
+
+
+def stored_user_from_orm(user: StoredUserORM) -> StoredUser:
+    return StoredUser(
         id=user.id,
         username=user.username,
         password=user.password,

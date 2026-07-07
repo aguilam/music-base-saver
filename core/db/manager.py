@@ -20,6 +20,7 @@ from core.db.mappers import (
     track_from_orm,
     music_video_from_orm,
     user_from_orm,
+    stored_user_from_orm,
     object_storage_from_orm,
     mood_from_orm,
     genre_from_orm,
@@ -38,6 +39,7 @@ from core.db.models import (
     PlaylistORM,
     MusicVideoORM,
     ApiKeyORM,
+    StoredUserORM,
     ProviderKeyORM,
     PlaylistTrackLink,
     AudioFileORM,
@@ -59,6 +61,7 @@ if TYPE_CHECKING:
         Artist,
         Track,
         Playlist,
+        StoredUser,
         Mood,
         Genre,
         User,
@@ -183,11 +186,15 @@ class DBManager:
         ).first()
         return track_from_orm(orm_track) if orm_track else None
 
-    def get_user_by_name(self, session: Session, username: str) -> User | None:
+    def get_user_by_name(self, session: Session, username: str) -> StoredUser | None:
         orm_user = session.exec(
             select(UserORM).where(UserORM.username == username)
         ).first()
-        return user_from_orm(orm_user) if orm_user else None
+        return (
+            stored_user_from_orm(StoredUserORM.model_validate(orm_user))
+            if orm_user
+            else None
+        )
 
     def find_or_create_artist(self, session: Session, name: str) -> ArtistORM:
         normalized_name = name.lower().strip()
@@ -264,9 +271,13 @@ class DBManager:
         session.flush()
         return new_genre
 
-    def get_user_by_id(self, session: Session, id: int) -> User | None:
+    def get_user_by_id(self, session: Session, id: int) -> StoredUser | None:
         orm_user = session.exec(select(UserORM).where(UserORM.id == id)).first()
-        return user_from_orm(orm_user) if orm_user else None
+        return (
+            stored_user_from_orm(StoredUserORM.model_validate(orm_user))
+            if orm_user
+            else None
+        )
 
     def get_video_by_id(self, session: Session, id: int) -> MusicVideo | None:
         orm_video = session.exec(
@@ -354,11 +365,15 @@ class DBManager:
             playlist.track_links.append(trackLink)
         return playlist_from_orm(playlist)
 
-    def get_user_by_apikey(self, session: Session, api_key: str) -> User | None:
+    def get_user_by_apikey(self, session: Session, api_key: str) -> StoredUser | None:
         orm_user = session.exec(
             select(UserORM).join(UserORM.api_keys).where(ApiKeyORM.key == api_key)
         ).first()
-        return user_from_orm(orm_user) if orm_user else None
+        return (
+            stored_user_from_orm(StoredUserORM.model_validate(orm_user))
+            if orm_user
+            else None
+        )
 
     def search_artists(
         self, session: Session, query: str, limit: int, offset: int
@@ -429,7 +444,7 @@ class DBManager:
 
     def get_all_user_starred(
         self, session: Session, user_id: int
-    ) -> tuple[Track, Album, Artist]:
+    ) -> tuple[list[Track], list[Album], list[Artist]]:
         user = session.exec(select(UserORM).where(UserORM.id == user_id)).first()
         starred_tracks = [track_from_orm(track) for track in user.starred_tracks]
         starred_albums = [album_from_orm(album) for album in user.starred_albums]
