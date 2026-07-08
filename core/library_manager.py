@@ -462,7 +462,9 @@ class LibraryManager:
             tracks = self.db_manager.get_all_tracks(session)
             return tracks
 
-    def get_all_artists(self, size: int = 10, offset: int = 0) -> list[Artist]:
+    def get_all_artists(
+        self, size: int | None = None, offset: int | None = None
+    ) -> list[Artist]:
         with self.db_manager.get_session() as session:
             artists = self.db_manager.get_all_artists(session, size, offset)
             return artists

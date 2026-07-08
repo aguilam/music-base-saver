@@ -569,13 +569,14 @@ class DBManager:
         orm_tracks = session.exec(statement).all()
         return [track_from_orm(track) for track in orm_tracks]
 
-    def get_all_artists(self, session: Session, size: int, offset: int) -> list[Artist]:
-        statement = (
-            select(ArtistORM)
-            .options(selectinload(ArtistORM.albums))
-            .limit(size)
-            .offset(offset)
-        )
+    def get_all_artists(
+        self, session: Session, size: int | None, offset: int | None
+    ) -> list[Artist]:
+        statement = select(ArtistORM).options(selectinload(ArtistORM.albums))
+        if size:
+            statement = statement.limit(size)
+        if offset:
+            statement = statement.offset(offset)
         orm_artists = session.exec(statement).all()
         return [artist_from_orm(artist) for artist in orm_artists]
 

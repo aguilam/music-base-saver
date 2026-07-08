@@ -150,6 +150,7 @@ async def subsonic_middleware(request: Request, call_next):
     return new_response
 
 
+@subsonic_router.get("/stream.view", status_code=status.HTTP_206_PARTIAL_CONTENT)
 @subsonic_router.get("/stream", status_code=status.HTTP_206_PARTIAL_CONTENT)
 def stream_track(library_manager: CurrentLibrary, request: Request, id: str):
     CHUNK_SIZE = 1024 * 1024
@@ -177,6 +178,7 @@ def stream_track(library_manager: CurrentLibrary, request: Request, id: str):
     )
 
 
+@subsonic_router.get("/getPlaylists.view")
 @subsonic_router.get("/getPlaylists")
 def get_user_playlists(
     library_manager: CurrentLibrary, user: Annotated[User, Depends(get_user)]
@@ -284,6 +286,7 @@ def get_user_starred(
     }
 
 
+@subsonic_router.get("/getCoverArt.view")
 @subsonic_router.get("/getCoverArt")
 def get_cover_art(library_manager: CurrentLibrary, id: int):
     cover_art = library_manager.get_cover_art(id)
@@ -307,6 +310,7 @@ def get_music_directory():
     return {"hello world"}
 
 
+@subsonic_router.get("/search3.view")
 @subsonic_router.get("/search3")
 def local_serch(
     library_manager: CurrentLibrary,
@@ -382,6 +386,7 @@ def global_search(
     }
 
 
+@subsonic_router.get("/getArtist.view")
 @subsonic_router.get("/getArtist")
 def get_artist(library_manager: CurrentLibrary, id: str):
     if "-" in id:
@@ -401,6 +406,7 @@ def get_artist(library_manager: CurrentLibrary, id: str):
     }
 
 
+@subsonic_router.get("/getArtists.view")
 @subsonic_router.get("/getArtists")
 def get_artists(library_manager: CurrentLibrary):
     artists = library_manager.get_all_artists()
@@ -439,6 +445,7 @@ def get_song(library_manager: CurrentLibrary, id: str):
     }
 
 
+@subsonic_router.get("/getAlbum.view")
 @subsonic_router.get("/getAlbum")
 def get_album(library_manager: CurrentLibrary, id: str):
     if "-" in id:
@@ -468,6 +475,7 @@ def get_album(library_manager: CurrentLibrary, id: str):
     }
 
 
+@subsonic_router.get("/getAlbumList2.view")
 @subsonic_router.get("/getAlbumList2")
 def get_albums(library_manager: CurrentLibrary, size: int = 10, offset: int = 0):
     albums = library_manager.get_all_albums(size, offset)
@@ -480,10 +488,13 @@ def get_albums(library_manager: CurrentLibrary, size: int = 10, offset: int = 0)
 
 
 @subsonic_router.get("/ping")
+@subsonic_router.get("/ping.view")
 def ping():
     return {}
 
 
+@subsonic_router.get("/star.view")
+@subsonic_router.post("/star.view")
 @subsonic_router.get("/star")
 @subsonic_router.post("/star")
 def star(
@@ -502,7 +513,9 @@ def star(
     return {}
 
 
-@subsonic_router.get("/star")
+@subsonic_router.get("/unstar.view")
+@subsonic_router.post("/unstar.view")
+@subsonic_router.get("/unstar")
 @subsonic_router.post("/unstar")
 def unstar(
     library_manager: CurrentLibrary,
@@ -573,6 +586,7 @@ def get_artist_top_songs(library_manager: CurrentLibrary, artist: str, count: in
     }
 
 
+@subsonic_router.get("/getGenres.view")
 @subsonic_router.get("/getGenres")
 def get_genres(library_manager: CurrentLibrary):
     genres = library_manager.get_genres()
@@ -642,7 +656,8 @@ def getSimiliarSong(library_manager: CurrentLibrary, id: int, count: int = 50):
     return {"similarSongs2": {"song": [to_subsonic_song(track) for track in tracks]}}
 
 
-@subsonic_router.get("/scanStatus")
+@subsonic_router.get("/getScanStatus.view")
+@subsonic_router.get("/getScanStatus")
 def scan_status(library_manager: CurrentLibrary):
     task: Task[SyncTaskResult] | None = library_manager.get_task("sub")
     if task is None:
