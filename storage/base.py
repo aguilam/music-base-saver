@@ -1,10 +1,10 @@
+from typing import Generator
 from abc import ABC, abstractmethod
 from pathlib import Path
 from core.base_service import Service
 
 
 class Storage(Service, ABC):
-
     def __init__(self, config):
         self.config = config
 
@@ -29,5 +29,9 @@ class Storage(Service, ABC):
         pass
 
     @abstractmethod
-    def get_range_bytes(self, path: str, start: int, end: int) -> dict:
+    def get_file_metadata(self, path: str) -> dict:
+        pass
+
+    @abstractmethod
+    def get_range_bytes(self, path: str, start: int, end: int) -> Generator[bytes]:
         pass

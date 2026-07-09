@@ -1,5 +1,5 @@
-from fastapi import FastAPI, status, Request, APIRouter, Depends
-from fastapi.responses import Response, JSONResponse
+from fastapi import FastAPI, Request, APIRouter, Depends, status
+from fastapi.responses import Response, JSONResponse, StreamingResponse
 from core.library_manager import LibraryManager
 from collections import defaultdict
 import hashlib
@@ -150,31 +150,38 @@ async def subsonic_middleware(request: Request, call_next):
     return new_response
 
 
-@subsonic_router.get("/stream.view", status_code=status.HTTP_206_PARTIAL_CONTENT)
-@subsonic_router.get("/stream", status_code=status.HTTP_206_PARTIAL_CONTENT)
+@subsonic_router.get("/stream.view")
+@subsonic_router.get("/stream")
 def stream_track(library_manager: CurrentLibrary, request: Request, id: str):
-    CHUNK_SIZE = 1024 * 1024
+    metadata = library_manager.get_file_metadata(id)
     range_header = request.headers.get("range")
     if not range_header:
         start = 0
-        end = start + CHUNK_SIZE
+        end = metadata["file_size"] - 1
+        response_status = status.HTTP_200_OK
+        headers = {
+            "Content-Length": str(metadata["file_size"]),
+            "Accept-Ranges": "bytes",
+        }
     else:
         range = range_header.replace("bytes=", "").split("-")
         start = int(range[0])
-        end = int(range[1]) if range[1] != "" else start + CHUNK_SIZE
-    track_bytes = library_manager.stream_track(id, start, end)
-    if track_bytes is None:
-        raise_subsonic_error(70)
-    headers = {
-        "content-length": str(len(track_bytes["bytes"])),
-        "content-range": f"bytes {start}-{track_bytes['end_bytes']}/{track_bytes['file_size']}",
-        "Accept-Ranges": "bytes",
-    }
-    return Response(
-        content=track_bytes["bytes"],
-        status_code=status.HTTP_206_PARTIAL_CONTENT,
+        end = (
+            int(range[1])
+            if len(range) > 1 and range[1] != ""
+            else metadata["file_size"] - 1
+        )
+        response_status = status.HTTP_206_PARTIAL_CONTENT
+        content_length = end - start + 1
+        headers = {
+            "Content-Length": str(content_length),
+            "Content-Range": f"bytes {start}-{end}/{metadata['file_size']}",
+            "Accept-Ranges": "bytes",
+        }
+    return StreamingResponse(
+        library_manager.stream_track(id, start, end),
         headers=headers,
-        media_type="audio/mpeg",
+        status_code=response_status,
     )
 
 

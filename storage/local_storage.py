@@ -45,18 +45,21 @@ class LocalStorage(Storage):
                 files.append((str(f), f.name))
         return files
 
-    def get_range_bytes(self, path: str, start: int, end: int):
+    def get_file_metadata(self, path: str) -> dict:
         file_size = os.stat(self._fix_windows_path(path)).st_size
-        end_bytes = min(end, file_size - 1)
-        read_bytes = end_bytes - start + 1
+        return {"file_size": file_size}
+
+    def get_range_bytes(self, path: str, start: int, end: int):
+        chunk_size = 64 * 1024
+        read_bytes = end - start + 1
         with open(self._fix_windows_path(path), "rb") as file:
             file.seek(start)
-            bytes = file.read(read_bytes)
-            return {
-                "bytes": bytes,
-                "end_bytes": end_bytes,
-                "file_size": file_size,
-            }
+            while read_bytes > 0:
+                chunk = file.read(min(chunk_size, read_bytes))
+                if not chunk:
+                    break
+                read_bytes -= len(chunk)
+                yield chunk
 
     def health_check(self):
         return super().health_check()

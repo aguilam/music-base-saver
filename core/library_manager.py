@@ -86,7 +86,7 @@ from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
-from typing import Literal, overload, cast
+from typing import Literal, overload, cast, Generator
 import time
 import os
 from sqlmodel import Session
@@ -737,7 +737,9 @@ class LibraryManager:
             else:
                 return None
 
-    def stream_track(self, id: str, start_bytes: int, end_bytes: int):
+    def stream_track(
+        self, id: str, start_bytes: int, end_bytes: int
+    ) -> Generator[bytes]:
         with self.db_manager.get_session() as session:
             object_id = None
             if "cl-" in id:
@@ -761,6 +763,29 @@ class LibraryManager:
                         media_link, start_bytes, end_bytes
                     )
                     return track
+
+    def get_file_metadata(self, id: str) -> dict:
+        with self.db_manager.get_session() as session:
+            object_id = None
+            if "cl-" in id:
+                video_id = id.split("-")[1]
+                video = self.db_manager.get_video_by_id(session, int(video_id))
+                object_id = video.local_link
+            else:
+                track = self.db_manager.get_track_by_id(session, int(id))
+                object_id = track.path
+            if object_id is None:
+                return None
+            storage = self.db_manager.get_storage_object_by_id(session, object_id)
+            if storage is None:
+                return None
+            media_storage = storage.link_provider
+            media_link = storage.link
+            for storage in self.storages:
+                if storage.id == media_storage:
+                    current_storage = storage.instance
+                    metadata = current_storage.get_file_metadata(media_link)
+                    return metadata
 
     def get_task(self, task_id: str) -> Task | None:
         task = self.task_queue.get(task_id)
