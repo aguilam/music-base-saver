@@ -15,7 +15,7 @@ def to_subsonic_song(track: Track):
         "isDir": False,
         "title": track.title,
         "album": primary_album.title if primary_album else None,
-        "artist": primary_album.artists[0].name if primary_album else None,
+        "artist": ", ".join(artist.name for artist in track.artists),
         "duration": int(track.length / 1000),
         "created": track.created_at,
         "albumId": str(primary_album.id) if primary_album else None,

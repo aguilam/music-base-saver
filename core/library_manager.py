@@ -764,7 +764,7 @@ class LibraryManager:
                     )
                     return track
 
-    def get_file_metadata(self, id: str) -> dict:
+    def get_file_metadata(self, id: str) -> dict | None:
         with self.db_manager.get_session() as session:
             object_id = None
             if "cl-" in id:
