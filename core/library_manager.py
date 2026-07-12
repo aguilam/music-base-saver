@@ -884,9 +884,11 @@ class LibraryManager:
                 for storage in self.storages:
                     current_storage = storage.instance
                     for track in tracks_to_adding.get(storage.id, []):
-                        track_bytes = current_storage.get_range_bytes(
-                            track.link, 0, 1024 * 1024 * 5
-                        )["bytes"]
+                        track_bytes = b"".join(
+                            current_storage.get_range_bytes(
+                                track.link, 0, 1024 * 1024 * 5
+                            )
+                        )
                         track_metadata = get_track_metadata_by_bytes(track_bytes)
                         self.add_new_track(session, track_metadata, track, storage.id)
                         task.result.tracks.processed += 1
@@ -894,9 +896,9 @@ class LibraryManager:
                     for cover in cover_to_adding.get(storage.id, []):
                         cover_link, cover_name = cover
                         entity = None
-                        range_bytes: bytes = current_storage.get_range_bytes(
-                            cover_link, 0, 99999999
-                        )["bytes"]
+                        range_bytes: bytes = b"".join(
+                            current_storage.get_range_bytes(cover_link, 0, 99999999)
+                        )
                         cover_metadata = get_cover_metadata(
                             range_bytes,
                         )
@@ -946,9 +948,9 @@ class LibraryManager:
                         task.result.covers.added += 1
                     for lyrics in lyrics_to_adding.get(storage.id, []):
                         link, filename = lyrics
-                        range_bytes: bytes = current_storage.get_range_bytes(
-                            lyrics.link, 0, 9999999
-                        )["bytes"]
+                        range_bytes: bytes = b"".join(
+                            current_storage.get_range_bytes(lyrics.link, 0, 9999999)
+                        )
                         decoded_text = range_bytes.decode()
                         lyrics_type, lyrics_text = read_lyrics_text(decoded_text)
                         name = filename.split(".")[0]
@@ -1005,9 +1007,11 @@ class LibraryManager:
                         task.result.lyrics.added += 1
                     for video in videos_to_adding.get(storage.id, []):
                         link, filename = video
-                        video_bytes = current_storage.get_range_bytes(
-                            video.link, 0, 1024 * 1024 * 5
-                        )["bytes"]
+                        video_bytes = b"".join(
+                            current_storage.get_range_bytes(
+                                video.link, 0, 1024 * 1024 * 5
+                            )
+                        )
                         video_metadata = get_video_metadata(video_bytes)
                         video_title = video_metadata.get("title")
                         if video_title is None:
