@@ -21,6 +21,7 @@ from interface.subsonic_api.mappers import (
 import json
 from interface.base_interface import Interface
 from core.schemas.schemas import Task, DownloadTaskResult, SyncTaskResult
+from interface.subsonic_api import admin_router
 
 
 class SubsonicException(Exception):
@@ -703,7 +704,7 @@ class SubsonicApi(Interface):
         app.add_exception_handler(SubsonicException, subsonic_exception_handler)
         app.middleware("http")(subsonic_middleware)
         app.include_router(subsonic_router)
-
+        app.include_router(admin_router.router)
         config = uvicorn.Config(app, port=port, host=host)
         server = uvicorn.Server(config)
         await server.serve()
