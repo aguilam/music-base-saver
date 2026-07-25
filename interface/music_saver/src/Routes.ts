@@ -27,6 +27,10 @@ export const routes = [
                 component: lazy(() => import("./pages/settings")),
             },
             {
+                path: "/users",
+                component: lazy(() => import("./pages/users")),
+            },
+            {
                 path: "/profile/:id",
                 component: lazy(() => import("./pages/profile")),
             },
