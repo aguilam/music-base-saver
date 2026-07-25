@@ -1,9 +1,10 @@
 /* @refresh reload */
 import './index.css';
 import { render } from 'solid-js/web';
-import 'solid-devtools';
+import { Router } from "@solidjs/router";
+import { routes } from "./Routes";
 
-import App from './App';
+import 'solid-devtools';
 
 const root = document.getElementById('root');
 
@@ -13,4 +14,8 @@ if (import.meta.env.DEV && !(root instanceof HTMLElement)) {
   );
 }
 
-render(() => <App />, root!);
+if (!root) {
+  throw new Error("Wrapper div not found");
+}
+
+render(() => <Router>{routes}</Router>, root);

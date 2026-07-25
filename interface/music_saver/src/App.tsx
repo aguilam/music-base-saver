@@ -1,10 +1,10 @@
-import type { Component } from 'solid-js';
+import type { ParentComponent } from 'solid-js';
 import { SidebarProvider, SidebarTrigger,  Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarHeader } from "~/components/ui/sidebar"
-const App: Component = () => {
+const App: ParentComponent = (props) => {
   return (
     <SidebarProvider>
           <Sidebar>
@@ -17,7 +17,7 @@ const App: Component = () => {
     </Sidebar>
       <main>
         <SidebarTrigger />
-        <p>Test</p>
+        {props.children}
       </main>
     </SidebarProvider>
   );
