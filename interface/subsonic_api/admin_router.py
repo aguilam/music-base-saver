@@ -1,16 +1,121 @@
-from fastapi import APIRouter
+import time
+from fastapi import APIRouter, Request, Body, HTTPException, status, Response
+import jwt
+from interface.subsonic_api.utils import CurrentLibrary
+
+SECRET_KEY = "4a1d7f8e3b2c9a1058f321d4c7a9b8e210459f8a3c2b1d0e9f8a7b6c5d4e3f2a"
+
+
+def create_keys(id: int, is_admin: bool) -> tuple[str, str]:
+    now = int(time.time())
+    access_token = jwt.encode(
+        {
+            "sub": str(id),
+            "role": "admin" if is_admin else "user",
+            "exp": now + 60 * 15,
+            "iat": now,
+        },
+        SECRET_KEY,
+        algorithm="HS256",
+    )
+    refresh_token = jwt.encode(
+        {
+            "sub": str(id),
+            "role": "admin" if is_admin else "user",
+            "exp": now + 60 * 60 * 24 * 14,
+            "type": "refresh",
+            "iat": now,
+        },
+        SECRET_KEY,
+        algorithm="HS256",
+    )
+    return (access_token, refresh_token)
+
+
+def set_cookie(response: Response, id: int, is_admin: bool):
+    access_token, refresh_token = create_keys(id, is_admin)
+    response.set_cookie("access_token", access_token, httponly=True)
+    response.set_cookie(
+        "refresh_token", refresh_token, httponly=True, path="/auth/refresh"
+    )
+
+
+def user_auth(request: Request):
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        return payload
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+
 
 router = APIRouter()
+auth_router = APIRouter(prefix="/auth")
 
 
-@router.post("/login")
-def login():
-    pass
+@auth_router.post("/register", status_code=status.HTTP_201_CREATED)
+def register(
+    library: CurrentLibrary,
+    response: Response,
+    username: str = Body(),
+    password: str = Body(),
+):
+    user = library.create_user(username, "", password)
+    if user.id is None:
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR)
+    set_cookie(response, user.id, user.is_admin)
 
 
-@router.post("/logout")
-def logout():
-    pass
+@auth_router.post("/login")
+def login(
+    library: CurrentLibrary,
+    response: Response,
+    username: str = Body(),
+    password: str = Body(),
+):
+    user = library.get_user(username=username)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    if user.password != password:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    set_cookie(response, user.id, user.is_admin)
+
+
+@auth_router.post("/refresh")
+def refresh(request: Request, response: Response):
+    token = request.cookies.get("refresh_token")
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+    if payload.get("type", None) != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+    now = int(time.time())
+    payload["iat"] = now
+    payload["exp"] = now + 60 * 15
+    payload.pop("type", None)
+    access_token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    response.set_cookie("access_token", access_token, httponly=True)
+
+
+@auth_router.post("/logout")
+def logout(response: Response):
+    response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token", path="/auth/refresh")
 
 
 @router.get("/search")

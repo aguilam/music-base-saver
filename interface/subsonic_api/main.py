@@ -1,10 +1,9 @@
 from fastapi import FastAPI, Request, APIRouter, Depends, status
 from fastapi.responses import Response, JSONResponse, StreamingResponse
-from core.library_manager import LibraryManager
 from collections import defaultdict
 import hashlib
 import uvicorn
-from typing import Annotated, NoReturn
+from typing import Annotated
 from core.schemas.schemas import StoredUser as User
 from hmac import compare_digest
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,37 +21,11 @@ import json
 from interface.base_interface import Interface
 from core.schemas.schemas import Task, DownloadTaskResult, SyncTaskResult
 from interface.subsonic_api import admin_router
-
-
-class SubsonicException(Exception):
-    def __init__(self, code: int, message: str):
-        self.code = code
-        self.message = message
-
-
-opensubsonic_error = {
-    0: "A generic error.",
-    10: "Required parameter is missing.",
-    20: "Incompatible Subsonic REST protocol version. Client must upgrade.",
-    40: "Wrong username or password.",
-    42: "Provided authentication mechanism not supported.",
-    43: "Multiple conflicting authentication mechanisms provided.",
-    44: "Invalid API key.",
-    50: "User is not authorized for the given operation.",
-    70: "The requested data was not found.",
-}
-
-
-def raise_subsonic_error(code: int) -> NoReturn:
-    message = opensubsonic_error.get(code, "Error")
-    raise SubsonicException(code, message)
-
-
-def get_library_manager(request: Request) -> "LibraryManager":
-    return request.app.state.library_manager
-
-
-CurrentLibrary = Annotated["LibraryManager", Depends(get_library_manager)]
+from interface.subsonic_api.utils import (
+    CurrentLibrary,
+    raise_subsonic_error,
+    SubsonicException,
+)
 
 
 def get_user(
@@ -704,7 +677,10 @@ class SubsonicApi(Interface):
         app.add_exception_handler(SubsonicException, subsonic_exception_handler)
         app.middleware("http")(subsonic_middleware)
         app.include_router(subsonic_router)
-        app.include_router(admin_router.router)
+        app.include_router(admin_router.auth_router)
+        app.include_router(
+            admin_router.router, dependencies=[Depends(admin_router.user_auth)]
+        )
         config = uvicorn.Config(app, port=port, host=host)
         server = uvicorn.Server(config)
         await server.serve()
