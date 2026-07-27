@@ -669,7 +669,7 @@ class SubsonicApi(Interface):
         app.state.library_manager = self.library_manager
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],
+            allow_origin_regex=r".*",
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],

@@ -34,9 +34,16 @@ def create_keys(id: int, is_admin: bool) -> tuple[str, str]:
 
 def set_cookie(response: Response, id: int, is_admin: bool):
     access_token, refresh_token = create_keys(id, is_admin)
-    response.set_cookie("access_token", access_token, httponly=True)
     response.set_cookie(
-        "refresh_token", refresh_token, httponly=True, path="/auth/refresh"
+        "access_token",
+        access_token,
+        httponly=True,
+    )
+    response.set_cookie(
+        "refresh_token",
+        refresh_token,
+        httponly=True,
+        path="/auth/refresh",
     )
 
 
@@ -116,6 +123,30 @@ def refresh(request: Request, response: Response):
 def logout(response: Response):
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token", path="/auth/refresh")
+
+
+@auth_router.get("/me")
+def get_me(library: CurrentLibrary, request: Request):
+    token = request.cookies.get("access_token")
+    if token is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    user = library.get_user(user_id=int(user_id))
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return {
+        "id": user.id,
+        "username": user.username,
+        "role": "admin" if user.is_admin else "user",
+    }
 
 
 @router.get("/search")
