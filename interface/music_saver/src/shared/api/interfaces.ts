@@ -3,3 +3,8 @@ export interface CurrentUser {
     username: string
     role: string
 }
+
+export interface UserProfile {
+    id: string
+    username: string
+}

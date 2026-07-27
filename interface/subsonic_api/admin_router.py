@@ -165,8 +165,11 @@ def post_user():
 
 
 @router.get("/users/{id}")
-def get_user():
-    pass
+def get_user(id: int, library: CurrentLibrary):
+    user = library.get_user(user_id=id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return {"id": user.id, "username": user.username}
 
 
 @router.delete("/users/{id}")

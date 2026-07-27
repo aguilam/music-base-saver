@@ -40,13 +40,13 @@ const App: ParentComponent = (props) => {
                     <SidebarMenuButton onClick={() => navigate("/settings")}>Settings</SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton onClick={() => navigate("/profile/")}>Profile</SidebarMenuButton>
+                  <SidebarMenuButton onClick={() => navigate(`/profile/${user.id}`)}>Profile</SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarFooter>
         </Sidebar>
-        <main>
+        <main class='w-full h-full'>
           <SidebarTrigger />
           {props.children}
         </main>
