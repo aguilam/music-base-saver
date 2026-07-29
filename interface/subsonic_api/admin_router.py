@@ -1,5 +1,6 @@
+from typing import Annotated
 import time
-from fastapi import APIRouter, Request, Body, HTTPException, status, Response
+from fastapi import APIRouter, Request, Body, HTTPException, status, Response, Depends
 import jwt
 from interface.subsonic_api.utils import CurrentLibrary
 
@@ -173,8 +174,12 @@ def get_user(id: int, library: CurrentLibrary):
 
 
 @router.delete("/users/{id}")
-def delete_user():
-    pass
+def delete_user(
+    id: int, library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)]
+):
+    deleted = library.delete_user_by_id(id, int(user["sub"]))
+    if deleted is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
 
 @router.patch("/users/{id}")
@@ -273,8 +278,9 @@ def patch_playlist():
 
 
 @router.post("/scans")
-def post_scan():
-    pass
+def post_scan(library: CurrentLibrary):
+    id = library.sync()
+    return {"scanId": id}
 
 
 @router.get("/scans")
