@@ -1,4 +1,4 @@
-import { CurrentUser } from "./interfaces";
+import { CurrentUser } from "./types";
 import { client } from "./client";
 import { setUser, user } from "../store/user";
 

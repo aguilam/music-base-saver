@@ -1,6 +1,6 @@
 import { useParams } from "@solidjs/router"
 import { Component, createSignal, onMount } from "solid-js"
-import { UserProfile } from "~/shared/api/interfaces"
+import { UserProfile } from "~/shared/api/types"
 import { getUser } from "~/shared/api/users"
 
 const ProfilePage: Component = () => {
