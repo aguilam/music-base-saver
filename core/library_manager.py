@@ -81,6 +81,22 @@ from .schemas.schemas import (
     LibraryStats,
     StartStatuses,
     ApiKey,
+    FullAlbumResponse,
+    FullArtistResponse,
+    FullPlaylistResponse,
+    ShortAlbumResponse,
+    ShortArtistResponse,
+    ShortTrackResponse,
+    ShortUserResponse,
+)
+from .schemas.mappers import (
+    to_full_album_response,
+    to_full_artist_response,
+    to_full_playlist_response,
+    to_short_album_response,
+    to_short_artist_response,
+    to_short_track_response,
+    to_short_user_response,
 )
 from sqlalchemy import select
 from core.loader import import_modules, load_storages, load_modules
@@ -464,15 +480,17 @@ class LibraryManager:
 
     def get_all_artists(
         self, size: int | None = None, offset: int | None = None
-    ) -> list[Artist]:
+    ) -> list[ShortArtistResponse]:
         with self.db_manager.get_session() as session:
             artists = self.db_manager.get_all_artists(session, size, offset)
-            return artists
+            return [to_short_artist_response(artist) for artist in artists]
 
-    def get_all_albums(self, size: int = 10, offset: int = 0) -> list[Album]:
+    def get_all_albums(
+        self, size: int = 10, offset: int = 0
+    ) -> list[ShortAlbumResponse]:
         with self.db_manager.get_session() as session:
             albums = self.db_manager.get_all_albums(session, size, offset)
-            return albums
+            return [to_short_album_response(album) for album in albums]
 
     def get_track_by_id(self, id: int) -> Track | None:
         with self.db_manager.get_session() as session:
@@ -539,15 +557,15 @@ class LibraryManager:
             db_artists = self.db_manager.get_artists_by_name(session, artists, count)
             return db_artists
 
-    def get_album_by_id(self, id: int) -> Album | None:
+    def get_album_by_id(self, id: int) -> FullAlbumResponse | None:
         with self.db_manager.get_session() as session:
             album = self.db_manager.get_album_by_id(session, id)
-            return album
+            return to_full_album_response(album) if album else None
 
-    def get_artist_by_id(self, id: int) -> Artist | None:
+    def get_artist_by_id(self, id: int) -> FullArtistResponse | None:
         with self.db_manager.get_session() as session:
             artist = self.db_manager.get_artist_by_id(session, id)
-            return artist
+            return to_full_artist_response(artist) if artist else None
 
     def get_artist_top_songs(self, name: str, count: int) -> list[Track]:
         with self.db_manager.get_session() as session:
@@ -560,6 +578,8 @@ class LibraryManager:
             if storage is None:
                 return None
             cover_art = self.get_file(storage.link, storage.link_provider)
+            if cover_art is None:
+                return None
             cover_mime = image_mime(cover_art)
             return BinaryBlob(cover_art, cover_mime)
 
@@ -594,14 +614,10 @@ class LibraryManager:
                 )
             return counted_moods
 
-    def get_playlist_by_id(self, id: int) -> Playlist | None:
+    def get_playlist_by_id(self, id: int) -> FullPlaylistResponse | None:
         with self.db_manager.get_session() as session:
             playlist = self.db_manager.get_playlist_by_id(session, id)
-            if playlist is None:
-                return None
-            if playlist:
-                session.expunge_all()
-            return playlist
+            return to_full_playlist_response(playlist) if playlist else None
 
     def delete_user_by_username(self, username: str, user_id: int) -> int | None:
         with self.db_manager.get_session() as session:
@@ -650,9 +666,12 @@ class LibraryManager:
 
     def get_user_playlists(
         self, user_id: int, size: int = 10, offset: int = 10
-    ) -> list[Playlist]:
+    ) -> list[FullPlaylistResponse]:
         with self.db_manager.get_session() as session:
-            return self.db_manager.get_user_playlists(session, user_id, size, offset)
+            playlists = self.db_manager.get_user_playlists(
+                session, user_id, size, offset
+            )
+            return [to_full_playlist_response(playlist) for playlist in playlists]
 
     def create_playlist(
         self,
