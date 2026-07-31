@@ -1,9 +1,9 @@
 import { A } from "@solidjs/router";
-import { Album } from "../api/types";
-import Cover from "./cover";
+import Cover from "../../../shared/ui/cover";
+import { ShortAlbum } from "../model/types";
 
 interface AlbumCardProps {
-  content: Album;
+  content: ShortAlbum;
 }
 
 const AlbumCard = (props: AlbumCardProps) => {
@@ -14,7 +14,7 @@ const AlbumCard = (props: AlbumCardProps) => {
         <Cover coverUri={album.coverUri} type="album" size="lg" />
         <p class="text-primary-text mt-2">{album.title}</p>
         <p class="text-secondary-text">
-          {album.artist} {album.year ? `- ${album.year}` : ""}
+          {album.artists[0].name} {album.year ? `- ${album.year}` : ""}
         </p>
       </div>
     </A>

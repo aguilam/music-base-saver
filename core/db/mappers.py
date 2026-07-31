@@ -56,6 +56,7 @@ def artist_short_from_orm(artist: ArtistORM) -> ArtistShort:
 
 
 def album_from_orm(album: AlbumORM) -> Album:
+    album.type
     return Album(
         id=album.id,
         title=album.title,

@@ -5,7 +5,7 @@ import CoverPlaceholder from "../cover-placeholder";
 import { createEffect, createSignal, Show } from "solid-js";
 
 interface CoverProps {
-	coverUri?: string;
+	coverUri: string | null;
 	type: "artist" | "album" | "track" | "playlist";
 	size: "xs" | "sm" | "md" | "lg";
 }
@@ -24,7 +24,7 @@ const Cover = (props: CoverProps) => {
 
 			<Show when={props.coverUri && status() !== "error"}>
 				<img
-    	    	  src={props.coverUri}
+    	    	  src={props.coverUri!}
     	    	  alt={`${props.type} cover`}
     	    	  loading="lazy"
     	    	  decoding="async"

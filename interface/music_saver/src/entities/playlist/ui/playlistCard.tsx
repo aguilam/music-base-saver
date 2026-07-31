@@ -1,9 +1,9 @@
 import { A } from "@solidjs/router";
-import { Playlist } from "../api/types";
-import Cover from "./cover";
+import Cover from "../../../shared/ui/cover";
+import { ShortPlaylist } from "../model/types";
 
 interface PlaylistCardProps {
-    content: Playlist;
+    content: ShortPlaylist;
 }
 
 const PlaylistCard = (props: PlaylistCardProps) => {

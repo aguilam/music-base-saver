@@ -30,9 +30,11 @@ def _required(value: T | None) -> T:
 
 
 def to_short_artist_response(artist: Artist | ArtistShort) -> ShortArtistResponse:
+    # TODO: Add albums count
     return ShortArtistResponse(
         id=_required(artist.id),
         name=artist.name,
+        albums_count=0,
         cover_id=artist.cover_path,
         external_id=artist.external_id,
     )
@@ -108,6 +110,7 @@ def to_full_artist_response(artist: Artist) -> FullArtistResponse:
     return FullArtistResponse(
         id=_required(artist.id),
         name=artist.name,
+        albums_count=0,
         description=artist.description,
         cover_id=artist.cover_path,
         external_id=artist.external_id,

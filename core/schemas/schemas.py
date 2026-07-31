@@ -90,6 +90,7 @@ class Playlist:
 class ShortArtistResponse:
     id: int
     name: str
+    albums_count: int
     cover_id: int | None = None
     external_id: str | None = None
 
@@ -99,6 +100,7 @@ class ShortAlbumResponse:
     id: int
     title: str
     cover_id: int | None = None
+    year: int | None = None
     external_id: str | None = None
     artists: list[ShortArtistResponse] = field(default_factory=list)
 
@@ -107,6 +109,18 @@ class ShortAlbumResponse:
 class ShortUserResponse:
     id: int
     username: str
+
+
+@dataclass(slots=True)
+class ShortPlaylistResponse:
+    id: int
+    title: str
+    owners: list[ShortUserResponse]
+    public: bool
+    created_at: datetime
+    tracks_count: int
+    duration: int
+    cover_id: int | None = None
 
 
 @dataclass(slots=True)
@@ -158,6 +172,7 @@ class FullPlaylistResponse:
 class FullArtistResponse:
     id: int
     name: str
+    albums_count: int
     description: str | None = None
     cover_id: int | None = None
     external_id: str | None = None

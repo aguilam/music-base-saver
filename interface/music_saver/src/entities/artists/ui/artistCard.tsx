@@ -1,9 +1,9 @@
 import { A } from "@solidjs/router";
-import { Artist } from "../api/types";
-import Cover from "./cover";
+import Cover from "../../../shared/ui/cover";
+import { ShortArtist } from "../model/types";
 
 interface PlaylistCardProps {
-    content: Artist;
+    content: ShortArtist;
 }
 
 const ArtistCard = (props: PlaylistCardProps) => {
@@ -11,7 +11,7 @@ const ArtistCard = (props: PlaylistCardProps) => {
       	<A href={`/artist/${props.content.id}`}>
         	<div class="w-56 p-0 ring-0 bg-transparent">
           		<div class="flex flex-col items-center px-0">
-            		<Cover coverUri={props.content.avatarUri} type="artist" size="lg" />
+            		<Cover coverUri={props.content.coverUri} type="artist" size="lg" />
             		<p class="text-primary-text mt-2">{props.content.name}</p>
           		</div>
         	</div>
