@@ -1,38 +1,40 @@
-import { useAlbum } from "@/shared/api/hooks/albums";
 import { useParams } from "@solidjs/router";
-import { For } from "solid-js";
+import { For, Show } from "solid-js";
 import { formatTimeToString } from "~/shared/lib/utils";
 import Cover from "~/shared/ui/cover";
 import TrackCard from "~/entities/track/ui/trackCard";
+import { createAlbumQuery } from "~/entities/album/api/queries";
 const AlbumPage = () => {
-    const params = useParams()
-  const { data: albumInfo, isLoading } = useAlbum(params.id);
-  if (isLoading) {
-    return <div>Loading</div>;
-  }
+  const params = useParams()
+  const albumQuery = createAlbumQuery(() => Number(params.id));
+
   return (
-    <div>
-      <div class="h-48 flex gap-5">
-        <Cover coverUri={albumInfo?.coverUri} type="album" size="md" />
-        <div class="flex flex-col justify-between h-full py-5">
-          <div>
-            <p class=" text-slate-400">Album</p>
-            <p class=" text-5xl font-bold">{albumInfo?.title}</p>
-            <div class="flex gap-1 text-secondary-text">
-              <p>{albumInfo?.artist}</p>
-              <p>{albumInfo?.year}</p>
-              <p>{albumInfo?.trackCount} tracks</p>
-              <p>{formatTimeToString(albumInfo?.albumLength ?? 0)}</p>
+    <Show when={albumQuery.data} fallback={albumQuery.isLoading ? <div>Loading</div> : <div>Not found</div>}>
+      {(album) => (
+        <div>
+          <div class="h-48 flex gap-5">
+            <Cover coverUri={album().coverUri} type="album" size="md" />
+            <div class="flex flex-col justify-between h-full py-5">
+              <div>
+                <p class=" text-slate-400">Album</p>
+                <p class=" text-5xl font-bold">{album().title}</p>
+                <div class="flex gap-1 text-secondary-text">
+                  <p>{album().artists[0].name}</p>
+                  <p>{album().year}</p>
+                  <p>{album().tracksCount} tracks</p>
+                  <p>{formatTimeToString(album().duration ?? 0)}</p>
+                </div>
+              </div>
             </div>
           </div>
+          <div class="">
+              <For each={album().tracks}>
+                  {(track) => <TrackCard content={track} isAvatarHidden={true}/>}
+              </For>
+          </div>
         </div>
-      </div>
-        <div class="">
-            <For each={albumInfo?.tracks}>
-                {(track) => <TrackCard content={track} isAvatarHidden={true}/>}
-            </For>
-        </div>
-    </div>
+      )}
+    </Show>
   );
 };
 
