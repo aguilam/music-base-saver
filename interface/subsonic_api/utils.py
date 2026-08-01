@@ -1,6 +1,7 @@
 from fastapi import Request, Depends
 from typing import Annotated, NoReturn
 from core.library_manager import LibraryManager
+from typing import Any
 
 
 class SubsonicException(Exception):
@@ -32,3 +33,13 @@ def get_library_manager(request: Request) -> "LibraryManager":
 
 
 CurrentLibrary = Annotated["LibraryManager", Depends(get_library_manager)]
+
+
+def to_camel(response: dict[str, Any]) -> dict[str, Any]:
+    camel_response = {}
+    for key, value in response.items():
+        snaked = key.split("_")
+        snaked = [k.capitalize() if i > 0 else k for i, k in enumerate(snaked)]
+        new_key = "".join(snaked)
+        camel_response[new_key] = value
+    return camel_response

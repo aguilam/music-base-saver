@@ -61,7 +61,7 @@ def to_short_track_response(track: Track | TrackShort) -> ShortTrackResponse:
     return ShortTrackResponse(
         id=_required(track.id),
         title=track.title,
-        length=track.length,
+        duration=track.length,
         created_at=_required(track.created_at),
         cover_id=track.cover_path,
         bpm=track.bpm,

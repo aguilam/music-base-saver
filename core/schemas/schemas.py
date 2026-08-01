@@ -127,7 +127,7 @@ class ShortPlaylistResponse:
 class ShortTrackResponse:
     id: int
     title: str
-    length: int
+    duration: int
     created_at: datetime
     cover_id: int | None = None
     bpm: int | None = None

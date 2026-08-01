@@ -2,7 +2,8 @@ from typing import Annotated
 import time
 from fastapi import APIRouter, Request, Body, HTTPException, status, Response, Depends
 import jwt
-from interface.subsonic_api.utils import CurrentLibrary
+from interface.subsonic_api.utils import CurrentLibrary, to_camel
+from dataclasses import asdict
 
 SECRET_KEY = "4a1d7f8e3b2c9a1058f321d4c7a9b8e210459f8a3c2b1d0e9f8a7b6c5d4e3f2a"
 
@@ -237,9 +238,12 @@ def get_artists():
     pass
 
 
-@router.get("/artists/:id")
-def get_artist():
-    pass
+@router.get("/artists/{id}")
+def get_artist(library: CurrentLibrary, id: int):
+    artist = library.get_artist_by_id(id)
+    if artist is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return to_camel(asdict(artist))
 
 
 @router.get("/albums")
@@ -247,9 +251,12 @@ def get_albums():
     pass
 
 
-@router.get("/albums/:id")
-def get_album():
-    pass
+@router.get("/albums/{id}")
+def get_album(library: CurrentLibrary, id: int):
+    album = library.get_album_by_id(id)
+    if album is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return to_camel(asdict(album))
 
 
 @router.get("/playlists")
@@ -262,17 +269,20 @@ def post_playlist():
     pass
 
 
-@router.get("/playlists/:id")
-def get_playlist():
-    pass
+@router.get("/playlists/{id}")
+def get_playlist(library: CurrentLibrary, id: int):
+    playlist = library.get_playlist_by_id(id)
+    if playlist is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return to_camel(asdict(playlist))
 
 
-@router.delete("/playlists/:id")
+@router.delete("/playlists/{id}")
 def delete_playlist():
     pass
 
 
-@router.patch("/playlists/:id")
+@router.patch("/playlists/{id}")
 def patch_playlist():
     pass
 
