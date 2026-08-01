@@ -1,10 +1,12 @@
+from collections import defaultdict
 from pathlib import Path
 from importlib.util import spec_from_file_location, module_from_spec
 from storage.base import Storage
 import inspect
 from dataclasses import dataclass
 from core.schemas.schemas import ServiceStatus, HealthStatus
-from typing import TypeVar, Generic, Any
+from typing import TypeVar, Generic, Any, Callable
+from tool.base import Tool
 
 T = TypeVar("T")
 
@@ -103,3 +105,12 @@ def load_storages(
             )
     active_storages.sort(key=lambda x: x.priority, reverse=True)
     return active_storages, errors
+
+
+def load_tools(modules: dict[str, type[Tool]]) -> dict[str, list[Callable[..., Any]]]:
+    tools: defaultdict[str, list[Callable[..., Any]]] = defaultdict(list)
+    for module in modules.values():
+        for _, method in inspect.getmembers(module, inspect.isfunction):
+            if hasattr(method, "__event_name__"):
+                tools[method.__event_name__].append(method)
+    return dict(tools)
