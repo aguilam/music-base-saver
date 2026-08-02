@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class Event(Enum, str):
+class Event(str, Enum):
     NEW_TRACK = "new_track"
     NEW_COVER = "new_cover"
     NEW_LYRICS = "new_lyrics"
