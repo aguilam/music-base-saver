@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 import tomllib
 from structlog import get_logger
@@ -782,6 +783,27 @@ class LibraryManager:
                         media_link, start_bytes, end_bytes
                     )
                     return track
+
+    def get_albums_cursor(
+        self, id: int | None, created_at: datetime | None, limit: int = 20
+    ) -> list[ShortAlbumResponse]:
+        with self.db_manager.get_session() as session:
+            albums = self.db_manager.get_albums_cursor(session, limit, id, created_at)
+            return [to_short_album_response(album) for album in albums]
+
+    def get_artists_cursor(
+        self, id: int | None, created_at: datetime | None, limit: int = 20
+    ) -> list[ShortArtistResponse]:
+        with self.db_manager.get_session() as session:
+            artists = self.db_manager.get_artist_cursor(session, limit, id, created_at)
+            return [to_short_artist_response(artist) for artist in artists]
+
+    def get_tracks_cursor(
+        self, id: int | None, created_at: datetime | None, limit: int = 20
+    ) -> list[ShortTrackResponse]:
+        with self.db_manager.get_session() as session:
+            tracks = self.db_manager.get_track_cursor(session, limit, id, created_at)
+            return [to_short_track_response(track) for track in tracks]
 
     def get_file_metadata(self, id: str) -> dict | None:
         with self.db_manager.get_session() as session:

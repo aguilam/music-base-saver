@@ -1,4 +1,5 @@
 from __future__ import annotations
+from datetime import datetime
 from typing import TYPE_CHECKING
 from sqlmodel import (
     SQLModel,
@@ -12,7 +13,7 @@ from sqlmodel import (
     not_,
 )
 
-from sqlalchemy import tuple_, or_, func, not_, distinct
+from sqlalchemy import tuple_, or_, func, not_, distinct, and_
 from core.db.mappers import (
     artist_from_orm,
     album_from_orm,
@@ -622,6 +623,63 @@ class DBManager:
         )
         orm_track = session.exec(statement).first()
         return track_from_orm(orm_track) if orm_track else None
+
+    def get_albums_cursor(
+        self, session: Session, limit: int, id: int | None, created_at: datetime | None
+    ) -> list[Album]:
+        statement = (
+            select(AlbumORM)
+            .order_by(AlbumORM.created_at.desc(), AlbumORM.id.desc())
+            .limit(limit)
+        )
+        if id is not None and created_at is not None:
+            statement = statement.where(
+                or_(
+                    AlbumORM.created_at < created_at,
+                    and_(
+                        AlbumORM.created_at == created_at,
+                        AlbumORM.id < id,
+                    ),
+                )
+            )
+        albums = session.exec(statement).all()
+        return [album_from_orm(album) for album in albums]
+
+    def get_artist_cursor(
+        self, session: Session, limit: int, id: int | None, created_at: datetime | None
+    ):
+        statement = (
+            select(ArtistORM)
+            .order_by(ArtistORM.created_at.desc(), ArtistORM.id.desc())
+            .limit(limit)
+        )
+        if id is not None and created_at is not None:
+            statement = statement.where(
+                or_(
+                    ArtistORM.created_at < created_at,
+                    and_(ArtistORM.created_at == created_at, ArtistORM.id < id),
+                )
+            )
+        artists = session.exec(statement).all()
+        return [artist_from_orm(artist) for artist in artists]
+
+    def get_track_cursor(
+        self, session: Session, limit: int, id: int | None, created_at: datetime | None
+    ):
+        statement = (
+            select(TrackORM)
+            .order_by(TrackORM.created_at.desc(), TrackORM.id.desc())
+            .limit(limit)
+        )
+        if id is not None and created_at is not None:
+            statement = statement.where(
+                or_(
+                    TrackORM.created_at < created_at,
+                    and_(TrackORM.created_at == created_at, TrackORM.id < id),
+                )
+            )
+        tracks = session.exec(statement).all()
+        return [track_from_orm(track) for track in tracks]
 
     def get_album_by_id(self, session: Session, id: int) -> Album | None:
         statement = (

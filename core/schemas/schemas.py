@@ -12,6 +12,7 @@ class Artist:
     description: str | None = None
     cover_path: int | None = None
     external_id: str | None = None
+    created_at: datetime | None = None
     genres: list[str] = field(default_factory=list)
     albums: list[Album] = field(default_factory=list)
 
@@ -39,6 +40,7 @@ class ArtistShort:
     description: str | None = None
     cover_path: int | None = None
     external_id: str | None = None
+    created_at: datetime | None = None
     genres: list[str] = field(default_factory=list)
 
 
@@ -91,6 +93,7 @@ class ShortArtistResponse:
     id: int
     name: str
     albums_count: int
+    created_at: datetime
     cover_id: int | None = None
     external_id: str | None = None
 
@@ -99,6 +102,7 @@ class ShortArtistResponse:
 class ShortAlbumResponse:
     id: int
     title: str
+    created_at: datetime
     cover_id: int | None = None
     year: int | None = None
     external_id: str | None = None
@@ -173,6 +177,7 @@ class FullArtistResponse:
     id: int
     name: str
     albums_count: int
+    created_at: datetime
     description: str | None = None
     cover_id: int | None = None
     external_id: str | None = None

@@ -36,6 +36,7 @@ def to_short_artist_response(artist: Artist | ArtistShort) -> ShortArtistRespons
         name=artist.name,
         albums_count=0,
         cover_id=artist.cover_path,
+        created_at=_required(artist.created_at),
         external_id=artist.external_id,
     )
 
@@ -45,6 +46,7 @@ def to_short_album_response(album: Album | AlbumShort) -> ShortAlbumResponse:
         id=_required(album.id),
         title=album.title,
         cover_id=album.cover_path,
+        created_at=_required(album.created_at),
         external_id=album.external_id,
         artists=[to_short_artist_response(artist) for artist in album.artists],
     )
@@ -115,5 +117,6 @@ def to_full_artist_response(artist: Artist) -> FullArtistResponse:
         cover_id=artist.cover_path,
         external_id=artist.external_id,
         genres=list(artist.genres),
+        created_at=_required(artist.created_at),
         albums=[to_short_album_response(album) for album in artist.albums],
     )

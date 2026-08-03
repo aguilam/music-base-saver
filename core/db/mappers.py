@@ -41,6 +41,7 @@ def artist_from_orm(artist: ArtistORM) -> Artist:
         name=artist.name,
         cover_path=artist.cover_path,
         description=artist.description,
+        created_at=artist.created_at,
         albums=[album_from_orm(album) for album in artist.albums],
         genres=[genre.name for genre in artist.genres],
     )
@@ -52,6 +53,7 @@ def artist_short_from_orm(artist: ArtistORM) -> ArtistShort:
         name=artist.name,
         description=artist.description,
         cover_path=artist.cover_path,
+        created_at=artist.created_at,
     )
 
 

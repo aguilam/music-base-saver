@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated
 import time
 from fastapi import APIRouter, Request, Body, HTTPException, status, Response, Depends
@@ -234,8 +235,13 @@ def get_status():
 
 
 @router.get("/artists")
-def get_artists():
-    pass
+def get_artists(
+    library: CurrentLibrary, id: int | None = None, created_at: str | None = None
+):
+    dt = None
+    if created_at is not None:
+        dt = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%S.%f")
+    return [to_camel(asdict(artist)) for artist in library.get_artists_cursor(id, dt)]
 
 
 @router.get("/artists/{id}")
@@ -247,8 +253,13 @@ def get_artist(library: CurrentLibrary, id: int):
 
 
 @router.get("/albums")
-def get_albums():
-    pass
+def get_albums(
+    library: CurrentLibrary, id: int | None = None, created_at: str | None = None
+):
+    dt = None
+    if created_at is not None:
+        dt = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%S.%f")
+    return [to_camel(asdict(album)) for album in library.get_albums_cursor(id, dt)]
 
 
 @router.get("/albums/{id}")
@@ -287,23 +298,23 @@ def patch_playlist():
     pass
 
 
-@router.post("/scans")
+@router.post("/syncs")
 def post_scan(library: CurrentLibrary):
     id = library.sync()
-    return {"scanId": id}
+    return {"syncId": id}
 
 
-@router.get("/scans")
+@router.get("/syncs")
 def get_scans():
     pass
 
 
-@router.get("/scans/{id}")
+@router.get("/syncs/{id}")
 def get_scan():
     pass
 
 
-@router.delete("/scans/{id}")
+@router.delete("/syncs/{id}")
 def cancel_scan():
     pass
 
@@ -314,8 +325,13 @@ def get_logs():
 
 
 @router.get("/tracks")
-def get_tracks():
-    pass
+def get_tracks(
+    library: CurrentLibrary, id: int | None = None, created_at: str | None = None
+):
+    dt = None
+    if created_at is not None:
+        dt = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%S.%f")
+    return [to_camel(asdict(track)) for track in library.get_tracks_cursor(id, dt)]
 
 
 @router.post("/tracks")
