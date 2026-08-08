@@ -157,12 +157,8 @@ class DBManager:
         ).first()
         return api_key_from_orm(key) if key else None
 
-    def toggle_api_key_revoked(self, session: Session, id: int):
-        session.exec(
-            update(ApiKeyORM)
-            .where(ApiKeyORM.id == id)
-            .values(revoked=~ApiKeyORM.revoked)
-        )
+    def revoke_api_key(self, session: Session, id: int):
+        session.exec(update(ApiKeyORM).where(ApiKeyORM.id == id).values(revoked=True))
         session.flush()
 
     def get_moods(self, session: Session) -> list[Mood]:

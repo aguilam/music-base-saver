@@ -545,9 +545,9 @@ class LibraryManager:
             api_keys = self.db_manager.get_user_api_keys(session, user_id)
             return api_keys
 
-    def toggle_api_key_revoked(self, key_id: int):
+    def revoke_api_key(self, key_id: int):
         with self.db_manager.get_session() as session:
-            self.db_manager.toggle_api_key_revoked(session, key_id)
+            self.db_manager.revoke_api_key(session, key_id)
             session.commit()
 
     def get_similiar_artists(self, id: int, count: int = 5) -> list[Artist] | None:
