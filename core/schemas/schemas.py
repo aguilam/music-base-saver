@@ -116,6 +116,13 @@ class ShortUserResponse:
 
 
 @dataclass(slots=True)
+class ListedUserResponse:
+    id: int
+    username: str
+    is_admin: bool
+
+
+@dataclass(slots=True)
 class ShortPlaylistResponse:
     id: int
     title: str

@@ -89,6 +89,7 @@ from .schemas.schemas import (
     ShortArtistResponse,
     ShortTrackResponse,
     ShortUserResponse,
+    ListedUserResponse,
 )
 from .schemas.mappers import (
     to_full_album_response,
@@ -1573,6 +1574,11 @@ class LibraryManager:
             self.logger.info(
                 "Succesful imported library", importer=importer_tag, user_id=user_id
             )
+
+    def get_all_users(self) -> list[ListedUserResponse]:
+        with self.db_manager.get_session() as session:
+            users = self.db_manager.get_all_users(session)
+            return users
 
     def check_status(self) -> ServicesStatus:
         return ServicesStatus(

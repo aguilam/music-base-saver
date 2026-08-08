@@ -158,8 +158,9 @@ def search():
 
 
 @router.get("/users")
-def get_users():
-    pass
+def get_users(library: CurrentLibrary):
+    users = library.get_all_users()
+    return [to_camel(asdict(user)) for user in users]
 
 
 @router.post("/users")

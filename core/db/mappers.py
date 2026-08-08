@@ -22,6 +22,7 @@ from core.schemas.schemas import (
     StoredUser,
     AlbumShort,
     Album,
+    ListedUserResponse,
     Playlist,
     MusicVideo,
     Lyrics,
@@ -210,6 +211,14 @@ def user_from_orm(user: UserORM) -> User:
         username=user.username,
         password=user.password,
         email=user.email,
+        is_admin=user.is_admin,
+    )
+
+
+def listed_user_from_orm(user: StoredUserORM) -> ListedUserResponse:
+    return ListedUserResponse(
+        id=user.id,
+        username=user.username,
         is_admin=user.is_admin,
     )
 

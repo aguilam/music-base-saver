@@ -27,6 +27,7 @@ from core.db.mappers import (
     genre_from_orm,
     provider_key_from_orm,
     api_key_from_orm,
+    listed_user_from_orm,
 )
 from core.db.models import (
     UserORM,
@@ -69,6 +70,7 @@ if TYPE_CHECKING:
         MusicVideo,
         ObjectStorage,
         ProviderKey,
+        ListedUserResponse,
     )
 
 
@@ -114,6 +116,13 @@ class DBManager:
             select(TrackORM).join(TrackORM.artists).where(ArtistORM.name == artist_name)
         ).all()
         return [track_from_orm(track) for track in tracks]
+
+    def get_all_users(self, session: Session) -> list[ListedUserResponse]:
+        statement = select(UserORM)
+        users = session.exec(statement)
+        return [
+            listed_user_from_orm(StoredUserORM.model_validate(user)) for user in users
+        ]
 
     def get_provider_key(
         self, session: Session, provider: str, user_id: int
