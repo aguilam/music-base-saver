@@ -230,8 +230,9 @@ def put_config():
 
 
 @router.get("/status")
-def get_status():
-    pass
+def get_status(library: CurrentLibrary):
+    status = library.check_status()
+    return to_camel(asdict(status))
 
 
 @router.get("/artists")

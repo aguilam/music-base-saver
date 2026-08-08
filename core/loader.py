@@ -99,7 +99,7 @@ def load_storages(
         except Exception as e:
             errors.append(
                 ServiceStatus(
-                    tag=storage.get("name", "Undefined"),
+                    tag=storage.get("id", "Undefined"),
                     health=HealthStatus(ok=False, message=str(e)),
                 )
             )
