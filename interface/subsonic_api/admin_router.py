@@ -190,25 +190,25 @@ def patch_user():
     pass
 
 
-@router.get("/users/{id}/api-keys")
+@router.get("/api-keys")
 def get_api_keys(library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)]):
     api_keys = library.get_user_api_keys(user["sub"])
     return [to_camel(asdict(key)) for key in api_keys]
 
 
-@router.post("/users/{id}/api-keys")
+@router.post("/api-keys")
 def post_api_key():
     pass
 
 
-@router.delete("/users/{id}/api-keys/{key_id}")
+@router.delete("/api-keys/{key_id}")
 def revoke_api_key(
     library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)], key_id: int
 ):
     library.revoke_api_key(key_id)
 
 
-@router.get("/users/{id}/providers-keys")
+@router.get("/providers-keys")
 def get_providers_keys(
     library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)]
 ):
@@ -216,12 +216,12 @@ def get_providers_keys(
     return [to_camel(asdict(key)) for key in api_keys]
 
 
-@router.post("/users/{id}/providers-keys")
+@router.post("/providers-keys")
 def post_providers_key():
     pass
 
 
-@router.delete("/users/{id}/providers-keys/{key_id}")
+@router.delete("/providers-keys/{key_id}")
 def delete_provider_key(
     library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)], key_id: int
 ):
