@@ -268,13 +268,26 @@ def patch_provider_key(
 
 
 @router.get("/config")
-def get_config():
-    pass
+def get_config(
+    library: CurrentLibrary,
+    user: Annotated[dict, Depends(user_auth)],
+):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+    return Response(content=library.get_config(), media_type="text/plain")
 
 
 @router.put("/config")
-def put_config():
-    pass
+async def put_config(
+    request: Request,
+    library: CurrentLibrary,
+    user: Annotated[dict, Depends(user_auth)],
+):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+    body_bytes = await request.body()
+    config_str = body_bytes.decode("utf-8")
+    library.change_config(config_str)
 
 
 @router.get("/status")

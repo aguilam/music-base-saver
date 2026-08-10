@@ -1,3 +1,4 @@
+import tomli_w
 import secrets
 from datetime import datetime
 from pathlib import Path
@@ -126,30 +127,32 @@ UNSTAR_LINK_MAP = {
 class LibraryManager:
     def __init__(self) -> None:
         path = Path(__file__).resolve()
-        config_path = path.parents[1] / "config.toml"
-        with config_path.open("rb") as config_file:
-            config = tomllib.load(config_file)
-        self.config = config
+        self.config_path = path.parents[1] / "config.toml"
+        self.toml_config = ""
+        with self.config_path.open("r", encoding="utf-8") as config_file:
+            self.toml_config = config_file.read()
+            self.config = tomllib.loads(self.toml_config)
         self.temp_dir = Path("temp_tracks")
         self.task_queue: dict[str, Task] = {}
         self.start_errors: StartStatuses = StartStatuses()
         self.search_engines, self.start_errors.search = load_modules(
-            config.get("search", {}), import_modules("search", BaseSearch)
+            self.config.get("search", {}), import_modules("search", BaseSearch)
         )
         self.storages, self.start_errors.storages = load_storages(
-            config, import_modules("storage", BaseStorage)
+            self.config, import_modules("storage", BaseStorage)
         )
         self.downloaders, self.start_errors.downloaders = load_modules(
-            config.get("downloader", {}), import_modules("downloader", BaseDownloader)
+            self.config.get("downloader", {}),
+            import_modules("downloader", BaseDownloader),
         )
         self.importers, self.start_errors.importers = load_modules(
-            config.get("importer", {}), import_modules("importer", BaseImporter)
+            self.config.get("importer", {}), import_modules("importer", BaseImporter)
         )
         self.scrobblers, self.start_errors.scrobblers = load_modules(
-            config.get("scrobbler", {}), import_modules("scrobbler", BaseScrobbler)
+            self.config.get("scrobbler", {}), import_modules("scrobbler", BaseScrobbler)
         )
         self.tools = load_modules(
-            config.get("tool", {}), import_modules("tool", BaseTool)
+            self.config.get("tool", {}), import_modules("tool", BaseTool)
         )
         self.db_manager = DBManager()
         self.logger: BoundLogger = get_logger(__name__)
@@ -724,6 +727,18 @@ class LibraryManager:
             )
             session.commit()
             return new_playlist
+
+    def get_config(self) -> str:
+        return self.toml_config
+
+    def change_config(self, new_config: str):
+        new_dict = tomllib.loads(new_config)
+
+        with self.config_path.open("w", encoding="utf-8") as file:
+            file.write(new_config)
+
+        self.toml_config = new_config
+        self.config = new_dict
 
     def update_user(
         self,
