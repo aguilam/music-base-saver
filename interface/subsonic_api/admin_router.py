@@ -186,8 +186,18 @@ def delete_user(
 
 
 @router.patch("/users/{id}")
-def patch_user():
-    pass
+def patch_user(
+    library: CurrentLibrary,
+    user: Annotated[dict, Depends(user_auth)],
+    id: int,
+    username: str | None = None,
+    password: str | None = None,
+    is_admin: bool | None = None,
+):
+    new_user = library.update_user(
+        user_id=id, username=username, password=password, is_admin=is_admin
+    )
+    return to_camel(asdict(new_user))
 
 
 @router.get("/api-keys")
