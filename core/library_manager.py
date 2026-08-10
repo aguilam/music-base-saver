@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime
 from pathlib import Path
 import tomllib
@@ -528,6 +529,40 @@ class LibraryManager:
     def delete_provider_key(self, key_id: int):
         with self.db_manager.get_session() as session:
             self.db_manager.delete_provider_key(session, key_id)
+            session.commit()
+
+    def get_provider_types(self) -> list[str]:
+        return [scrobbler.tag for scrobbler in self.scrobblers]
+
+    def create_api_key(self, user_id: int) -> ApiKey | None:
+        with self.db_manager.get_session() as session:
+            user = self.db_manager.get_user_by_id(session, user_id)
+            if user is None:
+                return None
+            key = secrets.token_hex(16)
+            api_key = self.db_manager.create_api_key(session, user_id, key=f"ms_{key}")
+            session.commit()
+            return api_key
+
+    def create_provider_key(
+        self, user_id: int, key: str, provider: str
+    ) -> ProviderKey | None:
+        with self.db_manager.get_session() as session:
+            user = self.db_manager.get_user_by_id(session, user_id)
+            if user is None:
+                return None
+            provider_key = self.db_manager.create_provider_key(
+                session, user_id, key=key, provider=provider
+            )
+            session.commit()
+            return provider_key
+
+    def change_provider_key(self, user_id: int, key_id: int, new_key: str):
+        with self.db_manager.get_session() as session:
+            user = self.db_manager.get_user_by_id(session, user_id)
+            if user is None:
+                return None
+            self.db_manager.change_provider_key(session, key_id, new_value=new_key)
             session.commit()
 
     def check_api_key_availability(self, api_key: str) -> ApiKey | None:

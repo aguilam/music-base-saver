@@ -197,8 +197,11 @@ def get_api_keys(library: CurrentLibrary, user: Annotated[dict, Depends(user_aut
 
 
 @router.post("/api-keys")
-def post_api_key():
-    pass
+def post_api_key(library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)]):
+    api_key = library.create_api_key(user_id=user["sub"])
+    if api_key is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return to_camel(asdict(api_key))
 
 
 @router.delete("/api-keys/{key_id}")
@@ -206,6 +209,12 @@ def revoke_api_key(
     library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)], key_id: int
 ):
     library.revoke_api_key(key_id)
+
+
+@router.get("/providers")
+def get_providers(library: CurrentLibrary):
+    providers = library.get_provider_types()
+    return providers
 
 
 @router.get("/providers-keys")
@@ -217,8 +226,18 @@ def get_providers_keys(
 
 
 @router.post("/providers-keys")
-def post_providers_key():
-    pass
+def post_providers_key(
+    library: CurrentLibrary,
+    user: Annotated[dict, Depends(user_auth)],
+    key: str = Body(),
+    provider: str = Body(),
+):
+    provider_key = library.create_provider_key(
+        user_id=user["sub"], key=key, provider=provider
+    )
+    if provider_key is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return to_camel(asdict(provider_key))
 
 
 @router.delete("/providers-keys/{key_id}")
@@ -226,6 +245,16 @@ def delete_provider_key(
     library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)], key_id: int
 ):
     library.delete_provider_key(key_id)
+
+
+@router.patch("/providers-keys/{key_id}")
+def patch_provider_key(
+    library: CurrentLibrary,
+    user: Annotated[dict, Depends(user_auth)],
+    key_id: int,
+    key: str = Body(),
+):
+    library.change_provider_key(user_id=user["sub"], key_id=key_id, new_key=key)
 
 
 @router.get("/config")

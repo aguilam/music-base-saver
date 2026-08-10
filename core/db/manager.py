@@ -133,6 +133,20 @@ class DBManager:
         key = session.exec(statement).first()
         return provider_key_from_orm(key) if key else None
 
+    def change_provider_key(self, session: Session, id: int, new_value: str):
+        session.exec(
+            update(ProviderKeyORM).where(ProviderKeyORM.id == id).values(key=new_value)
+        )
+        session.flush()
+
+    def create_provider_key(
+        self, session: Session, user_id: int, key: str, provider: str
+    ) -> ProviderKey:
+        provider_key = ProviderKeyORM(user_id=user_id, key=key, provider=provider)
+        session.add(provider_key)
+        session.flush()
+        return provider_key_from_orm(provider_key)
+
     def delete_provider_key(self, session: Session, id: int):
         session.exec(delete(ProviderKeyORM).where(ProviderKeyORM.id == id))
         session.flush()
@@ -156,6 +170,12 @@ class DBManager:
             select(ApiKeyORM).where(ApiKeyORM.key == api_key, ~col(ApiKeyORM.revoked))
         ).first()
         return api_key_from_orm(key) if key else None
+
+    def create_api_key(self, session: Session, user_id: int, key: str) -> ApiKey:
+        api_key = ApiKeyORM(user_id=user_id, key=key)
+        session.add(api_key)
+        session.flush()
+        return api_key_from_orm(api_key)
 
     def revoke_api_key(self, session: Session, id: int):
         session.exec(update(ApiKeyORM).where(ApiKeyORM.id == id).values(revoked=True))
