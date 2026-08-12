@@ -59,7 +59,7 @@ def sync():
     sync_progress_task = progress_bar.add_task("Syncing...", total=None)
     with Live(progress_bar) as live:
         while True:
-            task: Task[SyncTaskResult] | None = library_manager.get_task(task_id)
+            task: Task[SyncTaskResult] | None = library_manager.get_sync_task(task_id)
             entities = ["tracks", "covers", "lyrics", "videos"]
             results: list[SyncMetric] = [
                 getattr(task.result, entity) for entity in entities

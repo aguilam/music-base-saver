@@ -65,6 +65,7 @@ from .schemas.schemas import (
     MusicVideo,
     Genre,
     Mood,
+    TaskStorage,
     StoredUser,
     LyricsResponse,
     TrackMetadata,
@@ -123,6 +124,8 @@ UNSTAR_LINK_MAP = {
     "artist": (StarredArtist, "artist_id"),
 }
 
+QueueName = Literal["download", "sync", "importing"]
+
 
 class LibraryManager:
     def __init__(self) -> None:
@@ -133,7 +136,7 @@ class LibraryManager:
             self.toml_config = config_file.read()
             self.config = tomllib.loads(self.toml_config)
         self.temp_dir = Path("temp_tracks")
-        self.task_queue: dict[str, Task] = {}
+        self.task_queue: TaskStorage = TaskStorage()
         self.start_errors: StartStatuses = StartStatuses()
         self.search_engines, self.start_errors.search = load_modules(
             self.config.get("search", {}), import_modules("search", BaseSearch)
@@ -381,7 +384,11 @@ class LibraryManager:
         object_id: str | None = None,
     ) -> str:
         task_id = self.post_task(
-            func=self.download_track, task_id=task_id, query=query, object_id=object_id
+            func=self.download_track,
+            queue_name="download",
+            task_id=task_id,
+            query=query,
+            object_id=object_id,
         )
         return task_id
 
@@ -462,7 +469,7 @@ class LibraryManager:
                     cover.id,
                 )
                 session.commit()
-            self.task_queue[task_id].result = DownloadTaskResult(
+            self.task_queue.download[task_id].result = DownloadTaskResult(
                 title=title,
                 artist=track.artists,
                 length=track.length,
@@ -470,7 +477,7 @@ class LibraryManager:
                 download_source=downloader.TAG,
                 saved_path=saved_path,
             )
-            self._update_task(task_id, status="finished")
+            self.task_queue.download[task_id].status = "finished"
 
     def get_file(self, path: str, storage_id: str) -> bytes | None:
         for storage in self.storages:
@@ -506,6 +513,8 @@ class LibraryManager:
     def scrobble(self, id: int, user_id: int, listen_time: int | None = None):
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, id)
+            if track is None:
+                return None
             if listen_time is None:
                 listen_time = int(time.time())
             for scrobbler in self.scrobblers:
@@ -520,6 +529,8 @@ class LibraryManager:
     def post_now_playing(self, id: int, user_id: int):
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, id)
+            if track is None:
+                return None
             for scrobbler in self.scrobblers:
                 provider_key = self.db_manager.get_provider_key(
                     session, scrobbler.tag, user_id
@@ -662,6 +673,8 @@ class LibraryManager:
     def delete_user_by_username(self, username: str, user_id: int) -> int | None:
         with self.db_manager.get_session() as session:
             user = self.db_manager.get_user_by_id(session, user_id)
+            if user is None:
+                return None
             if user.is_admin or user.username == username:
                 return self.db_manager.delete_user_by_username(session, username)
             return None
@@ -879,20 +892,26 @@ class LibraryManager:
                     metadata = current_storage.get_file_metadata(media_link)
                     return metadata
 
-    def get_task(self, task_id: str) -> Task | None:
-        task = self.task_queue.get(task_id)
+    def get_sync_task(self, task_id: str) -> Task[SyncTaskResult] | None:
+        task = self.task_queue.sync.get(task_id)
         return task
 
-    def post_task(self, func, task_id: str | None = None, *args, **kwargs) -> str:
+    def get_download_task(self, task_id: str) -> Task[DownloadTaskResult] | None:
+        task = self.task_queue.download.get(task_id)
+        return task
+
+    def get_import_task(self, task_id: str) -> Task[ImportTaskResult] | None:
+        task = self.task_queue.importing.get(task_id)
+        return task
+
+    def post_task(
+        self, func, queue_name: QueueName, task_id: str | None = None, *args, **kwargs
+    ) -> str:
         task_id = str(uuid4())[:8] if task_id is None else task_id
-        self.task_queue[task_id] = Task()
+        target = getattr(self.task_queue, queue_name)
+        target[task_id] = Task()
         self.executor.submit(func, task_id, *args, **kwargs)
         return task_id
-
-    def _update_task(self, task_id: str, **kwargs):
-        task = self.task_queue[task_id]
-        for k, v in kwargs.items():
-            setattr(task, k, v)
 
     def save_object(
         self,
@@ -915,13 +934,13 @@ class LibraryManager:
         return object_storage
 
     def sync(self, task_id: str | None = None) -> str:
-        task_id = self.post_task(self.sync_library, task_id)
-        self.task_queue[task_id].result = SyncTaskResult()
+        task_id = self.post_task(self.sync_library, task_id=task_id, queue_name="sync")
+        self.task_queue.sync[task_id].result = SyncTaskResult()
         return task_id
 
     def sync_library(self, task_id: str):
         try:
-            task: Task[SyncTaskResult] = self.task_queue[task_id]
+            task: Task[SyncTaskResult] = self.task_queue.sync[task_id]
             with self.db_manager.get_session() as session:
                 db_files = self.db_manager.get_all_tracks_storage_links(session)
                 storaged_files: set[tuple[str, str]] = set()
@@ -1140,10 +1159,11 @@ class LibraryManager:
                         task.result.videos.added += 1
                 self.db_manager.delete_orphans(session)
                 session.commit()
-                self._update_task(task_id, status="finished")
+                self.task_queue.sync[task_id].status = "finished"
                 self.logger.info("Syncing succesful completed")
         except Exception as e:
-            self._update_task(task_id, status="error", error=str(e))
+            self.task_queue.sync[task_id].status = "error"
+            self.task_queue.sync[task_id].error = str(e)
             self.logger.warning(
                 "Problem in library syncing", task_id=task_id, error=str(e)
             )
@@ -1156,17 +1176,18 @@ class LibraryManager:
     ) -> str:
         task_id = self.post_task(
             func=self.import_tracks,
+            queue_name="importing",
             task_id=task_id,
             importer_tag=importer_tag,
             user_id=user_id,
         )
-        self.task_queue[task_id].result = ImportTaskResult()
+        self.task_queue.importing[task_id].result = ImportTaskResult()
         return task_id
 
     def import_tracks(
         self, task_id: str, importer_tag: str, user_id: int | None = None
     ):
-        task: Task[ImportTaskResult] = self.task_queue[task_id]
+        task: Task[ImportTaskResult] = self.task_queue.importing[task_id]
         importers = self.importers
         selected_importer = None
         for importer in importers:
@@ -1620,7 +1641,7 @@ class LibraryManager:
                     session.add(StarredArtist(user_id=user_id, artist_id=db_artist_id))
 
             session.commit()
-            self._update_task(task_id, status="finished")
+            self.task_queue.importing[task_id].status = "finished"
             self.logger.info(
                 "Succesful imported library", importer=importer_tag, user_id=user_id
             )

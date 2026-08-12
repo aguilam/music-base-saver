@@ -327,7 +327,7 @@ def global_download(
 
 @subsonic_router.get("/checkGlobalDownload")
 def check_global_download(library_manager: CurrentLibrary, id: str):
-    download: Task[DownloadTaskResult] | None = library_manager.get_task(id)
+    download: Task[DownloadTaskResult] | None = library_manager.get_download_task(id)
     if download is None:
         raise_subsonic_error(70)
     download_response = {
@@ -640,7 +640,7 @@ def getSimiliarSong(library_manager: CurrentLibrary, id: int, count: int = 50):
 @subsonic_router.get("/getScanStatus.view")
 @subsonic_router.get("/getScanStatus")
 def scan_status(library_manager: CurrentLibrary):
-    task: Task[SyncTaskResult] | None = library_manager.get_task("sub")
+    task: Task[SyncTaskResult] | None = library_manager.get_sync_task("sub")
     if task is None:
         raise_subsonic_error(70)
     is_scanning = True if task.status == "processing" else False

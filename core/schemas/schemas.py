@@ -397,7 +397,7 @@ class ImporterPlaylist:
 
 @dataclass(slots=True)
 class Task[T]:
-    result: T | None = None
+    result: T = field(init=False)
     progress: int = 0
     status: str = "processing"
     error: str | None = None
@@ -527,3 +527,10 @@ class ProviderKey:
     user_id: int
     id: int | None = None
     created_at: datetime | None = None
+
+
+@dataclass(slots=True)
+class TaskStorage:
+    download: dict[str, Task[DownloadTaskResult]] = field(default_factory=dict)
+    sync: dict[str, Task[SyncTaskResult]] = field(default_factory=dict)
+    importing: dict[str, Task[ImportTaskResult]] = field(default_factory=dict)

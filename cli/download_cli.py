@@ -29,7 +29,9 @@ def search_track(
     with Progress() as progress_bar:
         download_task = progress_bar.add_task("[green]Скачка", total=100)
         while True:
-            task: Task[DownloadTaskResult] | None = library_manager.get_task(task_id)
+            task: Task[DownloadTaskResult] | None = library_manager.get_download_task(
+                task_id
+            )
             progress_bar.update(download_task, completed=task.progress)
             if task.status == "finished":
                 track = task.result

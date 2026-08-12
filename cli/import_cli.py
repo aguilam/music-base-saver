@@ -26,8 +26,8 @@ def import_local(importer_tag: str):
     ]
     with Live() as live:
         while True:
-            import_result: Task[ImportTaskResult] | None = library_manager.get_task(
-                task_id
+            import_result: Task[ImportTaskResult] | None = (
+                library_manager.get_import_task(task_id)
             )
             console_text = _create_result_text(entities, import_result.result)
             live.update(
