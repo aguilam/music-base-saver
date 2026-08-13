@@ -1,5 +1,6 @@
 import { createMutation, createQuery, useQueryClient } from "@tanstack/solid-query";
-import { deleteProviderKey, getProviderKeys, postProviderKey } from "./endpoints";
+import { changeProviderKey, deleteProviderKey, getProviderKeys, postProviderKey } from "./endpoints";
+import { ProviderKey } from "../model/types";
 
 export function createProviderKeyQuery(){
     return createQuery(() => ({
@@ -13,7 +14,19 @@ export function createProviderKeyMutation(){
 
     return createMutation(() => ({
         mutationKey: ["provider-keys"],
-        mutationFn: () => postProviderKey(),
+        mutationFn: ({provider, key}: {provider: string, key: string}) => postProviderKey(provider,key),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["provider-keys"] })
+        },
+    }))
+}
+
+export function changeProviderKeyMutation(){
+    const queryClient = useQueryClient()
+
+    return createMutation(() => ({
+        mutationKey: ["provider-keys"],
+        mutationFn: ({id, provider, key}: {id: number, provider: string, key: string}) => changeProviderKey(id,provider,key),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["provider-keys"] })
         },

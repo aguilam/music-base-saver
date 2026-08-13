@@ -6,8 +6,13 @@ export async function getProviderKeys() {
     return ProviderKeys
 }
 
-export async function postProviderKey() {
-    const ProviderKey = await client.post(`/providers-keys`).json<ProviderKey>()
+export async function postProviderKey(provider: string, key: string) {
+    const ProviderKey = await client.post(`/providers-keys`,{json: { key: key, provider: provider}}).json<ProviderKey>()
+    return ProviderKey
+}
+
+export async function changeProviderKey(id: number, provider: string, key: string) {
+    const ProviderKey = await client.patch(`/providers-keys/${id}`,{json: {key: key}}).json<ProviderKey>()
     return ProviderKey
 }
 

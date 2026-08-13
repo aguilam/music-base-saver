@@ -1026,7 +1026,7 @@ class LibraryManager:
                                 )
                         id_tuple = get_id_from_string(cover_name)
                         if id_tuple and not entity:
-                            content_type, content_id = id_tuple[0]
+                            content_type, content_id = id_tuple
                             if content_type == "al":
                                 entity = self.db_manager.get_album_orm_by_id(
                                     session, content_id

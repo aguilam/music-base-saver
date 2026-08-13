@@ -3,7 +3,6 @@ export interface ProviderKey {
     provider: string
     key: string
     user_id: number
-    revoked: boolean
     createdAt: string
 }
 

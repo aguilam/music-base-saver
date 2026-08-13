@@ -1,24 +1,20 @@
-import { deleteProviderKeyMutation } from "../api/queries";
+import { createSignal, Show } from "solid-js";
 import { ProviderKey } from "../model/types";
-import { Button } from "~/components/ui/button";
+import NewProviderKeyForm from "./newProviderKeyForm";
+import ProviderKeyInfo from "./providerKeyInfo";
 
 interface ProviderKeyCardProps {
     providerKey: ProviderKey;
 }
 
 const ProviderKeyCard = (props: ProviderKeyCardProps) => {
-    const providerKeyMutation = deleteProviderKeyMutation()
-    const handleProviderDelete = () => {
-        providerKeyMutation.mutate(props.providerKey.id)
-    }
+    const [isChange, setIsChange] = createSignal(false)
     return (
-        <div class=" flex justify-between bg-gray-600 mx-2 p-3">
-            <div class="flex gap-3 ">
-                <p>{props.providerKey.provider}</p>
-                <p>{props.providerKey.key}</p>
-            </div>
-			<Button onclick={handleProviderDelete}>Delete key</Button>
-        </div>
+        <Show when={isChange} fallback={
+            <ProviderKeyInfo setIsChange={setIsChange} providerKey={props.providerKey} />
+        }>
+            <NewProviderKeyForm setIsChange={setIsChange} keyId={props.providerKey.id} />
+        </Show>
     );
 };
   

@@ -1,23 +1,21 @@
-import { Component, For } from "solid-js"
+import { Component, createSignal, For, Show } from "solid-js"
 import { Button } from "~/components/ui/button"
 import { createApiKeyMutation, createApiKeyQuery } from "~/entities/api-key"
 import ApiKeyCard from "~/entities/api-key/ui/apiKeyCard"
-import { createProviderKeyMutation, createProviderKeyQuery } from "~/entities/provider-key"
+import { createProviderKeyQuery } from "~/entities/provider-key"
+import NewProviderKeyForm from "~/entities/provider-key/ui/newProviderKeyForm"
 import ProviderKeyCard from "~/entities/provider-key/ui/providerKeyCard"
-
+import { ProviderKey } from "~/entities/provider-key"
 const SettingsPage: Component = () => {
     const apiKeyQuery = createApiKeyQuery()
     const apiKeys = () => apiKeyQuery.data;
     const providerKeyQuery = createProviderKeyQuery()
     const providerKeys = () => providerKeyQuery.data;
     const createApiMutation = createApiKeyMutation()
-    const createProviderMutation = createProviderKeyMutation()
     const handleCreateApiKey = () => {
         createApiMutation.mutate()
     }
-    const handleCreateProviderKey = () => {
-        createProviderMutation.mutate()
-    }
+    const [isCreating, setIsCreating] = createSignal(false);
     return (
         <div class=" flex flex-col gap-5 m-2">
             <p>Settings</p>
@@ -35,12 +33,15 @@ const SettingsPage: Component = () => {
             <div>
                 <div class="flex justify-between items-center mb-3">
                     <p>Providers keys</p>
-                    <Button onClick={handleCreateProviderKey}>+</Button>
+                    <Button onClick={() => setIsCreating(!isCreating())}>+</Button>
                 </div>
                 <div class=" flex flex-col gap-2">
                     <For each={providerKeys()}>
                         {(key) => <ProviderKeyCard providerKey={key} />}
                     </For>
+                    <Show when={isCreating() == true}>
+                        <NewProviderKeyForm  setIsChange={setIsCreating}/>
+                    </Show>
                 </div>
             </div>
         </div>
