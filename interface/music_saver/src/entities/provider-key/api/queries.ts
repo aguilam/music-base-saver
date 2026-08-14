@@ -1,6 +1,5 @@
 import { createMutation, createQuery, useQueryClient } from "@tanstack/solid-query";
 import { changeProviderKey, deleteProviderKey, getProviderKeys, postProviderKey } from "./endpoints";
-import { ProviderKey } from "../model/types";
 
 export function createProviderKeyQuery(){
     return createQuery(() => ({

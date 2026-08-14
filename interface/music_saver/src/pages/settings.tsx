@@ -1,11 +1,12 @@
 import { Component, createSignal, For, Show } from "solid-js"
 import { Button } from "~/components/ui/button"
+import ConfigInput from "~/entities/album copy/ui/configInput"
 import { createApiKeyMutation, createApiKeyQuery } from "~/entities/api-key"
 import ApiKeyCard from "~/entities/api-key/ui/apiKeyCard"
 import { createProviderKeyQuery } from "~/entities/provider-key"
 import NewProviderKeyForm from "~/entities/provider-key/ui/newProviderKeyForm"
 import ProviderKeyCard from "~/entities/provider-key/ui/providerKeyCard"
-import { ProviderKey } from "~/entities/provider-key"
+import { user } from "~/shared/store/user"
 const SettingsPage: Component = () => {
     const apiKeyQuery = createApiKeyQuery()
     const apiKeys = () => apiKeyQuery.data;
@@ -44,6 +45,9 @@ const SettingsPage: Component = () => {
                     </Show>
                 </div>
             </div>
+            <Show when={user.role == "admin"}>
+                <ConfigInput/>
+            </Show>
         </div>
     )
 }
