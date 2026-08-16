@@ -1,6 +1,6 @@
 import { Component, createSignal, For, Show } from "solid-js"
 import { Button } from "~/components/ui/button"
-import ConfigInput from "~/entities/album copy/ui/configInput"
+import ConfigInput from "~/entities/server/ui/configInput"
 import { createApiKeyMutation, createApiKeyQuery } from "~/entities/api-key"
 import ApiKeyCard from "~/entities/api-key/ui/apiKeyCard"
 import { createProviderKeyQuery } from "~/entities/provider-key"

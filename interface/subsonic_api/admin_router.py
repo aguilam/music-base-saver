@@ -200,6 +200,12 @@ def patch_user(
     return to_camel(asdict(new_user))
 
 
+@router.get("/user/{id}/playlists")
+def get_user_playlists(library: CurrentLibrary, id: int):
+    playlists = library.get_user_playlists(id)
+    [to_camel(asdict(playlist)) for playlist in playlists]
+
+
 @router.get("/api-keys")
 def get_api_keys(library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)]):
     api_keys = library.get_user_api_keys(user["sub"])

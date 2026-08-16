@@ -3,7 +3,7 @@ import { CurrentUser } from "../api/types";
 import { makePersisted } from "@solid-primitives/storage";
 
 const initialUser: CurrentUser = {
-    id: "",
+    id: NaN,
     username: "",
     role: ""
   };

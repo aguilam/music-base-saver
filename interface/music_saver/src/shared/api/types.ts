@@ -1,11 +1,11 @@
 export interface CurrentUser {
-    id: string
+    id: number
     username: string
     role: string
 }
 
 export interface UserProfile {
-    id: string
+    id: number
     username: string
 }
 
