@@ -1,5 +1,5 @@
-import { createMutation, createQuery, useQueryClient } from "@tanstack/solid-query";
-import { getConfig, changeConfig } from "./endpoints";
+import { createMutation, createQuery, useQuery, useQueryClient } from "@tanstack/solid-query";
+import { getConfig, changeConfig, getServerStats } from "./endpoints";
 
 export function createConfigQuery(){
     return createQuery(() => ({
@@ -16,5 +16,12 @@ export function changeConfigMutation() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["config"] })
         }
+    }))
+}
+
+export function createServerStatsQuery() {
+    return useQuery(() => ({
+        queryKey: ["server-stats"],
+        queryFn: () => getServerStats()
     }))
 }

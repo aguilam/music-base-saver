@@ -437,3 +437,9 @@ def get_track_music_video():
 @router.post("/tracks/{id}/music-video")
 def post_track_music_video():
     pass
+
+
+@router.get("/stats")
+def get_server_stats(library: CurrentLibrary):
+    stats = library.get_library_stats()
+    return to_camel(asdict(stats))
