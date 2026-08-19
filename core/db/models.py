@@ -3,6 +3,7 @@ from sqlmodel import (
     Field,
     select,
     Relationship,
+    col,
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from typing import ClassVar
@@ -270,7 +271,7 @@ class AlbumORM(SQLModel, table=True):
         return (
             select(func.coalesce(func.sum(TrackORM.length), 0))
             .select_from(TrackAlbumLink)
-            .join(TrackORM, TrackAlbumLink.track_id == TrackORM.id)
+            .join(TrackORM, col(TrackAlbumLink.track_id) == TrackORM.id)
             .where(TrackAlbumLink.album_id == cls.id)
             .scalar_subquery()
         )
@@ -484,7 +485,7 @@ class PlaylistORM(SQLModel, table=True):
     def duration(cls):
         return (
             select(func.sum(TrackORM.length))
-            .join(PlaylistTrackLink, PlaylistTrackLink.track_id == TrackORM.id)
+            .join(PlaylistTrackLink, col(PlaylistTrackLink.track_id) == TrackORM.id)
             .where(PlaylistTrackLink.playlist_id == cls.id)
             .scalar_subquery()
         )
