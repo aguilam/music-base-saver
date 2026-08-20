@@ -1,4 +1,3 @@
-import tomli_w
 import secrets
 from datetime import datetime
 from pathlib import Path
@@ -222,15 +221,15 @@ class LibraryManager:
     @overload
     def get_global_object(
         self, object_type: Literal["track"], object_id: str
-    ) -> Track: ...
+    ) -> Track | None: ...
     @overload
     def get_global_object(
         self, object_type: Literal["album"], object_id: str
-    ) -> Album: ...
+    ) -> Album | None: ...
     @overload
     def get_global_object(
         self, object_type: Literal["artist"], object_id: str
-    ) -> Artist: ...
+    ) -> Artist | None: ...
 
     def get_global_object(
         self, object_type: Literal["track", "album", "artist"], object_id: str
@@ -245,11 +244,15 @@ class LibraryManager:
                     return search_engine.get_track(search_id)
                 elif object_type == "album":
                     album = search_engine.get_album(search_id)
+                    if album is None:
+                        return None
                     for track in album.tracks:
                         track.external_id = f"{engine.tag}-{track.external_id}"
                     return album
                 elif object_type == "artist":
                     artist = search_engine.get_artist(search_id)
+                    if artist is None:
+                        return None
                     for album in artist.albums:
                         album.external_id = f"{engine.tag}-{album.external_id}"
                     return artist
@@ -682,6 +685,8 @@ class LibraryManager:
     def delete_user_by_id(self, id: int, user_id: int) -> int | None:
         with self.db_manager.get_session() as session:
             user = self.db_manager.get_user_by_id(session, user_id)
+            if user is None:
+                return None
             if user.is_admin or user.id == id:
                 return self.db_manager.delete_user_by_id(session, id)
             return None
@@ -733,7 +738,7 @@ class LibraryManager:
         tracks_id: list[int],
         is_public: bool = False,
         cover_path: int | None = None,
-    ) -> Playlist:
+    ) -> Playlist | None:
         with self.db_manager.get_session() as session:
             new_playlist = self.db_manager.create_playlist(
                 session, user_id, name, cover_path, is_public, tracks_id
@@ -759,7 +764,7 @@ class LibraryManager:
         username: str | None = None,
         password: str | None = None,
         is_admin: bool | None = None,
-    ) -> User:
+    ) -> User | None:
         with self.db_manager.get_session() as session:
             user = self.db_manager.update_user(
                 session, user_id, username, password, is_admin
@@ -780,7 +785,7 @@ class LibraryManager:
 
     def get_all_user_starred(
         self, user_id: int
-    ) -> tuple[list[Track], list[Album], list[Artist]]:
+    ) -> tuple[list[Track], list[Album], list[Artist]] | None:
         with self.db_manager.get_session() as session:
             return self.db_manager.get_all_user_starred(session, user_id)
 
@@ -823,7 +828,7 @@ class LibraryManager:
 
     def stream_track(
         self, id: str, start_bytes: int, end_bytes: int
-    ) -> Generator[bytes]:
+    ) -> Generator[bytes] | None:
         with self.db_manager.get_session() as session:
             object_id = None
             if "cl-" in id:
@@ -1596,7 +1601,7 @@ class LibraryManager:
                         ",".join(artist.name for artist in track.artists),
                         ",".join(album.title for album in track.albums),
                         track.title,
-                        video_dst,
+                        str(video_dst),
                     )
                     music_video = MusicVideoORM(track_id=track.id)
                     session.add(music_video)

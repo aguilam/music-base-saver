@@ -9,7 +9,14 @@ import { SidebarProvider, SidebarTrigger,  Sidebar,
 import { user } from './shared/store/user';
 const App: ParentComponent = (props) => {
   const navigate = useNavigate();
-  const queryClient = new QueryClient()
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries:{
+        staleTime: 1000 * 60 * 5,
+        refetchOnWindowFocus: false
+      }
+    }
+  })
   return (
     <QueryClientProvider client={queryClient}>
       <Show when={user.id != ""} fallback={<Navigate href="/auth" />}>

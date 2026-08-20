@@ -4,8 +4,8 @@
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
     "target": "ESNext",
-    "baseUrl": ".",
     "paths": {
+      "baseUrl": ["."],
       "~/*": [
         "./src/*"
       ]
