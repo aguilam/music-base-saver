@@ -1,4 +1,5 @@
 from __future__ import annotations
+from grpc.aio import BaseError
 from datetime import datetime
 from typing import TYPE_CHECKING, cast, Any
 from sqlmodel import (
@@ -11,6 +12,7 @@ from sqlmodel import (
     delete,
     col,
 )
+from core.errors import NotFoundError, ForbiddenError, BaseError
 
 from sqlalchemy import tuple_, or_, func, distinct, and_
 from core.db.mappers import (
@@ -351,12 +353,12 @@ class DBManager:
         username: str | None,
         password: str | None,
         is_admin: bool | None,
-    ) -> User | None:
+    ) -> User | BaseError:
         changed_user = session.exec(
             select(UserORM).where(UserORM.username == username)
         ).first()
         if changed_user is None:
-            return None
+            return NotFoundError()
         same_user = changed_user.id == user_id
         is_changing_admin = changed_user.is_admin
         if not same_user:
@@ -364,7 +366,7 @@ class DBManager:
             if user and user.is_admin:
                 is_changing_admin = True
             else:
-                return None
+                return ForbiddenError()
         if is_admin is not None and is_changing_admin:
             changed_user.is_admin = is_admin
         if password and password is not changed_user.password:

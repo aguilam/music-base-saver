@@ -1,4 +1,3 @@
-from concurrent.futures import Future
 import secrets
 from datetime import datetime
 from pathlib import Path
@@ -104,6 +103,7 @@ from .schemas.mappers import (
     to_short_user_response,
 )
 from sqlalchemy import select
+from .errors import NotFoundError, ForbiddenError, BaseError
 from core.loader import import_modules, load_storages, load_modules
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
@@ -348,11 +348,11 @@ class LibraryManager:
 
     def get_similiar_artists_random_tracks(
         self, artist_id: int, count: int
-    ) -> list[Track] | None:
+    ) -> list[Track] | BaseError:
         with self.db_manager.get_session() as session:
             artist = self.db_manager.get_artist_by_id(session, artist_id)
             if artist is None:
-                return None
+                return NotFoundError()
             artists = self.scrobblers[0].instance.get_similiar_artists(artist)
             tracks = self.db_manager.get_artists_random_tracks(session, artists, count)
             return tracks
@@ -515,11 +515,13 @@ class LibraryManager:
             track = self.db_manager.get_track_by_id(session, id)
             return track
 
-    def scrobble(self, id: int, user_id: int, listen_time: int | None = None):
+    def scrobble(
+        self, id: int, user_id: int, listen_time: int | None = None
+    ) -> BaseError | None:
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, id)
             if track is None:
-                return None
+                return NotFoundError()
             if listen_time is None:
                 listen_time = int(time.time())
             for scrobbler in self.scrobblers:
@@ -531,11 +533,11 @@ class LibraryManager:
                 scrobbler_class = scrobbler.instance
                 scrobbler_class.submit_listen(track, provider_key.key, listen_time)
 
-    def post_now_playing(self, id: int, user_id: int):
+    def post_now_playing(self, id: int, user_id: int) -> BaseError | None:
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, id)
             if track is None:
-                return None
+                return NotFoundError()
             for scrobbler in self.scrobblers:
                 provider_key = self.db_manager.get_provider_key(
                     session, scrobbler.tag, user_id
@@ -553,11 +555,11 @@ class LibraryManager:
     def get_provider_types(self) -> list[str]:
         return [scrobbler.tag for scrobbler in self.scrobblers]
 
-    def create_api_key(self, user_id: int) -> ApiKey | None:
+    def create_api_key(self, user_id: int) -> ApiKey | BaseError:
         with self.db_manager.get_session() as session:
             user = self.db_manager.get_user_by_id(session, user_id)
             if user is None:
-                return None
+                return NotFoundError()
             key = secrets.token_hex(16)
             api_key = self.db_manager.create_api_key(session, user_id, key=f"ms_{key}")
             session.commit()
@@ -565,11 +567,11 @@ class LibraryManager:
 
     def create_provider_key(
         self, user_id: int, key: str, provider: str
-    ) -> ProviderKey | None:
+    ) -> ProviderKey | BaseError:
         with self.db_manager.get_session() as session:
             user = self.db_manager.get_user_by_id(session, user_id)
             if user is None:
-                return None
+                return NotFoundError()
             provider_key = self.db_manager.create_provider_key(
                 session, user_id, key=key, provider=provider
             )
@@ -604,38 +606,38 @@ class LibraryManager:
             self.db_manager.revoke_api_key(session, key_id)
             session.commit()
 
-    def get_similiar_artists(self, id: int, count: int = 5) -> list[Artist] | None:
+    def get_similiar_artists(self, id: int, count: int = 5) -> list[Artist] | BaseError:
         with self.db_manager.get_session() as session:
             artist = self.db_manager.get_artist_by_id(session, id)
             if artist is None:
-                return None
+                return NotFoundError()
             artists = self.scrobblers[0].instance.get_similiar_artists(artist)
             db_artists = self.db_manager.get_artists_by_name(session, artists, count)
             return db_artists
 
-    def get_album_by_id(self, id: int) -> FullAlbumResponse | None:
+    def get_album_by_id(self, id: int) -> FullAlbumResponse | BaseError:
         with self.db_manager.get_session() as session:
             album = self.db_manager.get_album_by_id(session, id)
-            return to_full_album_response(album) if album else None
+            return to_full_album_response(album) if album else NotFoundError()
 
-    def get_artist_by_id(self, id: int) -> FullArtistResponse | None:
+    def get_artist_by_id(self, id: int) -> FullArtistResponse | BaseError:
         with self.db_manager.get_session() as session:
             artist = self.db_manager.get_artist_by_id(session, id)
-            return to_full_artist_response(artist) if artist else None
+            return to_full_artist_response(artist) if artist else NotFoundError()
 
     def get_artist_top_songs(self, name: str, count: int) -> list[Track]:
         with self.db_manager.get_session() as session:
             artist_tracks = self.db_manager.get_tracks_by_artist_name(session, name)
             return artist_tracks[:50]
 
-    def get_cover_art(self, id: int) -> BinaryBlob | None:
+    def get_cover_art(self, id: int) -> BinaryBlob | BaseError:
         with self.db_manager.get_session() as session:
             storage = self.db_manager.get_storage_object_by_id(session, id)
             if storage is None:
-                return None
+                return NotFoundError()
             cover_art = self.get_file(storage.link, storage.link_provider)
             if cover_art is None:
-                return None
+                return NotFoundError()
             cover_mime = image_mime(cover_art)
             return BinaryBlob(cover_art, cover_mime)
 
@@ -670,28 +672,28 @@ class LibraryManager:
                 )
             return counted_moods
 
-    def get_playlist_by_id(self, id: int) -> FullPlaylistResponse | None:
+    def get_playlist_by_id(self, id: int) -> FullPlaylistResponse | BaseError:
         with self.db_manager.get_session() as session:
             playlist = self.db_manager.get_playlist_by_id(session, id)
-            return to_full_playlist_response(playlist) if playlist else None
+            return to_full_playlist_response(playlist) if playlist else NotFoundError()
 
-    def delete_user_by_username(self, username: str, user_id: int) -> int | None:
+    def delete_user_by_username(self, username: str, user_id: int) -> int | BaseError:
         with self.db_manager.get_session() as session:
             user = self.db_manager.get_user_by_id(session, user_id)
             if user is None:
-                return None
+                return NotFoundError()
             if user.is_admin or user.username == username:
                 return self.db_manager.delete_user_by_username(session, username)
-            return None
+            return ForbiddenError()
 
-    def delete_user_by_id(self, id: int, user_id: int) -> int | None:
+    def delete_user_by_id(self, id: int, user_id: int) -> int | BaseError:
         with self.db_manager.get_session() as session:
             user = self.db_manager.get_user_by_id(session, user_id)
             if user is None:
-                return None
+                return NotFoundError()
             if user.is_admin or user.id == id:
                 return self.db_manager.delete_user_by_id(session, id)
-            return None
+            return ForbiddenError()
 
     def delete_track(self, track_id: int):
         with self.db_manager.get_session() as session:
@@ -766,7 +768,7 @@ class LibraryManager:
         username: str | None = None,
         password: str | None = None,
         is_admin: bool | None = None,
-    ) -> User | None:
+    ) -> User | BaseError:
         with self.db_manager.get_session() as session:
             user = self.db_manager.update_user(
                 session, user_id, username, password, is_admin
@@ -899,22 +901,22 @@ class LibraryManager:
                     metadata = current_storage.get_file_metadata(media_link)
                     return metadata
 
-    def get_sync_task(self, task_id: str) -> Task[SyncTaskResult] | None:
-        task = self.task_queue.sync.get(task_id)
+    def get_sync_task(self, task_id: str) -> Task[SyncTaskResult] | BaseError:
+        task = self.task_queue.sync.get(task_id, NotFoundError())
         return task
 
-    def cancel_sync_task(self, task_id: str) -> bool:
+    def cancel_sync_task(self, task_id: str) -> bool | BaseError:
         task = self.task_queue.sync.get(task_id)
         if task is None:
-            return False
+            return NotFoundError()
         return task.task.cancel()
 
-    def get_download_task(self, task_id: str) -> Task[DownloadTaskResult] | None:
-        task = self.task_queue.download.get(task_id)
+    def get_download_task(self, task_id: str) -> Task[DownloadTaskResult] | BaseError:
+        task = self.task_queue.download.get(task_id, NotFoundError())
         return task
 
-    def get_import_task(self, task_id: str) -> Task[ImportTaskResult] | None:
-        task = self.task_queue.importing.get(task_id)
+    def get_import_task(self, task_id: str) -> Task[ImportTaskResult] | BaseError:
+        task = self.task_queue.importing.get(task_id, NotFoundError())
         return task
 
     def post_task(

@@ -3,7 +3,7 @@ from typing import Annotated
 import time
 from fastapi import APIRouter, Request, Body, HTTPException, status, Response, Depends
 import jwt
-from interface.subsonic_api.utils import CurrentLibrary, to_camel
+from interface.subsonic_api.utils import CurrentLibrary, to_camel, check_result
 from dataclasses import asdict
 
 SECRET_KEY = "4a1d7f8e3b2c9a1058f321d4c7a9b8e210459f8a3c2b1d0e9f8a7b6c5d4e3f2a"
@@ -76,9 +76,7 @@ def register(
     username: str = Body(),
     password: str = Body(),
 ):
-    user = library.create_user(username, "", password)
-    if user.id is None:
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR)
+    user = check_result(library.create_user(username, "", password))
     set_cookie(response, user.id, user.is_admin)
 
 
@@ -180,9 +178,7 @@ def get_user(id: int, library: CurrentLibrary):
 def delete_user(
     id: int, library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)]
 ):
-    deleted = library.delete_user_by_id(id, int(user["sub"]))
-    if deleted is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    check_result(library.delete_user_by_id(id, int(user["sub"])))
 
 
 @router.patch("/users/{id}")
@@ -194,11 +190,11 @@ def patch_user(
     password: str | None = None,
     is_admin: bool | None = None,
 ):
-    new_user = library.update_user(
-        user_id=id, username=username, password=password, is_admin=is_admin
+    new_user = check_result(
+        library.update_user(
+            user_id=id, username=username, password=password, is_admin=is_admin
+        )
     )
-    if new_user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     return to_camel(asdict(new_user))
 
 
@@ -216,9 +212,7 @@ def get_api_keys(library: CurrentLibrary, user: Annotated[dict, Depends(user_aut
 
 @router.post("/api-keys")
 def post_api_key(library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)]):
-    api_key = library.create_api_key(user_id=user["sub"])
-    if api_key is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    api_key = check_result(library.create_api_key(user_id=user["sub"]))
     return to_camel(asdict(api_key))
 
 
@@ -250,11 +244,9 @@ def post_providers_key(
     key: str = Body(),
     provider: str = Body(),
 ):
-    provider_key = library.create_provider_key(
-        user_id=user["sub"], key=key, provider=provider
+    provider_key = check_result(
+        library.create_provider_key(user_id=user["sub"], key=key, provider=provider)
     )
-    if provider_key is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     return to_camel(asdict(provider_key))
 
 
@@ -316,9 +308,7 @@ def get_artists(
 
 @router.get("/artists/{id}")
 def get_artist(library: CurrentLibrary, id: int):
-    artist = library.get_artist_by_id(id)
-    if artist is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    artist = check_result(library.get_artist_by_id(id))
     return to_camel(asdict(artist))
 
 
@@ -334,9 +324,7 @@ def get_albums(
 
 @router.get("/albums/{id}")
 def get_album(library: CurrentLibrary, id: int):
-    album = library.get_album_by_id(id)
-    if album is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    album = check_result(library.get_album_by_id(id))
     return to_camel(asdict(album))
 
 
@@ -352,9 +340,7 @@ def post_playlist():
 
 @router.get("/playlists/{id}")
 def get_playlist(library: CurrentLibrary, id: int):
-    playlist = library.get_playlist_by_id(id)
-    if playlist is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    playlist = check_result(library.get_playlist_by_id(id))
     return to_camel(asdict(playlist))
 
 
@@ -388,9 +374,7 @@ def get_syncs(library: CurrentLibrary):
 
 @router.get("/syncs/{id}")
 def get_sync(library: CurrentLibrary, id: str):
-    sync = library.get_sync_task(id)
-    if sync is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    sync = check_result(library.get_sync_task(id))
     cameled = to_camel(asdict(sync))
     cameled.pop("task", None)
     return {"id": id} | cameled
@@ -398,7 +382,7 @@ def get_sync(library: CurrentLibrary, id: str):
 
 @router.delete("/syncs/{id}")
 def cancel_sync(library: CurrentLibrary, id: str):
-    is_canceled = library.cancel_sync_task(id)
+    is_canceled = check_result(library.cancel_sync_task(id))
     return {"isCanceled": is_canceled}
 
 
