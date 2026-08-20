@@ -197,6 +197,8 @@ def patch_user(
     new_user = library.update_user(
         user_id=id, username=username, password=password, is_admin=is_admin
     )
+    if new_user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     return to_camel(asdict(new_user))
 
 
@@ -368,25 +370,36 @@ def patch_playlist():
     pass
 
 
-@router.post("/syncs")
-def post_scan(library: CurrentLibrary):
+@router.post("/syncs", status_code=status.HTTP_201_CREATED)
+def post_sync(library: CurrentLibrary):
     id = library.sync()
     return {"syncId": id}
 
 
 @router.get("/syncs")
-def get_scans():
-    pass
+def get_syncs(library: CurrentLibrary):
+    result = []
+    for task_id, sync in library.task_queue.sync.items():
+        data = asdict(sync)
+        data.pop("task", None)
+        result.append({"id": task_id} | to_camel(data))
+    return result
 
 
 @router.get("/syncs/{id}")
-def get_scan():
-    pass
+def get_sync(library: CurrentLibrary, id: str):
+    sync = library.get_sync_task(id)
+    if sync is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    cameled = to_camel(asdict(sync))
+    cameled.pop("task", None)
+    return {"id": id} | cameled
 
 
 @router.delete("/syncs/{id}")
-def cancel_scan():
-    pass
+def cancel_sync(library: CurrentLibrary, id: str):
+    is_canceled = library.cancel_sync_task(id)
+    return {"isCanceled": is_canceled}
 
 
 @router.get("/logs")

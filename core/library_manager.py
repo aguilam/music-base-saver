@@ -1,3 +1,4 @@
+from concurrent.futures import Future
 import secrets
 from datetime import datetime
 from pathlib import Path
@@ -393,6 +394,7 @@ class LibraryManager:
             query=query,
             object_id=object_id,
         )
+        self.task_queue.download[task_id].result = DownloadTaskResult()
         return task_id
 
     def download_track(
@@ -793,7 +795,7 @@ class LibraryManager:
         with self.db_manager.get_session() as session:
             return self.db_manager.get_track_by_name(session, title)
 
-    def get_lyrics(self, track_id: int) -> list[LyricsResponse]:
+    def get_lyrics(self, track_id: int) -> list[LyricsResponse] | None:
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, track_id)
             if track is None:
@@ -901,6 +903,12 @@ class LibraryManager:
         task = self.task_queue.sync.get(task_id)
         return task
 
+    def cancel_sync_task(self, task_id: str) -> bool:
+        task = self.task_queue.sync.get(task_id)
+        if task is None:
+            return False
+        return task.task.cancel()
+
     def get_download_task(self, task_id: str) -> Task[DownloadTaskResult] | None:
         task = self.task_queue.download.get(task_id)
         return task
@@ -913,9 +921,9 @@ class LibraryManager:
         self, func, queue_name: QueueName, task_id: str | None = None, *args, **kwargs
     ) -> str:
         task_id = str(uuid4())[:8] if task_id is None else task_id
+        task_body = self.executor.submit(func, task_id, *args, **kwargs)
         target = getattr(self.task_queue, queue_name)
-        target[task_id] = Task()
-        self.executor.submit(func, task_id, *args, **kwargs)
+        target[task_id] = Task(task=task_body)
         return task_id
 
     def save_object(

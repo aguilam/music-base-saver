@@ -1,4 +1,5 @@
 from __future__ import annotations
+from concurrent.futures import Future
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import NamedTuple
@@ -398,6 +399,7 @@ class ImporterPlaylist:
 @dataclass(slots=True)
 class Task[T]:
     result: T = field(init=False)
+    task: Future
     progress: int = 0
     status: str = "processing"
     error: str | None = None
@@ -412,12 +414,12 @@ class AlbumType(str, Enum):
 
 @dataclass(slots=True)
 class DownloadTaskResult:
-    title: str
-    artist: list[str]
-    length: int
-    storage: str
-    download_source: str
-    saved_path: str
+    title: str = ""
+    artist: list[str] = field(default_factory=list)
+    length: int = 0
+    storage: str = ""
+    download_source: str = ""
+    saved_path: str = ""
 
 
 @dataclass(slots=True)
