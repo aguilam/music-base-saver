@@ -150,9 +150,30 @@ def get_me(library: CurrentLibrary, request: Request):
     }
 
 
-@router.get("/search")
-def search():
-    pass
+@router.get("/search/library")
+def global_search(
+    library: CurrentLibrary,
+    query: str,
+    artist_offset: int = 0,
+    album_offset: int = 0,
+    track_offset: int = 0,
+):
+    searched = library.local_search(
+        query=query,
+        artistCount=10,
+        albumCount=10,
+        songCount=10,
+        artistOffset=artist_offset,
+        albumOffset=album_offset,
+        songOffset=track_offset,
+    )
+    return to_camel(asdict(searched))
+
+
+@router.get("/search/external")
+def local_search(library: CurrentLibrary, query: str):
+    searched = library.global_search(query=query)
+    return to_camel(asdict(searched))
 
 
 @router.get("/users")
