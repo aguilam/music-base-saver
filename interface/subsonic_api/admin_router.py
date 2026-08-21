@@ -350,13 +350,21 @@ def get_album(library: CurrentLibrary, id: int):
 
 
 @router.get("/playlists")
-def get_playlists():
+def get_playlists(library: CurrentLibrary):
     pass
 
 
 @router.post("/playlists")
-def post_playlist():
-    pass
+def post_playlist(
+    library: CurrentLibrary,
+    user: Annotated[dict, Depends(user_auth)],
+    title: str = Body(),
+    tracks_id: list[int] = Body(),
+    is_public: bool = Body(),
+):
+    library.create_playlist(
+        user_id=user["sub"], name=title, tracks_id=tracks_id, is_public=is_public
+    )
 
 
 @router.get("/playlists/{id}")
@@ -369,11 +377,11 @@ def get_playlist(library: CurrentLibrary, id: int):
 def delete_playlist(
     library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)], id: int
 ):
-    pass
+    library.delete_playlist(id)
 
 
 @router.patch("/playlists/{id}")
-def patch_playlist():
+def patch_playlist(library: CurrentLibrary):
     pass
 
 
