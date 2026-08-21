@@ -341,10 +341,11 @@ class DBManager:
 
     def create_user(
         self, session: Session, username: str, email: str, password: str
-    ) -> User:
+    ) -> ListedUserResponse:
         new_user = UserORM(username=username, email=email, password=password)
         session.add(new_user)
-        return user_from_orm(new_user)
+        session.flush()
+        return listed_user_from_orm(StoredUserORM.model_validate(new_user))
 
     def update_user(
         self,

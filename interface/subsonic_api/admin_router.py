@@ -358,8 +358,8 @@ def patch_playlist():
 
 @router.post("/syncs", status_code=status.HTTP_201_CREATED)
 def post_sync(library: CurrentLibrary):
-    id = library.sync()
-    return {"syncId": id}
+    sync_id = library.sync()
+    return {"syncId": sync_id}
 
 
 @router.get("/syncs")
@@ -440,3 +440,35 @@ def post_track_music_video():
 def get_server_stats(library: CurrentLibrary):
     stats = library.get_library_stats()
     return to_camel(asdict(stats))
+
+
+@router.post("/downloads", status_code=status.HTTP_201_CREATED)
+def post_download(
+    library: CurrentLibrary, object_id: str | None = Body(), query: str | None = Body()
+):
+    download_id = library.download(object_id=object_id, query=query)
+    return {"downloadId": download_id}
+
+
+@router.get("/downloads")
+def get_downloads(library: CurrentLibrary):
+    result = []
+    for task_id, download in library.task_queue.download.items():
+        data = asdict(download)
+        data.pop("task", None)
+        result.append({"id": task_id} | to_camel(data))
+    return result
+
+
+@router.get("/downloads/{id}")
+def get_download(library: CurrentLibrary, id: str):
+    sync = check_result(library.get_download_task(id))
+    cameled = to_camel(asdict(sync))
+    cameled.pop("task", None)
+    return {"id": id} | cameled
+
+
+@router.delete("/downloads/{id}")
+def cancel_downloads(library: CurrentLibrary, id: str):
+    is_canceled = check_result(library.cancel_download_task(id))
+    return {"isCanceled": is_canceled}

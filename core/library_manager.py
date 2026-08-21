@@ -660,9 +660,9 @@ class LibraryManager:
             moods = self.db_manager.get_moods(session)
             counted_moods = []
             for mood in moods:
-                albums_ids = {}
+                albums_ids = set()
                 for track in mood.tracks:
-                    albums_ids.update(album.id for album in track.albums)
+                    albums_ids.add(album.id for album in track.albums)
                 counted_moods.append(
                     {
                         "name": mood.name,
@@ -776,7 +776,9 @@ class LibraryManager:
             session.commit()
             return user
 
-    def create_user(self, username: str, email: str, password: str) -> User:
+    def create_user(
+        self, username: str, email: str, password: str
+    ) -> ListedUserResponse:
         with self.db_manager.get_session() as session:
             new_user = self.db_manager.create_user(session, username, email, password)
             session.commit()
@@ -914,6 +916,12 @@ class LibraryManager:
     def get_download_task(self, task_id: str) -> Task[DownloadTaskResult] | BaseError:
         task = self.task_queue.download.get(task_id, NotFoundError())
         return task
+
+    def cancel_download_task(self, task_id: str) -> bool | BaseError:
+        task = self.task_queue.download.get(task_id)
+        if task is None:
+            return NotFoundError()
+        return task.task.cancel()
 
     def get_import_task(self, task_id: str) -> Task[ImportTaskResult] | BaseError:
         task = self.task_queue.importing.get(task_id, NotFoundError())
