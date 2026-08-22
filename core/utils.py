@@ -22,11 +22,12 @@ from core.schemas.schemas import (
     TrackMetadata,
     TrackAlbumMetadata,
     HealthStatus,
+    LRCLyrics,
     ServiceStatus,
 )
 
 
-def analyze_lrc(lines: list[str]) -> dict:
+def analyze_lrc(lines: list[str]) -> LRCLyrics:
     artist: str = ""
     album: str = ""
     title: str = ""
@@ -53,13 +54,9 @@ def analyze_lrc(lines: list[str]) -> dict:
             mil_time += int(time.group(2)) * 1000
             mil_time += int(time.group(1)) * 60 * 1000
             text_list.append({"time": mil_time, "text": text_line})
-    return {
-        "artist": artist,
-        "album": album,
-        "title": title,
-        "offset": offset,
-        "text": text_list,
-    }
+    return LRCLyrics(
+        artist=artist, album=album, title=title, offset=offset, text=text_list
+    )
 
 
 def _get_tag_value(text: str) -> str:
@@ -347,7 +344,7 @@ def sanitize_filename(filename: str) -> str:
     return re.sub(r'[\\/*?:"<>|]', "", filename).strip()
 
 
-def read_lyrics_text(text: str) -> tuple[str, str | dict]:
+def read_lyrics_text(text: str) -> str | LRCLyrics:
     lines = text.splitlines()
 
     lrc_line_re = re.compile(r"^\s*\[\d{2}:\d{2}\.\d{2,3}\]")
@@ -355,9 +352,9 @@ def read_lyrics_text(text: str) -> tuple[str, str | dict]:
     is_lrc = any(lrc_line_re.match(line) for line in lines)
 
     if is_lrc:
-        return ("lrc", analyze_lrc(lines))
+        return analyze_lrc(lines)
     else:
-        return ("txt", text)
+        return text
 
 
 def get_id_from_string(

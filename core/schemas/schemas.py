@@ -536,3 +536,12 @@ class TaskStorage:
     download: dict[str, Task[DownloadTaskResult]] = field(default_factory=dict)
     sync: dict[str, Task[SyncTaskResult]] = field(default_factory=dict)
     importing: dict[str, Task[ImportTaskResult]] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class LRCLyrics:
+    artist: str
+    album: str
+    title: str
+    offset: int
+    text: list[dict[str, int | str]]

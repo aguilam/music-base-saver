@@ -81,6 +81,7 @@ from .schemas.schemas import (
     DownloadTaskResult,
     ImportTaskResult,
     ImporterPlaylistTrack,
+    LRCLyrics,
     LibraryStats,
     StartStatuses,
     ApiKey,
@@ -1086,16 +1087,14 @@ class LibraryManager:
                             current_storage.get_range_bytes(lyrics.link, 0, 9999999)
                         )
                         decoded_text = range_bytes.decode()
-                        lyrics_type, lyrics_text = read_lyrics_text(decoded_text)
+                        lyrics_text = read_lyrics_text(decoded_text)
                         name = filename.split(".")[0]
-                        if lyrics_type == "lrc":
+                        if isinstance(lyrics_text, LRCLyrics):
                             track = self.db_manager.get_track_by_name(
-                                session, lyrics_text["title"]
+                                session, lyrics_text.title
                             )
                             if track is None:
-                                track = track = self.db_manager.get_track_by_name(
-                                    session, name
-                                )
+                                track = self.db_manager.get_track_by_name(session, name)
                             if track is None:
                                 task.result.unbound_files.lyrics.add(
                                     (f"{storage.id}///{link}", filename)
@@ -1105,13 +1104,13 @@ class LibraryManager:
                             new_lyrics = LyricsORM(
                                 is_synced=True,
                                 language="und",
-                                synced_text=lyrics_text["text"],
-                                offset=lyrics_text["offset"],
+                                synced_text=lyrics_text.text,
+                                offset=lyrics_text.offset,
                                 track_id=track.id,
                             )
                             session.add(new_lyrics)
                             session.flush()
-                        elif lyrics_type == "txt":
+                        elif isinstance(lyrics_text, str):
                             track = self.db_manager.get_track_by_name(session, name)
                             if track is None:
                                 task.result.unbound_files.lyrics.add(
