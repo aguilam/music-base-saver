@@ -1566,17 +1566,20 @@ class LibraryManager:
                     saved_path = dst / sanitize_filename(name)
                     save_file_from_url(url, saved_path)
                     text = saved_path.read_text(encoding="utf-8")
-                    lyrics_type, lyrics_content = read_lyrics_text(text)
-                    if lyrics_type == "lrc":
+                    lyrics_content = read_lyrics_text(text)
+                    lyrics_type = ""
+                    if isinstance(lyrics_content, LRCLyrics):
+                        lyrics_type = "lrc"
                         new_lyrics = LyricsORM(
                             is_synced=True,
                             language="und",
-                            synced_text=lyrics_content["text"],
-                            offset=lyrics_content["offset"],
+                            synced_text=lyrics_content.text,
+                            offset=lyrics_content.offset,
                             track_id=track.id,
                         )
                         session.add(new_lyrics)
                     else:
+                        lyrics_type = "txt"
                         new_lyrics = LyricsORM(
                             is_synced=False,
                             language="und",

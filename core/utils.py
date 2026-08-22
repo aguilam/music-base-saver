@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, TypeVar
 from pathlib import Path
 from collections.abc import Mapping
 from mutagen import File
@@ -14,6 +14,8 @@ from storage.base import Storage
 import mutagen
 import requests
 import re
+from core.errors import BaseError
+from core.base_service import Service
 from core.schemas.schemas import Track
 import pyexiv2
 import io
@@ -125,12 +127,14 @@ def find_best_track(
 
 def find_best_storage(
     storages: list[StorageEntry], file_size: int
-) -> StorageEntry | None:
+) -> StorageEntry | BaseError:
     for storage in storages:
         current_storage = storage.instance
         free_storage = current_storage.check_storage()
         if free_storage > file_size:
             return storage
+        return BaseError(code=500, detail="No available storages")
+    return BaseError(code=500, detail="No available storages")
 
 
 def get_track_metadata_by_path(track_path: Path) -> TrackMetadata:
@@ -367,8 +371,11 @@ def get_id_from_string(
         return None
 
 
+T = TypeVar("T", bound=Service)
+
+
 def _get_runtime_errors(
-    modules: list[ModuleEntry | StorageEntry],
+    modules: list[ModuleEntry[T]] | list[StorageEntry],
 ) -> list[ServiceStatus]:
     statuses: list[ServiceStatus] = []
     for module in modules:

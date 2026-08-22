@@ -7,14 +7,22 @@ import { createProviderKeyQuery } from "~/entities/provider-key"
 import NewProviderKeyForm from "~/entities/provider-key/ui/newProviderKeyForm"
 import ProviderKeyCard from "~/entities/provider-key/ui/providerKeyCard"
 import { user } from "~/shared/store/user"
+import { createPostSyncMutation, createSyncsQuery } from "~/features/sync"
+import SyncCard from "~/features/sync/ui/syncCard"
 const SettingsPage: Component = () => {
     const apiKeyQuery = createApiKeyQuery()
     const apiKeys = () => apiKeyQuery.data;
     const providerKeyQuery = createProviderKeyQuery()
     const providerKeys = () => providerKeyQuery.data;
     const createApiMutation = createApiKeyMutation()
+    const syncsQuery = createSyncsQuery()
+    const syncs = () => syncsQuery.data;
+    const createSyncMutation = createPostSyncMutation()
     const handleCreateApiKey = () => {
         createApiMutation.mutate()
+    }
+    const handleStartSync = () => {
+        createSyncMutation.mutate()
     }
     const [isCreating, setIsCreating] = createSignal(false);
     return (
@@ -44,6 +52,15 @@ const SettingsPage: Component = () => {
                         <NewProviderKeyForm  setIsChange={setIsCreating}/>
                     </Show>
                 </div>
+            </div>
+            <div>
+                <div class=" flex gap-2 items-center">
+                    <p>Sync</p>
+                    <Button onClick={handleStartSync}>Start sync</Button>
+                </div>
+                <For each={syncs()}>
+                        {(sync) => <SyncCard sync={sync} />} 
+                </For>
             </div>
             <Show when={user.role == "admin"}>
                 <ConfigInput/>

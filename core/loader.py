@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from core.schemas.schemas import ServiceStatus, HealthStatus
 from typing import TypeVar, Generic, Any, Callable
 from tool.base import Tool
+from core.base_service import Service
 
 T = TypeVar("T")
 
