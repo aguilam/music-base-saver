@@ -501,3 +501,9 @@ def get_download(library: CurrentLibrary, id: str):
 def cancel_downloads(library: CurrentLibrary, id: str):
     is_canceled = check_result(library.cancel_download_task(id))
     return {"isCanceled": is_canceled}
+
+
+@router.get("/covers/{id}")
+def get_cover(library: CurrentLibrary, id: int):
+    cover_art = check_result(library.get_cover_art(id))
+    return Response(content=cover_art.content, media_type=cover_art.mime)
