@@ -1,8 +1,10 @@
 import ky from "ky";
 import { refreshAuth } from "./auth";
 
+const API_URL = "http://127.0.0.1:8000";
+
 const api = ky.create({
-    baseUrl: "http://127.0.0.1:8000",
+    baseUrl: API_URL,
     credentials: "include",
   });
 
@@ -23,9 +25,17 @@ export const client = api.extend({
         
                 const refreshed = await refreshAuth();
                 if (!refreshed) return response;
-        
+                
                 return api(request, options);
             }
         ]
-    }
+    },
+    parseJson: (text) => {
+		return JSON.parse(text, (_, value) => {
+			if (value && value.coverId != null) {
+			  value.coverUri = `${API_URL}/covers/${value.coverId}`;
+			}
+			return value;
+		  });
+	}
 })

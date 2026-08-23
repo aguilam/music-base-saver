@@ -16,7 +16,6 @@ const ConfigInput = () => {
 	})
 	const handleSaveConfig = () => {
 		changeConfig.mutate(config())
-		console.log(user)
 	}
 	return (
 		<div>

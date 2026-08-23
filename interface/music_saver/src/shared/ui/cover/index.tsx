@@ -16,6 +16,7 @@ const Cover = (props: CoverProps) => {
 	createEffect(() => {
 		setStatus(props.coverUri ? "loading" : "error");
 	});
+	
 	return (
     	<>
 			<Show when={status() !== "loaded"}>
