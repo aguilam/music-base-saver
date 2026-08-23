@@ -53,6 +53,18 @@ export const routes = [
             {
                 path: "/sync/:id",
                 component: lazy(() => import("./pages/sync"))
+            },
+            {
+                path: "/artists",
+                component: lazy(() => import("./pages/artists"))
+            },
+            {
+                path: "/albums",
+                component: lazy(() => import("./pages/albums"))
+            },
+            {
+                path: "/tracks",
+                component: lazy(() => import("./pages/tracks"))
             }
         ]
     }

@@ -687,7 +687,7 @@ class DBManager:
                     col(AlbumORM.created_at) < created_at,
                     and_(
                         col(AlbumORM.created_at) == created_at,
-                        col(AlbumORM.id) < id,
+                        col(AlbumORM.id) < last_id,
                     ),
                 )
             )
@@ -713,7 +713,8 @@ class DBManager:
                 or_(
                     col(ArtistORM.created_at) < created_at,
                     and_(
-                        col(ArtistORM.created_at) == created_at, col(ArtistORM.id) < id
+                        col(ArtistORM.created_at) == created_at,
+                        col(ArtistORM.id) < last_id,
                     ),
                 )
             )
@@ -738,7 +739,10 @@ class DBManager:
             statement = statement.where(
                 or_(
                     col(TrackORM.created_at) < created_at,
-                    and_(col(TrackORM.created_at) == created_at, col(TrackORM.id) < id),
+                    and_(
+                        col(TrackORM.created_at) == created_at,
+                        col(TrackORM.id) < last_id,
+                    ),
                 )
             )
         tracks = list(session.exec(statement).all())

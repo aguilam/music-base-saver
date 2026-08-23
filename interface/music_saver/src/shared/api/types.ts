@@ -59,3 +59,9 @@ export type AllContent = {
     albums: Album[];
     artists: Artist[];
 };
+
+export interface CursorResponse<T> {
+    items: T
+    nextCursor: string | null
+    hasMore: boolean
+}
