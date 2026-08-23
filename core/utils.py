@@ -27,6 +27,8 @@ from core.schemas.schemas import (
     LRCLyrics,
     ServiceStatus,
 )
+import json
+from datetime import datetime
 
 
 def analyze_lrc(lines: list[str]) -> LRCLyrics:
@@ -390,3 +392,13 @@ def _get_runtime_errors(
                 )
             )
     return statuses
+
+
+def encode_cursor(id: int, created_at: datetime) -> str:
+    payload = {"id": id, "created_at": created_at.isoformat()}
+    return base64.b64encode(json.dumps(payload).encode()).decode()
+
+
+def decode_cursor(cursor_str: str) -> tuple[int, datetime]:
+    payload = json.loads(base64.b64decode(cursor_str.encode()).decode())
+    return payload["id"], datetime.fromisoformat(payload["created_at"])

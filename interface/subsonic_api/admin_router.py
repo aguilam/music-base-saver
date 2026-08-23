@@ -318,13 +318,13 @@ def get_status(library: CurrentLibrary):
 
 
 @router.get("/artists")
-def get_artists(
-    library: CurrentLibrary, id: int | None = None, created_at: str | None = None
-):
-    dt = None
-    if created_at is not None:
-        dt = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%S.%f")
-    return [to_camel(asdict(artist)) for artist in library.get_artists_cursor(id, dt)]
+def get_artists(library: CurrentLibrary, cursor: str | None = None):
+    items, new_cursor = library.get_artists_cursor(cursor)
+    return {
+        "items": [to_camel(asdict(artist)) for artist in items],
+        "nextCursor": new_cursor,
+        "hasMore": new_cursor is not None,
+    }
 
 
 @router.get("/artists/{id}")
@@ -334,13 +334,13 @@ def get_artist(library: CurrentLibrary, id: int):
 
 
 @router.get("/albums")
-def get_albums(
-    library: CurrentLibrary, id: int | None = None, created_at: str | None = None
-):
-    dt = None
-    if created_at is not None:
-        dt = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%S.%f")
-    return [to_camel(asdict(album)) for album in library.get_albums_cursor(id, dt)]
+def get_albums(library: CurrentLibrary, cursor: str | None = None):
+    items, new_cursor = library.get_albums_cursor(cursor)
+    return {
+        "items": [to_camel(asdict(album)) for album in items],
+        "nextCursor": new_cursor,
+        "hasMore": new_cursor is not None,
+    }
 
 
 @router.get("/albums/{id}")
@@ -421,13 +421,13 @@ def get_logs():
 
 
 @router.get("/tracks")
-def get_tracks(
-    library: CurrentLibrary, id: int | None = None, created_at: str | None = None
-):
-    dt = None
-    if created_at is not None:
-        dt = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%S.%f")
-    return [to_camel(asdict(track)) for track in library.get_tracks_cursor(id, dt)]
+def get_tracks(library: CurrentLibrary, cursor: str | None = None):
+    items, new_cursor = library.get_tracks_cursor(cursor)
+    return {
+        "items": [to_camel(asdict(track)) for track in items],
+        "nextCursor": new_cursor,
+        "hasMore": new_cursor is not None,
+    }
 
 
 @router.post("/tracks")

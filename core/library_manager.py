@@ -861,25 +861,31 @@ class LibraryManager:
                     return track
 
     def get_albums_cursor(
-        self, id: int | None, created_at: datetime | None, limit: int = 20
-    ) -> list[ShortAlbumResponse]:
+        self, cursor: str | None, limit: int = 20
+    ) -> tuple[list[ShortAlbumResponse], str | None]:
         with self.db_manager.get_session() as session:
-            albums = self.db_manager.get_albums_cursor(session, limit, id, created_at)
-            return [to_short_album_response(album) for album in albums]
+            albums, next_cursor = self.db_manager.get_albums_cursor(
+                session, limit, cursor
+            )
+            return [to_short_album_response(album) for album in albums], next_cursor
 
     def get_artists_cursor(
-        self, id: int | None, created_at: datetime | None, limit: int = 20
-    ) -> list[ShortArtistResponse]:
+        self, cursor: str | None, limit: int = 20
+    ) -> tuple[list[ShortArtistResponse], str | None]:
         with self.db_manager.get_session() as session:
-            artists = self.db_manager.get_artist_cursor(session, limit, id, created_at)
-            return [to_short_artist_response(artist) for artist in artists]
+            artists, next_cursor = self.db_manager.get_artist_cursor(
+                session, limit, cursor
+            )
+            return [to_short_artist_response(artist) for artist in artists], next_cursor
 
     def get_tracks_cursor(
-        self, id: int | None, created_at: datetime | None, limit: int = 20
-    ) -> list[ShortTrackResponse]:
+        self, cursor: str | None, limit: int = 20
+    ) -> tuple[list[ShortTrackResponse], str | None]:
         with self.db_manager.get_session() as session:
-            tracks = self.db_manager.get_track_cursor(session, limit, id, created_at)
-            return [to_short_track_response(track) for track in tracks]
+            tracks, next_cursor = self.db_manager.get_track_cursor(
+                session, limit, cursor
+            )
+            return [to_short_track_response(track) for track in tracks], next_cursor
 
     def get_file_metadata(self, id: str) -> dict | None:
         with self.db_manager.get_session() as session:

@@ -1,5 +1,4 @@
 from __future__ import annotations
-from datetime import datetime
 from typing import TYPE_CHECKING, cast, Any
 from sqlmodel import (
     SQLModel,
@@ -12,7 +11,7 @@ from sqlmodel import (
     col,
 )
 from core.errors import NotFoundError, ForbiddenError, BaseError
-
+from core.utils import decode_cursor, encode_cursor
 from sqlalchemy import tuple_, or_, func, distinct, and_
 from core.db.mappers import (
     artist_from_orm,
@@ -674,14 +673,15 @@ class DBManager:
         return track_from_orm(orm_track) if orm_track else None
 
     def get_albums_cursor(
-        self, session: Session, limit: int, id: int | None, created_at: datetime | None
-    ) -> list[Album]:
+        self, session: Session, limit: int, cursor: str | None
+    ) -> tuple[list[Album], str | None]:
+        last_id, created_at = decode_cursor(cursor) if cursor else (None, None)
         statement = (
             select(AlbumORM)
             .order_by(col(AlbumORM.created_at).desc(), col(AlbumORM.id).desc())
-            .limit(limit)
+            .limit(limit + 1)
         )
-        if id is not None and created_at is not None:
+        if last_id is not None and created_at is not None:
             statement = statement.where(
                 or_(
                     col(AlbumORM.created_at) < created_at,
@@ -691,18 +691,24 @@ class DBManager:
                     ),
                 )
             )
-        albums = session.exec(statement).all()
-        return [album_from_orm(album) for album in albums]
+        albums = list(session.exec(statement).all())
+        next_cursor = None
+        if len(albums) > limit:
+            albums.pop()
+            last_item = albums[-1]
+            next_cursor = encode_cursor(last_item.id, last_item.created_at)
+        return [album_from_orm(album) for album in albums], next_cursor
 
     def get_artist_cursor(
-        self, session: Session, limit: int, id: int | None, created_at: datetime | None
-    ):
+        self, session: Session, limit: int, cursor: str | None
+    ) -> tuple[list[Artist], str | None]:
+        last_id, created_at = decode_cursor(cursor) if cursor else (None, None)
         statement = (
             select(ArtistORM)
             .order_by(col(ArtistORM.created_at).desc(), col(ArtistORM.id).desc())
-            .limit(limit)
+            .limit(limit + 1)
         )
-        if id is not None and created_at is not None:
+        if last_id is not None and created_at is not None:
             statement = statement.where(
                 or_(
                     col(ArtistORM.created_at) < created_at,
@@ -711,26 +717,37 @@ class DBManager:
                     ),
                 )
             )
-        artists = session.exec(statement).all()
-        return [artist_from_orm(artist) for artist in artists]
+        artists = list(session.exec(statement).all())
+        next_cursor = None
+        if len(artists) > limit:
+            artists.pop()
+            last_item = artists[-1]
+            next_cursor = encode_cursor(last_item.id, last_item.created_at)
+        return [artist_from_orm(artist) for artist in artists], next_cursor
 
     def get_track_cursor(
-        self, session: Session, limit: int, id: int | None, created_at: datetime | None
-    ):
+        self, session: Session, limit: int, cursor: str | None
+    ) -> tuple[list[Track], str | None]:
+        last_id, created_at = decode_cursor(cursor) if cursor else (None, None)
         statement = (
             select(TrackORM)
             .order_by(col(TrackORM.created_at).desc(), col(TrackORM.id).desc())
-            .limit(limit)
+            .limit(limit + 1)
         )
-        if id is not None and created_at is not None:
+        if last_id is not None and created_at is not None:
             statement = statement.where(
                 or_(
                     col(TrackORM.created_at) < created_at,
                     and_(col(TrackORM.created_at) == created_at, col(TrackORM.id) < id),
                 )
             )
-        tracks = session.exec(statement).all()
-        return [track_from_orm(track) for track in tracks]
+        tracks = list(session.exec(statement).all())
+        next_cursor = None
+        if len(tracks) > limit:
+            tracks.pop()
+            last_item = tracks[-1]
+            next_cursor = encode_cursor(last_item.id, last_item.created_at)
+        return [track_from_orm(track) for track in tracks], next_cursor
 
     def get_album_by_id(self, session: Session, id: int) -> Album | None:
         statement = (
