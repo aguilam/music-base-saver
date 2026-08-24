@@ -1,5 +1,5 @@
 from fastapi import Request, Depends, HTTPException
-from typing import Annotated, NoReturn, TypeVar, Any
+from typing import Annotated, NoReturn, TypeVar, Any, Sequence
 from core.library_manager import LibraryManager
 from core.errors import BaseError
 
@@ -41,9 +41,16 @@ def to_camel(response: dict[str, Any]) -> dict[str, Any]:
     camel_response = {}
     for key, value in response.items():
         snaked = key.split("_")
+        new_value = value
         snaked = [k.capitalize() if i > 0 else k for i, k in enumerate(snaked)]
         new_key = "".join(snaked)
-        camel_response[new_key] = value
+        if isinstance(value, dict):
+            new_value = to_camel(value)
+        if isinstance(value, Sequence) and not isinstance(
+            value, (str, bytes, bytearray)
+        ):
+            new_value = [to_camel(item) for item in value]
+        camel_response[new_key] = new_value
     return camel_response
 
 

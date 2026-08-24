@@ -80,6 +80,7 @@ def to_full_album_response(album: Album) -> FullAlbumResponse:
         id=_required(album.id),
         title=album.title,
         duration=album.duration or 0,
+        album_type=album.album_type,
         tracks_count=(
             album.tracks_count if album.tracks_count is not None else len(album.tracks)
         ),

@@ -48,6 +48,7 @@ class ArtistShort:
 @dataclass(slots=True)
 class Album:
     title: str
+    album_type: str | None = None
     duration: int | None = None
     year: int | None = None
     tracks_count: int | None = None
@@ -66,6 +67,7 @@ class AlbumShort:
     title: str
     duration: int | None = None
     tracks_count: int | None = None
+    album_type: str | None = None
     description: str | None = None
     id: int | None = None
     cover_path: int | None = None
@@ -157,6 +159,7 @@ class FullAlbumResponse:
     duration: int
     tracks_count: int
     created_at: datetime
+    album_type: str | None = None
     year: int | None = None
     description: str | None = None
     cover_id: int | None = None

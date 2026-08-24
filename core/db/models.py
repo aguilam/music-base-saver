@@ -238,7 +238,7 @@ class AlbumORM(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     title: str
     normalized_title: str
-    type: str | None = None
+    album_type: str = Field(default="album")
     year: int | None = Field(default=None)
     cover_path: int | None = Field(
         default=None, foreign_key="object_storage.id", ondelete="SET NULL"

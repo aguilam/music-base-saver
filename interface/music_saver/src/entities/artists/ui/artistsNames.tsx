@@ -9,7 +9,7 @@ const ArtistsNames = (props: ArtistsNamesProps) => {
     return (
         <div class=" flex gap-1 text-black">
             <For each={props.artists}>
-                {(artist) => <A href={`artist/${artist.id}`} class="text-black hover:text-gray-700">{artist.name}</A>}
+                {(artist) => <A href={`/artist/${artist.id}`} class="text-black hover:text-gray-700">{artist.name}</A>}
             </For>
         </div>
     )
