@@ -62,7 +62,7 @@ def album_from_orm(album: AlbumORM) -> Album:
     return Album(
         id=album.id,
         title=album.title,
-        album_type=album.type,
+        album_type=album.album_type,
         cover_path=album.cover_path,
         duration=album.duration,
         description=album.description,

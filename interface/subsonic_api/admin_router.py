@@ -362,8 +362,10 @@ def post_playlist(
     tracks_id: list[int] = Body(),
     is_public: bool = Body(),
 ):
-    library.create_playlist(
-        user_id=user["sub"], name=title, tracks_id=tracks_id, is_public=is_public
+    check_result(
+        library.create_playlist(
+            user_id=user["sub"], title=title, tracks_id=tracks_id, is_public=is_public
+        )
     )
 
 

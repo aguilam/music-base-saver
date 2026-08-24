@@ -104,7 +104,7 @@ from .schemas.mappers import (
     to_short_user_response,
 )
 from sqlalchemy import select
-from .errors import NotFoundError, ForbiddenError, BaseError
+from .errors import NotFoundError, ForbiddenError, BaseError, check_error
 from core.loader import import_modules, load_storages, load_modules
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
@@ -739,17 +739,17 @@ class LibraryManager:
     def create_playlist(
         self,
         user_id: int,
-        name: str | None,
+        title: str,
         tracks_id: list[int],
         is_public: bool = False,
         cover_path: int | None = None,
-    ) -> Playlist | None:
+    ) -> FullPlaylistResponse | BaseError:
         with self.db_manager.get_session() as session:
             new_playlist = self.db_manager.create_playlist(
-                session, user_id, name, cover_path, is_public, tracks_id
+                session, user_id, title, is_public, tracks_id, cover_path
             )
             session.commit()
-            return new_playlist
+            return check_error(new_playlist, to_full_playlist_response)
 
     def get_config(self) -> str:
         return self.toml_config

@@ -383,13 +383,13 @@ class DBManager:
         session: Session,
         user_id: int,
         title: str,
-        cover_path: int | None,
         is_public: bool,
         tracks_id: list[int],
-    ) -> Playlist | None:
+        cover_path: int | None = None,
+    ) -> Playlist | BaseError:
         user = session.exec(select(UserORM).where(UserORM.id == user_id)).first()
         if user is None:
-            return None
+            return NotFoundError
         playlist = PlaylistORM(
             title=title, cover_path=cover_path, is_public=is_public, owner=user
         )

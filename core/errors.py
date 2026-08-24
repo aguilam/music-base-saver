@@ -1,3 +1,4 @@
+from typing import TypeVar, Callable
 from dataclasses import dataclass
 
 
@@ -17,3 +18,14 @@ class NotFoundError(BaseError):
 class ForbiddenError(BaseError):
     code: int = 403
     detail: str = "Not permitted action"
+
+
+T = TypeVar("T")
+
+U = TypeVar("U")
+
+
+def check_error(result: T | BaseError, func: Callable[..., U]) -> U | BaseError:
+    if isinstance(result, BaseError):
+        return result
+    return func(result)
