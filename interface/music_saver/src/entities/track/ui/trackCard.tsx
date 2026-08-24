@@ -2,6 +2,7 @@ import Cover from "../../../shared/ui/cover";
 import { formatTime } from "../../../shared/lib/utils";
 import { A } from "@solidjs/router";
 import { ShortTrack } from "../model/types";
+import ArtistsNames from "~/entities/artists/ui/artistsNames";
 interface TrackCardProps {
   content: ShortTrack;
   isAvatarHidden?: boolean;
@@ -24,7 +25,7 @@ const TrackCard = (props: TrackCardProps) => {
             >
               {props.content.title}
             </p>
-            <p class=" text-secondary-text">{props.content.artists[0].name}</p>
+            <ArtistsNames artists={props.content.artists}/>
           </div>
         </div>
         <div class=" flex gap-5 items-center">

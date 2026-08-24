@@ -20,7 +20,7 @@ const TracksPage = () => {
     )
     return (
         <div>
-            <div class="grid grid-cols-[repeat(auto-fill,minmax(360px,1fr))] gap-4">
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(400px,1fr))] gap-4">
                 <For each={tracks()}>
                     {(item) => <TrackCard content={item}/>}
                 </For>
