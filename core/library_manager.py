@@ -811,15 +811,15 @@ class LibraryManager:
         with self.db_manager.get_session() as session:
             return self.db_manager.get_all_user_starred(session, user_id)
 
-    def get_track_by_title(self, title: str) -> Track | None:
+    def get_track_by_title(self, title: str) -> Track | BaseError:
         with self.db_manager.get_session() as session:
             return self.db_manager.get_track_by_name(session, title)
 
-    def get_lyrics(self, track_id: int) -> list[LyricsResponse] | None:
+    def get_lyrics(self, track_id: int) -> list[LyricsResponse] | BaseError:
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, track_id)
             if track is None:
-                return None
+                return NotFoundError()
             artists_name = ", ".join([artist.name for artist in track.artists])
             lyrics_list: list[LyricsResponse] = []
             for lyrics in track.lyrics:
@@ -850,7 +850,7 @@ class LibraryManager:
 
     def stream_track(
         self, id: str, start_bytes: int, end_bytes: int
-    ) -> Generator[bytes] | None:
+    ) -> Generator[bytes] | BaseError:
         with self.db_manager.get_session() as session:
             object_id = None
             if "cl-" in id:
@@ -861,10 +861,10 @@ class LibraryManager:
                 track = self.db_manager.get_track_by_id(session, int(id))
                 object_id = track.path
             if object_id is None:
-                return None
+                return NotFoundError()
             storage = self.db_manager.get_storage_object_by_id(session, object_id)
             if storage is None:
-                return None
+                return NotFoundError()
             media_storage = storage.link_provider
             media_link = storage.link
             for storage in self.storages:
@@ -902,7 +902,7 @@ class LibraryManager:
             )
             return [to_short_track_response(track) for track in tracks], next_cursor
 
-    def get_file_metadata(self, id: str) -> dict | None:
+    def get_file_metadata(self, id: str) -> dict | BaseError:
         with self.db_manager.get_session() as session:
             object_id = None
             if "cl-" in id:
@@ -913,10 +913,10 @@ class LibraryManager:
                 track = self.db_manager.get_track_by_id(session, int(id))
                 object_id = track.path
             if object_id is None:
-                return None
+                return NotFoundError()
             storage = self.db_manager.get_storage_object_by_id(session, object_id)
             if storage is None:
-                return None
+                return NotFoundError()
             media_storage = storage.link_provider
             media_link = storage.link
             for storage in self.storages:

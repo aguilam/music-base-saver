@@ -214,20 +214,22 @@ class DBManager:
 
         return object_storage_from_orm(storage) if storage else None
 
-    def get_track_by_name(self, session: Session, title: str) -> Track | None:
+    def get_track_by_name(self, session: Session, title: str) -> Track | BaseError:
         orm_track = session.exec(
             select(TrackORM).where(col(TrackORM.title).ilike(title))
         ).first()
-        return track_from_orm(orm_track) if orm_track else None
+        return track_from_orm(orm_track) if orm_track else NotFoundError()
 
-    def get_user_by_name(self, session: Session, username: str) -> StoredUser | None:
+    def get_user_by_name(
+        self, session: Session, username: str
+    ) -> StoredUser | BaseError:
         orm_user = session.exec(
             select(UserORM).where(UserORM.username == username)
         ).first()
         return (
             stored_user_from_orm(StoredUserORM.model_validate(orm_user))
             if orm_user
-            else None
+            else NotFoundError()
         )
 
     def find_or_create_artist(self, session: Session, name: str) -> ArtistORM:

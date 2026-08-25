@@ -35,6 +35,9 @@ export const client = api.extend({
 			if (value && value.coverId != null) {
 			  value.coverUri = `${API_URL}/covers/${value.coverId}`;
 			}
+      if (value && value.duration != null) {
+        value.duration /= 1000
+      }
 			return value;
 		  });
 	}
