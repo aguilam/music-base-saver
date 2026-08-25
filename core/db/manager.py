@@ -319,7 +319,7 @@ class DBManager:
         ).first()
         return music_video_from_orm(orm_video) if orm_video else None
 
-    def get_playlist_by_id(self, session: Session, id: int) -> Playlist | None:
+    def get_playlist_by_id(self, session: Session, id: int) -> Playlist | NotFoundError:
         statement = (
             select(PlaylistORM)
             .where(PlaylistORM.id == id)
@@ -335,7 +335,53 @@ class DBManager:
             )
         )
         orm_playlist = session.exec(statement).first()
-        return playlist_from_orm(orm_playlist) if orm_playlist else None
+        return playlist_from_orm(orm_playlist) if orm_playlist else NotFoundError()
+
+    def update_playlist(
+        self,
+        session: Session,
+        playlist_id: int,
+        user_id: int,
+        title: str | None,
+        track_ids: list[int] | None,
+        owner_ids: list[int] | None,
+        is_public: bool | None,
+    ) -> Playlist | BaseError:
+        playlist = session.exec(
+            select(PlaylistORM).where(PlaylistORM.id == playlist_id)
+        ).first()
+        if playlist is None:
+            return NotFoundError()
+        if user_id not in [owner.id for owner in playlist.owners]:
+            return ForbiddenError()
+        if title is not None:
+            playlist.title = title
+        if is_public is not None:
+            playlist.is_public = is_public
+        if owner_ids is not None:
+            playlist.owners = session.exec(
+                select(UserORM).where(col(UserORM.id).in_(owner_ids))
+            ).all()
+        if track_ids is not None:
+            old_tracks = [link.track_id for link in playlist.track_links]
+            new_tracks: list[PlaylistTrackLink] = []
+            for track_id in track_ids:
+                if track_id not in old_tracks:
+                    track_link = PlaylistTrackLink(
+                        playlist_id=playlist.id, track_id=track_id
+                    )
+                    new_tracks.append(track_link)
+                    continue
+                new_tracks.append(
+                    next(
+                        link
+                        for link in playlist.track_links
+                        if link.track_id == track_id
+                    )
+                )
+            playlist.track_links = new_tracks
+        session.flush()
+        return playlist_from_orm(playlist)
 
     def create_user(
         self, session: Session, username: str, email: str, password: str

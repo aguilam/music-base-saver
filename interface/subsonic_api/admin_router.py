@@ -379,12 +379,29 @@ def get_playlist(library: CurrentLibrary, id: int):
 def delete_playlist(
     library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)], id: int
 ):
-    library.delete_playlist(id)
+    check_result(library.delete_playlist(id))
 
 
 @router.patch("/playlists/{id}")
-def patch_playlist(library: CurrentLibrary):
-    pass
+def patch_playlist(
+    library: CurrentLibrary,
+    user: Annotated[dict, Depends(user_auth)],
+    id: int,
+    title: str | None = Body(),
+    track_ids: list[int] | None = Body(),
+    owner_ids: list[int] | None = Body(),
+    is_public: bool | None = Body(),
+):
+    check_result(
+        library.update_playlist(
+            playlist_id=id,
+            user_id=user["sub"],
+            title=title,
+            track_ids=track_ids,
+            owner_ids=owner_ids,
+            is_public=is_public,
+        )
+    )
 
 
 @router.post("/syncs", status_code=status.HTTP_201_CREATED)

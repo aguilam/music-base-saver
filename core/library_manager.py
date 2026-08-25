@@ -790,6 +790,21 @@ class LibraryManager:
             self.db_manager.delete_playlist(session, playlist_id)
             session.commit()
 
+    def update_playlist(
+        self,
+        playlist_id: int,
+        user_id: int,
+        title: str | None,
+        track_ids: list[int] | None,
+        owner_ids: list[int] | None,
+        is_public: bool | None,
+    ) -> FullPlaylistResponse | BaseError:
+        with self.db_manager.get_session() as session:
+            playlist = self.db_manager.update_playlist(
+                session, playlist_id, user_id, title, track_ids, owner_ids, is_public
+            )
+            return check_error(playlist, to_full_playlist_response)
+
     def get_all_user_starred(
         self, user_id: int
     ) -> tuple[list[Track], list[Album], list[Artist]] | None:
