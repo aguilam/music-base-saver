@@ -18,6 +18,12 @@ from core.schemas.schemas import (
     Track,
     TrackShort,
     User,
+    FullTrackResponse,
+    ShortLyricsResponse,
+    ShortMusicVideoResponse,
+    ShortLyricsResponse,
+    Lyrics,
+    MusicVideo,
 )
 
 T = TypeVar("T")
@@ -106,6 +112,47 @@ def to_full_playlist_response(playlist: Playlist) -> FullPlaylistResponse:
         created_at=_required(playlist.created_at),
         tracks=[to_short_track_response(track) for track in playlist.tracks],
         cover_id=playlist.cover_path,
+    )
+
+
+def to_short_lyrics_response(lyrics: Lyrics) -> ShortLyricsResponse:
+    return ShortLyricsResponse(
+        id=_required(lyrics.id),
+        language=lyrics.language,
+        track_id=_required(lyrics.track_id),
+        offset=lyrics.offset,
+        is_synced=lyrics.is_synced,
+        synced_text=lyrics.synced_text,
+        plain_text=lyrics.plain_text,
+    )
+
+
+def to_short_music_video_response(music_video: MusicVideo) -> ShortMusicVideoResponse:
+    return ShortMusicVideoResponse(
+        id=_required(music_video.id),
+        track_id=music_video.track_id,
+        duration_ms=music_video.duration_ms,
+    )
+
+
+def to_full_track_response(track: Track) -> FullTrackResponse:
+    return FullTrackResponse(
+        id=_required(track.id),
+        title=track.title,
+        duration=track.length,
+        created_at=_required(track.created_at),
+        cover_id=track.cover_path,
+        bpm=track.bpm,
+        track_gain=track.track_gain,
+        track_peak=track.track_peak,
+        year=track.year,
+        external_id=track.external_id,
+        artists=[to_short_artist_response(artist) for artist in track.artists],
+        lyrics=[to_short_lyrics_response(lyrics) for lyrics in track.lyrics],
+        music_videos=[
+            to_short_music_video_response(music_video)
+            for music_video in track.music_videos
+        ],
     )
 
 

@@ -455,8 +455,9 @@ def post_track():
 
 
 @router.get("/tracks/{id}")
-def get_track():
-    pass
+def get_track(library: CurrentLibrary, id: int):
+    track = check_result(library.get_track_by_id(id))
+    return to_camel(asdict(track))
 
 
 @router.patch("/tracks/{id}")

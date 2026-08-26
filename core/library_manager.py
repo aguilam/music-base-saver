@@ -93,6 +93,7 @@ from .schemas.schemas import (
     ShortTrackResponse,
     ShortUserResponse,
     ListedUserResponse,
+    FullTrackResponse,
 )
 from .schemas.mappers import (
     to_full_album_response,
@@ -102,6 +103,7 @@ from .schemas.mappers import (
     to_short_artist_response,
     to_short_track_response,
     to_short_user_response,
+    to_full_track_response,
 )
 from sqlalchemy import select
 from .errors import NotFoundError, ForbiddenError, BaseError, check_error
@@ -511,10 +513,10 @@ class LibraryManager:
             albums = self.db_manager.get_all_albums(session, size, offset)
             return [to_short_album_response(album) for album in albums]
 
-    def get_track_by_id(self, id: int) -> Track | None:
+    def get_track_by_id(self, id: int) -> FullTrackResponse | BaseError:
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, id)
-            return track
+            return check_error(track, to_full_track_response)
 
     def scrobble(
         self, id: int, user_id: int, listen_time: int | None = None
