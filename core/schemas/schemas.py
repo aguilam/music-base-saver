@@ -167,7 +167,7 @@ class ShortLyricsResponse:
 class ShortMusicVideoResponse:
     id: int
     track_id: int
-    duration_ms: int | None = None
+    duration: int | None = None
 
 
 # TODO: Add short album

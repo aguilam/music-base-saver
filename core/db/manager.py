@@ -437,7 +437,7 @@ class DBManager:
     ) -> Playlist | BaseError:
         user = session.exec(select(UserORM).where(UserORM.id == user_id)).first()
         if user is None:
-            return NotFoundError
+            return NotFoundError()
         playlist = PlaylistORM(
             title=title, cover_path=cover_path, is_public=is_public, owner=user
         )
@@ -703,7 +703,7 @@ class DBManager:
         result = session.exec(statement).all()
         return set(result)
 
-    def get_track_by_id(self, session: Session, id: int) -> Track | None:
+    def get_track_by_id(self, session: Session, id: int) -> Track | BaseError:
         statement = (
             select(TrackORM)
             .where(TrackORM.id == id)
@@ -718,7 +718,7 @@ class DBManager:
             )
         )
         orm_track = session.exec(statement).first()
-        return track_from_orm(orm_track) if orm_track else None
+        return track_from_orm(orm_track) if orm_track else NotFoundError()
 
     def get_albums_cursor(
         self, session: Session, limit: int, cursor: str | None

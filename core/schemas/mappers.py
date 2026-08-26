@@ -131,7 +131,7 @@ def to_short_music_video_response(music_video: MusicVideo) -> ShortMusicVideoRes
     return ShortMusicVideoResponse(
         id=_required(music_video.id),
         track_id=music_video.track_id,
-        duration_ms=music_video.duration_ms,
+        duration=music_video.duration_ms,
     )
 
 
