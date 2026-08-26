@@ -105,7 +105,6 @@ from .schemas.mappers import (
     to_short_user_response,
     to_full_track_response,
 )
-from sqlalchemy import select
 from .errors import NotFoundError, ForbiddenError, BaseError, check_error
 from core.loader import import_modules, load_storages, load_modules
 from concurrent.futures import ThreadPoolExecutor
@@ -113,7 +112,7 @@ from uuid import uuid4
 from typing import Literal, overload, cast, Generator
 import time
 import os
-from sqlmodel import Session
+from sqlmodel import Session, col, select
 
 STAR_LINK_MAP = {
     "track": lambda user_id, obj_id: StarredTrack(user_id=user_id, track_id=obj_id),
@@ -219,21 +218,21 @@ class LibraryManager:
                 album.id = db_album.id if db_album else None
             for track in search_results.tracks:
                 db_track = self.db_manager.get_track_by_name(session, track.title)
-                track.id = db_track.id if db_track else None
+                track.id = db_track.id if not isinstance(db_track, BaseError) else None
         return search_results
 
     @overload
     def get_global_object(
         self, object_type: Literal["track"], object_id: str
-    ) -> Track | None: ...
+    ) -> Track | BaseError: ...
     @overload
     def get_global_object(
         self, object_type: Literal["album"], object_id: str
-    ) -> Album | None: ...
+    ) -> Album | BaseError: ...
     @overload
     def get_global_object(
         self, object_type: Literal["artist"], object_id: str
-    ) -> Artist | None: ...
+    ) -> Artist | BaseError: ...
 
     def get_global_object(
         self, object_type: Literal["track", "album", "artist"], object_id: str
@@ -245,18 +244,20 @@ class LibraryManager:
             if engine.tag == search_tag:
                 search_engine = engine.instance
                 if object_type == "track":
-                    return search_engine.get_track(search_id)
+                    track = search_engine.get_track(search_id)
+                    if isinstance(track, BaseError):
+                        return track
                 elif object_type == "album":
                     album = search_engine.get_album(search_id)
-                    if album is None:
-                        return None
+                    if isinstance(album, BaseError):
+                        return album
                     for track in album.tracks:
                         track.external_id = f"{engine.tag}-{track.external_id}"
                     return album
                 elif object_type == "artist":
                     artist = search_engine.get_artist(search_id)
-                    if artist is None:
-                        return None
+                    if isinstance(artist, BaseError):
+                        return artist
                     for album in artist.albums:
                         album.external_id = f"{engine.tag}-{album.external_id}"
                     return artist
@@ -362,14 +363,14 @@ class LibraryManager:
 
     def get_user_tracks_recommendations(
         self, user_id: int, count: int
-    ) -> list[Track] | None:
+    ) -> list[Track] | BaseError:
         with self.db_manager.get_session() as session:
             scrobbler = self.scrobblers[0]
             provider_key = self.db_manager.get_provider_key(
                 session, scrobbler.tag, user_id
             )
             if provider_key is None:
-                return None
+                return NotFoundError()
             tracks = scrobbler.instance.get_tracks_recommendations(
                 provider_key.key, count
             )
@@ -523,8 +524,8 @@ class LibraryManager:
     ) -> BaseError | None:
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, id)
-            if track is None:
-                return NotFoundError()
+            if isinstance(track, BaseError):
+                return track
             if listen_time is None:
                 listen_time = int(time.time())
             for scrobbler in self.scrobblers:
@@ -539,8 +540,8 @@ class LibraryManager:
     def post_now_playing(self, id: int, user_id: int) -> BaseError | None:
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, id)
-            if track is None:
-                return NotFoundError()
+            if isinstance(track, BaseError):
+                return track
             for scrobbler in self.scrobblers:
                 provider_key = self.db_manager.get_provider_key(
                     session, scrobbler.tag, user_id
@@ -581,15 +582,17 @@ class LibraryManager:
             session.commit()
             return provider_key
 
-    def change_provider_key(self, user_id: int, key_id: int, new_key: str):
+    def change_provider_key(
+        self, user_id: int, key_id: int, new_key: str
+    ) -> BaseError | None:
         with self.db_manager.get_session() as session:
             user = self.db_manager.get_user_by_id(session, user_id)
             if user is None:
-                return None
+                return NotFoundError()
             self.db_manager.change_provider_key(session, key_id, new_value=new_key)
             session.commit()
 
-    def check_api_key_availability(self, api_key: str) -> ApiKey | None:
+    def check_api_key_availability(self, api_key: str) -> ApiKey | BaseError:
         with self.db_manager.get_session() as session:
             key = self.db_manager.check_api_key_availability(session, api_key)
             return key
@@ -678,7 +681,7 @@ class LibraryManager:
     def get_playlist_by_id(self, id: int) -> FullPlaylistResponse | BaseError:
         with self.db_manager.get_session() as session:
             playlist = self.db_manager.get_playlist_by_id(session, id)
-            return to_full_playlist_response(playlist) if playlist else NotFoundError()
+            return check_error(playlist, to_full_playlist_response)
 
     def delete_user_by_username(self, username: str, user_id: int) -> int | BaseError:
         with self.db_manager.get_session() as session:
@@ -703,31 +706,35 @@ class LibraryManager:
             track = self.db_manager.delete_track(session, track_id)
             return track
 
-    def star(self, user_id: int, object_id: int, object_type: str):
-        factory = STAR_LINK_MAP.get(object_type)
-        if not factory:
-            raise ValueError(f"Unknown type: {object_type}")
+    def star(self, user_id: int, object_id: int, object_type: str) -> BaseError | None:
+        stap_tuple = STAR_LINK_MAP.get(object_type)
+        if stap_tuple is None:
+            return NotFoundError()
 
-        link = factory(user_id, object_id)
+        link = stap_tuple(user_id, object_id)
 
         with self.db_manager.get_session() as session:
             session.add(link)
             session.commit()
 
-    def unstar(self, user_id: int, object_id: int, object_type: str):
-        model, id_field = UNSTAR_LINK_MAP.get(object_type)
-        if not model:
-            raise ValueError(f"Unknown type: {object_type}")
+    def unstar(
+        self, user_id: int, object_id: int, object_type: str
+    ) -> BaseError | None:
+        unstar_tuple = UNSTAR_LINK_MAP.get(object_type, None)
+        if unstar_tuple is None:
+            return NotFoundError()
+        model, id_field = unstar_tuple
 
         with self.db_manager.get_session() as session:
             statement = select(model).where(
-                model.user_id == user_id,
+                col(model.user_id) == user_id,
                 getattr(model, id_field) == object_id,
             )
             link = session.exec(statement).first()
-            if link:
-                session.delete(link)
-                session.commit()
+            if link is None:
+                return NotFoundError()
+            session.delete(link)
+            session.commit()
 
     def get_user_playlists(
         self, user_id: int, size: int = 10, offset: int = 10
@@ -820,8 +827,8 @@ class LibraryManager:
     def get_lyrics(self, track_id: int) -> list[LyricsResponse] | BaseError:
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, track_id)
-            if track is None:
-                return NotFoundError()
+            if isinstance(track, BaseError):
+                return track
             artists_name = ", ".join([artist.name for artist in track.artists])
             lyrics_list: list[LyricsResponse] = []
             for lyrics in track.lyrics:
@@ -841,12 +848,16 @@ class LibraryManager:
 
     def get_user(
         self, username: str | None = None, user_id: int | None = None
-    ) -> StoredUser | None:
+    ) -> StoredUser | None | BaseError:
         with self.db_manager.get_session() as session:
             if username is not None:
-                return self.db_manager.get_user_by_name(session, username)
+                user = self.db_manager.get_user_by_name(session, username)
+                if isinstance(user, BaseError):
+                    return user
+                return user
             elif user_id is not None:
-                return self.db_manager.get_user_by_id(session, user_id)
+                user = self.db_manager.get_user_by_id(session, user_id)
+                return user
             else:
                 return None
 
@@ -858,17 +869,23 @@ class LibraryManager:
             if "cl-" in id:
                 video_id = id.split("-")[1]
                 video = self.db_manager.get_video_by_id(session, int(video_id))
+                if isinstance(video, BaseError):
+                    return video
                 object_id = video.local_link
             else:
                 track = self.db_manager.get_track_by_id(session, int(id))
+                if isinstance(track, BaseError):
+                    return track
                 object_id = track.path
             if object_id is None:
                 return NotFoundError()
-            storage = self.db_manager.get_storage_object_by_id(session, object_id)
-            if storage is None:
+            storage_object = self.db_manager.get_storage_object_by_id(
+                session, object_id
+            )
+            if storage_object is None:
                 return NotFoundError()
-            media_storage = storage.link_provider
-            media_link = storage.link
+            media_storage = storage_object.link_provider
+            media_link = storage_object.link
             for storage in self.storages:
                 if storage.id == media_storage:
                     current_storage = storage.instance
@@ -876,6 +893,7 @@ class LibraryManager:
                         media_link, start_bytes, end_bytes
                     )
                     return track
+            return NotFoundError()
 
     def get_albums_cursor(
         self, cursor: str | None, limit: int = 20
@@ -910,9 +928,13 @@ class LibraryManager:
             if "cl-" in id:
                 video_id = id.split("-")[1]
                 video = self.db_manager.get_video_by_id(session, int(video_id))
+                if isinstance(video, BaseError):
+                    return video
                 object_id = video.local_link
             else:
                 track = self.db_manager.get_track_by_id(session, int(id))
+                if isinstance(track, BaseError):
+                    return track
                 object_id = track.path
             if object_id is None:
                 return NotFoundError()
@@ -926,6 +948,7 @@ class LibraryManager:
                     current_storage = storage.instance
                     metadata = current_storage.get_file_metadata(media_link)
                     return metadata
+            return NotFoundError()
 
     def get_sync_task(self, task_id: str) -> Task[SyncTaskResult] | BaseError:
         task = self.task_queue.sync.get(task_id, NotFoundError())
@@ -966,9 +989,11 @@ class LibraryManager:
         file_path: str,
         saving_path: str,
         file_size: int | None = None,
-    ) -> ObjectStorageORM:
+    ) -> ObjectStorageORM | BaseError:
         file_size = os.path.getsize(file_path) if file_size is None else file_size
         best_storage = find_best_storage(self.storages, file_size)
+        if isinstance(best_storage, BaseError):
+            return best_storage
         saved_object_path = best_storage.instance.save_file(file_path, saving_path)
         object_storage = ObjectStorageORM(
             link_type="storage",
@@ -1116,9 +1141,9 @@ class LibraryManager:
                             track = self.db_manager.get_track_by_name(
                                 session, lyrics_text.title
                             )
-                            if track is None:
+                            if isinstance(track, NotFoundError):
                                 track = self.db_manager.get_track_by_name(session, name)
-                            if track is None:
+                            if isinstance(track, BaseError):
                                 task.result.unbound_files.lyrics.add(
                                     (f"{storage.id}///{link}", filename)
                                 )
@@ -1135,7 +1160,7 @@ class LibraryManager:
                             session.flush()
                         elif isinstance(lyrics_text, str):
                             track = self.db_manager.get_track_by_name(session, name)
-                            if track is None:
+                            if isinstance(track, BaseError):
                                 task.result.unbound_files.lyrics.add(
                                     (f"{storage.id}///{link}", filename)
                                 )
@@ -1173,13 +1198,13 @@ class LibraryManager:
                         if video_title is None:
                             video_title = filename.rsplit(".", 1)[0]
                         track = self.db_manager.get_track_by_name(session, video_title)
-                        if track is None:
+                        if isinstance(track, NotFoundError):
                             id_tuple = get_id_from_string(filename, "tr")
                             if id_tuple:
                                 track = self.db_manager.get_track_by_id(
                                     session, id_tuple[1]
                                 )
-                        if track is None:
+                        if isinstance(track, BaseError):
                             task.result.unbound_files.videos.add(
                                 (f"{storage.id}///{link}", filename)
                             )

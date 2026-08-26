@@ -1,12 +1,13 @@
 from typing import Generator
 from abc import ABC, abstractmethod
-from pathlib import Path
 from core.base_service import Service
 
 
 class Storage(Service, ABC):
     def __init__(self, config):
         self.config = config
+        self.id = config["id"]
+        self.name = config["name"]
 
     @abstractmethod
     def save_file(self, file_path: str, saving_path: str) -> str:

@@ -9,8 +9,6 @@ class LocalStorage(Storage):
 
     def __init__(self, config):
         super().__init__(config)
-        self.id = config["id"]
-        self.name = config["name"]
         self.save_directory = Path(self.config["save_directory"])
         self.save_directory.mkdir(parents=True, exist_ok=True)
 

@@ -175,11 +175,11 @@ class DBManager:
 
     def check_api_key_availability(
         self, session: Session, api_key: str
-    ) -> ApiKey | None:
+    ) -> ApiKey | BaseError:
         key = session.exec(
             select(ApiKeyORM).where(ApiKeyORM.key == api_key, ~col(ApiKeyORM.revoked))
         ).first()
-        return api_key_from_orm(key) if key else None
+        return api_key_from_orm(key) if key else NotFoundError()
 
     def create_api_key(self, session: Session, user_id: int, key: str) -> ApiKey:
         api_key = ApiKeyORM(user_id=user_id, key=key)
@@ -315,11 +315,11 @@ class DBManager:
             else None
         )
 
-    def get_video_by_id(self, session: Session, id: int) -> MusicVideo | None:
+    def get_video_by_id(self, session: Session, id: int) -> MusicVideo | BaseError:
         orm_video = session.exec(
             select(MusicVideoORM).where(MusicVideoORM.id == id)
         ).first()
-        return music_video_from_orm(orm_video) if orm_video else None
+        return music_video_from_orm(orm_video) if orm_video else NotFoundError()
 
     def get_playlist_by_id(self, session: Session, id: int) -> Playlist | NotFoundError:
         statement = (

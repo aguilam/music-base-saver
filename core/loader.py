@@ -1,3 +1,4 @@
+from importlib.abc import Loader
 from collections import defaultdict
 from pathlib import Path
 from importlib.util import spec_from_file_location, module_from_spec
@@ -34,6 +35,8 @@ def import_modules(module_folder: str, BaseClass: type[T]) -> dict[str, type[T]]
     modules: dict[str, type[T]] = {}
     for search in searched_modules:
         spec = spec_from_file_location(search.stem, str(search.resolve()))
+        if spec is None or not isinstance(spec.loader, Loader):
+            continue
         module = module_from_spec(spec)
         spec.loader.exec_module(module)
         for _, cls in inspect.getmembers(module, inspect.isclass):
@@ -43,6 +46,8 @@ def import_modules(module_folder: str, BaseClass: type[T]) -> dict[str, type[T]]
                 and cls is not BaseClass
             ):
                 key = getattr(cls, "TAG", None) or getattr(cls, "NAME", None)
+                if key is None:
+                    continue
                 modules[key] = cls
     return modules
 
