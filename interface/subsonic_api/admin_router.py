@@ -87,7 +87,7 @@ def login(
     username: str = Body(),
     password: str = Body(),
 ):
-    user = library.get_user(username=username)
+    user = check_result(library.get_user(username=username))
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
     if user.password != password:
@@ -140,7 +140,7 @@ def get_me(library: CurrentLibrary, request: Request):
     user_id = payload.get("sub")
     if user_id is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-    user = library.get_user(user_id=int(user_id))
+    user = check_result(library.get_user(user_id=int(user_id)))
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     return {
@@ -189,7 +189,7 @@ def post_user():
 
 @router.get("/users/{id}")
 def get_user(id: int, library: CurrentLibrary):
-    user = library.get_user(user_id=id)
+    user = check_result(library.get_user(user_id=id))
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     return {"id": user.id, "username": user.username}
@@ -222,7 +222,7 @@ def patch_user(
 @router.get("/user/{id}/playlists")
 def get_user_playlists(library: CurrentLibrary, id: int):
     playlists = library.get_user_playlists(id)
-    [to_camel(asdict(playlist)) for playlist in playlists]
+    return [to_camel(asdict(playlist)) for playlist in playlists]
 
 
 @router.get("/api-keys")
@@ -359,14 +359,15 @@ def post_playlist(
     library: CurrentLibrary,
     user: Annotated[dict, Depends(user_auth)],
     title: str = Body(),
-    tracks_id: list[int] = Body(),
+    track_ids: list[int] = Body(),
     is_public: bool = Body(),
 ):
-    check_result(
+    playlist = check_result(
         library.create_playlist(
-            user_id=user["sub"], title=title, tracks_id=tracks_id, is_public=is_public
+            user_id=user["sub"], title=title, tracks_id=track_ids, is_public=is_public
         )
     )
+    return to_camel(asdict(playlist))
 
 
 @router.get("/playlists/{id}")
@@ -379,7 +380,7 @@ def get_playlist(library: CurrentLibrary, id: int):
 def delete_playlist(
     library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)], id: int
 ):
-    check_result(library.delete_playlist(id))
+    playlist = check_result(library.delete_playlist(id))
 
 
 @router.patch("/playlists/{id}")
@@ -387,15 +388,15 @@ def patch_playlist(
     library: CurrentLibrary,
     user: Annotated[dict, Depends(user_auth)],
     id: int,
-    title: str | None = Body(),
-    track_ids: list[int] | None = Body(),
-    owner_ids: list[int] | None = Body(),
-    is_public: bool | None = Body(),
+    title: str | None = Body(default=None),
+    track_ids: list[int] | None = Body(default=None),
+    owner_ids: list[int] | None = Body(default=None),
+    is_public: bool | None = Body(default=None),
 ):
     check_result(
         library.update_playlist(
             playlist_id=id,
-            user_id=user["sub"],
+            user_id=int(user["sub"]),
             title=title,
             track_ids=track_ids,
             owner_ids=owner_ids,

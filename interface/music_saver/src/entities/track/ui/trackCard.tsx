@@ -17,7 +17,7 @@ const TrackCard = (props: TrackCardProps) => {
       <div class=" flex justify-between items-center">
         <div class="flex gap-3 items-center ">
           <div class="w-10 h-10 group relative flex items-center justify-center ">
-            {props.isAvatarHidden && <Cover coverUri={props.content.coverUri} type="track" size="xs" />}
+            {!props.isAvatarHidden && <Cover coverUri={props.content.coverUri} type="track" size="xs" />}
           </div>
           <div>
             <p

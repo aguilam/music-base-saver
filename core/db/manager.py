@@ -333,6 +333,7 @@ class DBManager:
                 selectinload(in_load_typing(PlaylistORM.track_links))
                 .selectinload(in_load_typing(PlaylistTrackLink.track))
                 .selectinload(in_load_typing(TrackORM.albums_links))
+                .selectinload(in_load_typing(TrackAlbumLink.album))
                 .selectinload(in_load_typing(AlbumORM.artists)),
             )
         )
@@ -424,7 +425,7 @@ class DBManager:
 
     def delete_playlist(self, session: Session, id: int):
         statement = delete(PlaylistORM).where(col(PlaylistORM.id) == id)
-        session.exec(statement).first()
+        session.exec(statement)
 
     def create_playlist(
         self,
@@ -439,13 +440,16 @@ class DBManager:
         if user is None:
             return NotFoundError()
         playlist = PlaylistORM(
-            title=title, cover_path=cover_path, is_public=is_public, owner=user
+            title=title, cover_path=cover_path, is_public=is_public, owners=[user]
         )
         session.add(playlist)
         session.flush()
         for position, track_id in enumerate(tracks_id, start=1):
-            trackLink = PlaylistTrackLink(playlist.id, track_id, position=position)
-            playlist.track_links.append(trackLink)
+            trackLink = PlaylistTrackLink(
+                playlist_id=playlist.id, track_id=track_id, position=position
+            )
+            session.add(trackLink)
+        session.flush()
         return playlist_from_orm(playlist)
 
     def get_user_by_apikey(self, session: Session, api_key: str) -> StoredUser | None:
@@ -545,6 +549,7 @@ class DBManager:
                 select(PlaylistORM)
                 .join(col(PlaylistORM.owners))
                 .where(UserORM.id == user_id)
+                .distinct()
                 .options(
                     selectinload(cast(InstrumentedAttribute[Any], PlaylistORM.owners)),
                     selectinload(

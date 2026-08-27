@@ -65,6 +65,10 @@ export const routes = [
             {
                 path: "/tracks",
                 component: lazy(() => import("./pages/tracks"))
+            },
+            {
+                path: "/playlists",
+                component: lazy(() => import("./pages/playlists"))
             }
         ]
     }

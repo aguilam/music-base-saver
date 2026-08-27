@@ -737,7 +737,7 @@ class LibraryManager:
             session.commit()
 
     def get_user_playlists(
-        self, user_id: int, size: int = 10, offset: int = 10
+        self, user_id: int, size: int = 10, offset: int = 0
     ) -> list[FullPlaylistResponse]:
         with self.db_manager.get_session() as session:
             playlists = self.db_manager.get_user_playlists(
@@ -812,6 +812,7 @@ class LibraryManager:
             playlist = self.db_manager.update_playlist(
                 session, playlist_id, user_id, title, track_ids, owner_ids, is_public
             )
+            session.commit()
             return check_error(playlist, to_full_playlist_response)
 
     def get_all_user_starred(
