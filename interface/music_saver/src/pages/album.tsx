@@ -4,6 +4,7 @@ import { formatTimeToString } from "~/shared/lib/utils";
 import Cover from "~/shared/ui/cover";
 import TrackCard from "~/entities/track/ui/trackCard";
 import { createAlbumQuery } from "~/entities/album/api/queries";
+import TrackList from "~/entities/track/ui/trackList";
 const AlbumPage = () => {
   const params = useParams()
   const albumQuery = createAlbumQuery(() => Number(params.id));
@@ -28,9 +29,7 @@ const AlbumPage = () => {
             </div>
           </div>
           <div class="">
-              <For each={album().tracks}>
-                  {(track) => <TrackCard content={track} isAvatarHidden={true}/>}
-              </For>
+              <TrackList tracks={album().tracks}/>
           </div>
         </div>
       )}
