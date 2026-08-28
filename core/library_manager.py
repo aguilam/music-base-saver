@@ -368,7 +368,7 @@ class LibraryManager:
     def get_track_tools(self) -> list[ShortToolResponse]:
         return self.tools_manager.get_track_process_events()
 
-    def process_track(self, tool_func_id: str, track_id: int):
+    def process_track(self, tool_func_id: str, track_id: int) -> BaseError | None:
         with self.db_manager.get_session() as session:
             track = self.db_manager.get_track_by_id(session, track_id)
             if isinstance(track, BaseError):
