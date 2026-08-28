@@ -7,6 +7,8 @@ from structlog.stdlib import BoundLogger
 from search.base import Search as BaseSearch
 from downloader.base import Downloader as BaseDownloader
 from storage.base import Storage as BaseStorage
+from core.tools_manager import ToolsManager
+from tool.events import Event
 from importer.base import Importer as BaseImporter
 from scrobbler.base import Scrobbler as BaseScrobbler
 from tool.base import Tool as BaseTool
@@ -94,6 +96,7 @@ from .schemas.schemas import (
     ShortUserResponse,
     ListedUserResponse,
     FullTrackResponse,
+    ShortToolResponse,
 )
 from .schemas.mappers import (
     to_full_album_response,
@@ -159,6 +162,7 @@ class LibraryManager:
         self.tools = load_modules(
             self.config.get("tool", {}), import_modules("tool", BaseTool)
         )
+        self.tools_manager = ToolsManager()
         self.db_manager = DBManager()
         self.logger: BoundLogger = get_logger(__name__)
         self.executor = ThreadPoolExecutor(max_workers=5)
@@ -360,6 +364,18 @@ class LibraryManager:
             artists = self.scrobblers[0].instance.get_similiar_artists(artist)
             tracks = self.db_manager.get_artists_random_tracks(session, artists, count)
             return tracks
+
+    def get_track_tools(self) -> list[ShortToolResponse]:
+        return self.tools_manager.get_track_process_events()
+
+    def process_track(self, tool_func_id: str, track_id: int):
+        with self.db_manager.get_session() as session:
+            track = self.db_manager.get_track_by_id(session, track_id)
+            if isinstance(track, BaseError):
+                return NotFoundError()
+            return self.tools_manager.send_event(
+                Event.PROCESS_TRACK, track=track, tool_func_id=tool_func_id
+            )
 
     def get_user_tracks_recommendations(
         self, user_id: int, count: int

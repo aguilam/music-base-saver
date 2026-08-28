@@ -7,8 +7,9 @@ import inspect
 from dataclasses import dataclass
 from core.schemas.schemas import ServiceStatus, HealthStatus
 from typing import TypeVar, Generic, Any, Callable
-from tool.base import Tool
+from tool.base import Tool, ToolFunction
 from core.base_service import Service
+from tool.events import Event
 
 T = TypeVar("T")
 
@@ -113,8 +114,8 @@ def load_storages(
     return active_storages, errors
 
 
-def load_tools(modules: dict[str, type[Tool]]) -> dict[str, list[Callable[..., Any]]]:
-    tools: defaultdict[str, list[Callable[..., Any]]] = defaultdict(list)
+def load_tools(modules: dict[str, type[Tool]]) -> dict[Event, list[ToolFunction]]:
+    tools: defaultdict[Event, list[ToolFunction]] = defaultdict(list)
     for module in modules.values():
         for _, method in inspect.getmembers(module, inspect.isfunction):
             if hasattr(method, "__event_name__"):

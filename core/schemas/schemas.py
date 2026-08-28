@@ -584,3 +584,9 @@ class LRCLyrics:
     title: str
     offset: int
     text: list[dict[str, int | str]]
+
+
+@dataclass(slots=True)
+class ShortToolResponse:
+    tool_id: str
+    tool_name: str
