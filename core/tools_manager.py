@@ -16,7 +16,7 @@ class ToolsManager:
             processed_function = next(
                 func
                 for func in event_functions
-                if func.__func_id__ == kwargs.get("tool_func_id")
+                if func.__func_id__ == kwargs.pop("tool_func_id")
             )
             processed_function(**kwargs)
         else:
@@ -25,7 +25,7 @@ class ToolsManager:
 
     def get_track_process_events(self) -> list[ShortToolResponse]:
         return [
-            ShortToolResponse(tool_id=func.__func_id__, tool_name=func.__event_name__)
+            ShortToolResponse(tool_id=func.__func_id__, tool_name=func.__func_name__)
             for func in self.functions.get(Event.PROCESS_TRACK, [])
-            if func.__event_name__ is not None
+            if func.__func_name__ is not None
         ]

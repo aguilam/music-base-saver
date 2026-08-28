@@ -461,13 +461,13 @@ def get_track(library: CurrentLibrary, id: int):
     return to_camel(asdict(track))
 
 
-@router.get("/tracks/tools")
+@router.get("/tools/tracks")
 def get_track_tools(library: CurrentLibrary):
     tools = library.get_track_tools()
     return [to_camel(asdict(tool)) for tool in tools]
 
 
-@router.get("/tracks/{track_id}/tools/{tool_id}")
+@router.post("/tools/{tool_id}/tracks/{track_id}")
 def post_track_tool_req(library: CurrentLibrary, track_id: int, tool_id: str):
     check_result(library.process_track(tool_func_id=tool_id, track_id=track_id))
 
