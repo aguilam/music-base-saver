@@ -212,12 +212,12 @@ def patch_user(
     is_admin: bool | None = None,
 ):
     new_user = check_result(
-        library.update_user(
-            acting_user_id=Number(acting_user["sub"]),
-            user_id=id,
-            username=username,
-            password=password,
-            is_admin=is_admin,
+        library.update_user_by_id(
+            acting_user_id=int(acting_user["sub"]),
+            changed_user_id=id,
+            new_username=username,
+            new_password=password,
+            set_is_admin=is_admin,
         )
     )
     return to_camel(asdict(new_user))
