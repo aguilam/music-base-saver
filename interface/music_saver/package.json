@@ -7,12 +7,16 @@
     "start": "vite",
     "dev": "vite",
     "build": "vite build",
-    "serve": "vite preview"
+    "serve": "vite preview",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check"
   },
   "license": "MIT",
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.13",
     "@types/node": "^26.1.1",
+    "oxfmt": "^0.65.0",
+    "oxlint": "^1.80.0",
     "solid-devtools": "^0.34.3",
     "tailwindcss": "^4.1.13",
     "typescript": "^5.9.2",
