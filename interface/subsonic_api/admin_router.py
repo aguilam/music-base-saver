@@ -207,9 +207,9 @@ def patch_user(
     library: CurrentLibrary,
     acting_user: Annotated[dict, Depends(user_auth)],
     id: int,
-    username: str | None = None,
-    password: str | None = None,
-    is_admin: bool | None = None,
+    username: str | None = Body(default=None),
+    password: str | None = Body(default=None),
+    is_admin: bool | None = Body(default=None),
 ):
     new_user = check_result(
         library.update_user_by_id(
