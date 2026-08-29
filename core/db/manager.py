@@ -366,23 +366,20 @@ class DBManager:
                 select(UserORM).where(col(UserORM.id).in_(owner_ids))
             ).all()
         if track_ids is not None:
-            old_tracks = [link.track_id for link in playlist.track_links]
-            new_tracks: list[PlaylistTrackLink] = []
-            for track_id in track_ids:
-                if track_id not in old_tracks:
-                    track_link = PlaylistTrackLink(
-                        playlist_id=playlist.id, track_id=track_id
-                    )
-                    new_tracks.append(track_link)
-                    continue
-                new_tracks.append(
-                    next(
-                        link
-                        for link in playlist.track_links
-                        if link.track_id == track_id
-                    )
+            session.exec(
+                delete(PlaylistTrackLink).where(
+                    col(PlaylistTrackLink.playlist_id) == playlist.id
                 )
-            playlist.track_links = new_tracks
+            )
+            session.flush()
+            session.add_all(
+                PlaylistTrackLink(
+                    playlist_id=playlist.id,
+                    track_id=track_id,
+                    position=position,
+                )
+                for position, track_id in enumerate(track_ids, 1)
+            )
         session.flush()
         return playlist_from_orm(playlist)
 

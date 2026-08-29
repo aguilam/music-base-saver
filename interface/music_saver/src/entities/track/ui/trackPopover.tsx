@@ -10,7 +10,6 @@ interface TrackPopoverProps extends ParentProps {
 const TrackPopover = (props:TrackPopoverProps) => {
     const PopoverFunctions = [
         {"title": "Change", "function": () => console.log("change")},
-        {"title": "Delete", "function": () => console.log("delete")}
     ]
     
     const trackToolsQuery = createTrackToolsQuery()
