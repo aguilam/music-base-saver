@@ -397,31 +397,79 @@ class DBManager:
     def update_user(
         self,
         session: Session,
-        user_id: int,
-        username: str | None,
-        password: str | None,
-        is_admin: bool | None,
+        changed_user: UserORM | None,
+        acting_user_id: int,
+        set_is_admin: bool | None,
+        new_password: str | None,
+        new_username: str | None,
     ) -> User | BaseError:
-        changed_user = session.exec(
-            select(UserORM).where(UserORM.username == username)
-        ).first()
         if changed_user is None:
             return NotFoundError()
-        same_user = changed_user.id == user_id
-        is_changing_admin = changed_user.is_admin
+        if set_is_admin is None and not new_password and not new_username:
+            return ForbiddenError()
+        same_user = changed_user.id == acting_user_id
+        is_can_change_admin = changed_user.is_admin
         if not same_user:
-            user = session.exec(select(UserORM).where(UserORM.id == user_id)).first()
-            if user and user.is_admin:
-                is_changing_admin = True
-            else:
+            acting_user = session.exec(
+                select(UserORM).where(UserORM.id == acting_user_id)
+            ).first()
+            if acting_user is None:
+                return NotFoundError()
+            is_can_change_admin = acting_user.is_admin
+        can_change = same_user or is_can_change_admin
+        if not can_change:
+            return ForbiddenError()
+        if set_is_admin is not None:
+            if not is_can_change_admin:
                 return ForbiddenError()
-        if is_admin is not None and is_changing_admin:
-            changed_user.is_admin = is_admin
-        if password and password is not changed_user.password:
-            changed_user.password = password
-        if username and username is not changed_user.username:
-            changed_user.username = username
+            changed_user.is_admin = set_is_admin
+        if new_password and can_change:
+            changed_user.password = new_password
+        if new_username and can_change:
+            changed_user.username = new_username
         return user_from_orm(changed_user)
+
+    def update_user_by_username(
+        self,
+        session: Session,
+        acting_user_id: int,
+        current_username: str,
+        new_username: str | None,
+        new_password: str | None,
+        set_is_admin: bool | None,
+    ) -> User | BaseError:
+        changed_user = session.exec(
+            select(UserORM).where(UserORM.username == current_username)
+        ).first()
+        return self.update_user(
+            session=session,
+            changed_user=changed_user,
+            acting_user_id=acting_user_id,
+            new_password=new_password,
+            set_is_admin=set_is_admin,
+            new_username=new_username,
+        )
+
+    def update_user_by_id(
+        self,
+        session: Session,
+        acting_user_id: int,
+        changed_user_id: int,
+        new_username: str | None,
+        new_password: str | None,
+        set_is_admin: bool | None,
+    ) -> User | BaseError:
+        changed_user = session.exec(
+            select(UserORM).where(UserORM.id == changed_user_id)
+        ).first()
+        return self.update_user(
+            session=session,
+            changed_user=changed_user,
+            acting_user_id=acting_user_id,
+            new_password=new_password,
+            set_is_admin=set_is_admin,
+            new_username=new_username,
+        )
 
     def delete_playlist(self, session: Session, id: int):
         statement = delete(PlaylistORM).where(col(PlaylistORM.id) == id)

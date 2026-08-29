@@ -205,7 +205,7 @@ def delete_user(
 @router.patch("/users/{id}")
 def patch_user(
     library: CurrentLibrary,
-    user: Annotated[dict, Depends(user_auth)],
+    acting_user: Annotated[dict, Depends(user_auth)],
     id: int,
     username: str | None = None,
     password: str | None = None,
@@ -213,7 +213,11 @@ def patch_user(
 ):
     new_user = check_result(
         library.update_user(
-            user_id=id, username=username, password=password, is_admin=is_admin
+            acting_user_id=Number(acting_user["sub"]),
+            user_id=id,
+            username=username,
+            password=password,
+            is_admin=is_admin,
         )
     )
     return to_camel(asdict(new_user))

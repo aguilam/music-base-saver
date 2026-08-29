@@ -788,19 +788,45 @@ class LibraryManager:
         self.toml_config = new_config
         self.config = new_dict
 
-    def update_user(
+    def update_user_by_username(
         self,
-        user_id: int,
-        username: str | None = None,
-        password: str | None = None,
-        is_admin: bool | None = None,
-    ) -> User | BaseError:
+        acting_user_id: int,
+        current_username: str,
+        new_username: str | None = None,
+        new_password: str | None = None,
+        set_is_admin: bool | None = None,
+    ) -> ShortUserResponse | BaseError:
         with self.db_manager.get_session() as session:
-            user = self.db_manager.update_user(
-                session, user_id, username, password, is_admin
+            user = self.db_manager.update_user_by_username(
+                session=session,
+                current_username=current_username,
+                acting_user_id=acting_user_id,
+                new_password=new_password,
+                set_is_admin=set_is_admin,
+                new_username=new_username,
             )
             session.commit()
-            return user
+            return check_error(user, to_short_user_response)
+
+    def update_user_by_id(
+        self,
+        acting_user_id: int,
+        changed_user_id: int,
+        new_username: str | None = None,
+        new_password: str | None = None,
+        set_is_admin: bool | None = None,
+    ) -> ShortUserResponse | BaseError:
+        with self.db_manager.get_session() as session:
+            user = self.db_manager.update_user_by_id(
+                session=session,
+                changed_user_id=changed_user_id,
+                acting_user_id=acting_user_id,
+                new_password=new_password,
+                set_is_admin=set_is_admin,
+                new_username=new_username,
+            )
+            session.commit()
+            return check_error(user, to_short_user_response)
 
     def create_user(
         self, username: str, email: str, password: str
@@ -1624,7 +1650,7 @@ class LibraryManager:
                     track = self.db_manager.get_track_by_id(
                         session, track_map[track_id]
                     )
-                    if track is None:
+                    if isinstance(track, BaseError):
                         continue
                     url, name = selected_importer.get_lyrics_download_link(track_id)
 
