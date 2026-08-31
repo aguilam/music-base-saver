@@ -1,3 +1,4 @@
+from core.responses import ListedUserResponse
 from core.db.models import (
     TrackORM,
     ArtistORM,
@@ -14,7 +15,7 @@ from core.db.models import (
     ApiKeyORM,
     ProviderKeyORM,
 )
-from core.schemas.schemas import (
+from core.schemas import (
     TrackShort,
     Track,
     ArtistShort,
@@ -22,7 +23,6 @@ from core.schemas.schemas import (
     StoredUser,
     AlbumShort,
     Album,
-    ListedUserResponse,
     Playlist,
     MusicVideo,
     Lyrics,

@@ -1,15 +1,10 @@
 from importlib.abc import Loader
-from collections import defaultdict
 from pathlib import Path
 from importlib.util import spec_from_file_location, module_from_spec
-from storage.base import Storage
 import inspect
 from dataclasses import dataclass
-from core.schemas.schemas import ServiceStatus, HealthStatus
-from typing import TypeVar, Generic, Any, Callable
-from tool.base import Tool, ToolFunction
-from core.base_service import Service
-from tool.events import Event
+from core.schemas import ServiceStatus, HealthStatus
+from typing import TypeVar, Generic, Any
 
 T = TypeVar("T")
 
@@ -20,12 +15,6 @@ class ModuleEntry(Generic[T]):
     priority: int
     params: dict[str, Any]
     instance: T
-
-
-@dataclass(slots=True)
-class StorageEntry(ModuleEntry[Storage]):
-    id: str
-    name: str
 
 
 def import_modules(module_folder: str, BaseClass: type[T]) -> dict[str, type[T]]:
@@ -77,48 +66,3 @@ def load_modules(
             )
     modules.sort(key=lambda x: x.priority, reverse=True)
     return modules, errors
-
-
-def load_storages(
-    config: dict, storage_classes: dict[str, Any]
-) -> tuple[list[StorageEntry], list[ServiceStatus]]:
-    storages: dict = config.get("storage", {})
-    active_storages: list[StorageEntry] = []
-    errors = []
-    for storage in storages:
-        try:
-            if storage.get("enabled", True):
-                storage_tag = storage["tag"]
-                instance_params = storage["params"]
-                instance_params["id"] = storage["id"]
-                instance_params["name"] = storage["name"]
-                selected_storage = storage_classes[storage_tag]
-                active_storages.append(
-                    StorageEntry(
-                        id=storage["id"],
-                        name=storage["name"],
-                        tag=storage_tag,
-                        priority=storage["priority"],
-                        params=storage["params"],
-                        instance=selected_storage(instance_params),
-                    )
-                )
-        except Exception as e:
-            errors.append(
-                ServiceStatus(
-                    tag=storage.get("id", "Undefined"),
-                    health=HealthStatus(ok=False, message=str(e)),
-                )
-            )
-    active_storages.sort(key=lambda x: x.priority, reverse=True)
-    return active_storages, errors
-
-
-def load_tools(modules: dict[str, type[Tool]]) -> dict[Event, list[ToolFunction]]:
-    tools: defaultdict[Event, list[ToolFunction]] = defaultdict(list)
-    for module in modules.values():
-        tool_class = module()
-        for _, method in inspect.getmembers(tool_class, inspect.ismethod):
-            if hasattr(method, "__event_name__"):
-                tools[method.__event_name__].append(method)
-    return dict(tools)
