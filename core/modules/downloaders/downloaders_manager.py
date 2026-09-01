@@ -1,29 +1,25 @@
-from core.loader import load_modules, import_modules
-from core.utils.utils import get_track_metadata_by_path
+from core.tasks.tasks_manager import TasksManager
+from core.db.manager import DBManager
+from core.modules.downloaders.loader import load_downloaders
+from core.modules.storages.storages_manager import StoragesManager
+from core.modules.searches.searches_manager import SearchesManager
+from core.utils import get_track_metadata_by_path, full_track_save
 from core.db.models import ObjectStorageORM
 from core.tasks.schemas import DownloadTaskResult
-from core.schemas import FilePathInfo
+from core.schemas import FilePathInfo, Track
 from pathlib import Path
 from core.services import (
-    album_service,
-    artist_service,
-    playlist_service,
-    server_service,
     track_service,
-    user_service,
 )
-from core.modules.downloaders.base import Downloader
 from core.modules.downloaders.utils import find_best_track, compare_tracks
 import shutil
 
 
 class _DownloadersManager:
     def __init__(self):
-        self.downloaders, self.start_errors.downloaders = load_modules(
-            self.config.get("downloader", {}),
-            import_modules("downloader", Downloader),
-        )
-        self.temp_dir = Path("test")
+        self.config = dict()
+        self.downloaders, _ = load_downloaders(self.config)
+        self.temp_dir = Path("temp_files")
 
     def download_track(
         self,
@@ -39,12 +35,12 @@ class _DownloadersManager:
         tracks_dict = []
         searched_tracks = []
         if query:
-            search_results = global_search(query).tracks
+            search_results = SearchesManager.global_search(query).tracks
             if len(search_results) < 1:
                 return None
             original_track = find_best_track(search_results)
         elif object_id:
-            track = get_global_object("track", object_id)
+            track = SearchesManager.get_global_object("track", object_id)
             original_track = track
         if original_track is None:
             return None
@@ -81,11 +77,13 @@ class _DownloadersManager:
             artist_name = track.artists[0]
             album_title = track.albums[0].title
             saving_path = Path((f"{artist_name}/{album_title}/{dst.name}"))
-            best_storage = find_best_storage(self.storages, best_track["size"])
+            best_storage = StoragesManager.find_best_storage(
+                file_size=best_track["size"]
+            )
             paths = full_track_save(best_storage, dst, saving_path)
             cover_storage_path = paths["cover_path"]
             saved_path = paths["track_path"]
-            with self.db_manager.get_session() as session:
+            with DBManager.get_session() as session:
                 cover = ObjectStorageORM(
                     link_type="storage",
                     file_name=Path(cover_storage_path).name,
@@ -102,7 +100,7 @@ class _DownloadersManager:
                     cover.id,
                 )
                 session.commit()
-            self.task_queue.download[task_id].result = DownloadTaskResult(
+            TasksManager.task_queue.download[task_id].result = DownloadTaskResult(
                 title=title,
                 artist=track.artists,
                 length=track.length,
@@ -110,7 +108,7 @@ class _DownloadersManager:
                 download_source=downloader.TAG,
                 saved_path=saved_path,
             )
-            self.task_queue.download[task_id].status = "finished"
+            TasksManager.task_queue.download[task_id].status = "finished"
 
 
 DownloadManager = _DownloadersManager()

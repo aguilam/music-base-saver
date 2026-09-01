@@ -1,3 +1,6 @@
+from core.schemas import Track
+
+
 def compare_tracks(original_metadata: dict, track_metadata: dict) -> float:
     similarity = 0.0
     if any(

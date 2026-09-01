@@ -4,7 +4,7 @@ from core.services import (
     artist_service,
     track_service,
 )
-from core.schemas import SearchResults, ServicesStatus, LibraryStats
+from core.schemas import SearchResults, ServicesStatus, LibraryStats, ObjectStorage
 from sqlmodel import Session
 from core.services.server_service import server_repository
 
@@ -26,6 +26,20 @@ def local_search(
         albums=album_service.search_albums(session, query, albumCount, albumOffset),
         tracks=track_service.search_tracks(session, query, songCount, songOffset),
     )
+
+
+def bulk_delete_by_links(
+    session: Session, provider_links: list[tuple[str, str]]
+) -> tuple[int, int, int, int]:
+    return server_repository.bulk_delete_by_links(session, provider_links)
+
+
+def delete_orphans(session: Session) -> tuple[int, int, int]:
+    return server_repository.delete_orphans(session)
+
+
+def get_storage_object_by_id(session: Session, object_id: int) -> ObjectStorage | None:
+    return server_repository.get_storage_object_by_id(session, object_id)
 
 
 def check_status() -> ServicesStatus:

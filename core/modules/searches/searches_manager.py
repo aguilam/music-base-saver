@@ -1,18 +1,19 @@
+from core.db.manager import DBManager
+from core.modules.searches.loader import import_searches
+from core.schemas import Artist, Album, Track, SearchResults
+from typing import Literal, overload
+from core.errors import BaseError
 from core.services import (
     album_service,
     artist_service,
-    playlist_service,
-    server_service,
     track_service,
-    user_service,
 )
 
 
-class SearchesManager:
+class _SearchesManager:
     def __init__(self):
-        self.search_engines, self.start_errors.search = load_modules(
-            self.config.get("search", {}), import_modules("search", BaseSearch)
-        )
+        self.config = dict()
+        self.search_engines, _ = import_searches(self.config)
 
     def global_search(self, query: str) -> SearchResults:
         search_results = SearchResults(artists=[], albums=[], tracks=[])
@@ -37,15 +38,17 @@ class SearchesManager:
                     item.external_id = f"{search_engine.TAG}-{item.external_id}"
                 search_results.artists.extend(res)
 
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
             for artist in search_results.artists:
-                db_artist = self.db_manager.get_artist_by_name(session, artist.name)
-                artist.id = db_artist.id if db_artist else None
+                db_artist = artist_service.get_artist_by_name(session, artist.name)
+                artist.id = (
+                    db_artist.id if not isinstance(db_artist, BaseError) else None
+                )
             for album in search_results.albums:
-                db_album = self.db_manager.get_album_by_name(session, album.title)
-                album.id = db_album.id if db_album else None
+                db_album = album_service.get_album_by_title(session, album.title)
+                album.id = db_album.id if not isinstance(db_album, BaseError) else None
             for track in search_results.tracks:
-                db_track = self.db_manager.get_track_by_name(session, track.title)
+                db_track = track_service.get_track_by_title(session, track.title)
                 track.id = db_track.id if not isinstance(db_track, BaseError) else None
         return search_results
 
@@ -89,3 +92,6 @@ class SearchesManager:
                     for album in artist.albums:
                         album.external_id = f"{engine.tag}-{album.external_id}"
                     return artist
+
+
+SearchesManager = _SearchesManager()

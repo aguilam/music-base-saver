@@ -244,9 +244,9 @@ class ServiceStatus:
 
 @dataclass(slots=True)
 class SearchResults:
-    artists: list[Artist]
-    albums: list[Album]
-    tracks: list[Track]
+    artists: list[ArtistShort]
+    albums: list[AlbumShort]
+    tracks: list[TrackShort]
 
 
 class BinaryBlob(NamedTuple):

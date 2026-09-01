@@ -1,3 +1,4 @@
+from core.db.models import PlaylistORM
 from core.errors import BaseError
 from core.schemas import Playlist
 from sqlmodel import Session
@@ -23,6 +24,10 @@ def create_playlist(
 
 def delete_playlist(session: Session, playlist_id: int) -> None:
     playlist_repository.delete_playlist(session, playlist_id)
+
+
+def get_playlist_orm_by_id(session: Session, playlist_id: int) -> PlaylistORM | None:
+    return playlist_repository.get_playlist_orm_by_id(session, playlist_id)
 
 
 def update_playlist(

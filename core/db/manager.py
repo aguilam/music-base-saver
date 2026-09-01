@@ -24,7 +24,7 @@ def admin_create(engine):
             session.commit()
 
 
-class DBManager:
+class _DBManager:
     def __init__(self) -> None:
         self.engine = create_engine("sqlite:///database.db")
         SQLModel.metadata.create_all(self.engine)
@@ -32,3 +32,6 @@ class DBManager:
 
     def get_session(self) -> Session:
         return Session(self.engine)
+
+
+DBManager = _DBManager()

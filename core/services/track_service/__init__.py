@@ -9,9 +9,10 @@ from core.db.models import (
     TrackAlbumLink,
     AlbumArtistLink,
     TrackORM,
+    GenreORM,
 )
 from core.errors import BaseError
-from core.schemas import Track, TrackShort, TrackMetadata, FilePathInfo
+from core.schemas import Track, TrackShort, TrackMetadata, FilePathInfo, MusicVideo
 from core.services.track_service import track_repository
 from core.services.album_service import album_repository
 from core.services.artist_service import artist_repository
@@ -21,13 +22,33 @@ def get_track_by_id(session: Session, id: int) -> Track | BaseError:
     return track_repository.get_track_by_id(session, id)
 
 
-def get_all_tracks(session: Session) -> list[TrackShort]:
-    tracks = track_repository.get_all_tracks(session)
-    return tracks
+def find_or_create_genre(session: Session, genre_name: str) -> GenreORM:
+    return track_repository.find_or_create_genre(session, genre_name)
 
 
 def get_track_by_title(session: Session, title: str) -> Track | BaseError:
-    return track_repository.get_track_by_name(session, title)
+    return track_repository.get_track_by_title(session, title)
+
+
+def get_video_by_id(session: Session, video_id: int) -> MusicVideo | BaseError:
+    return track_repository.get_video_by_id(session, video_id)
+
+
+def get_all_tracks(session: Session) -> list[TrackShort]:
+    return track_repository.get_all_tracks(session)
+
+
+def find_track(
+    session: Session,
+    title: str,
+    album_title: str | None = None,
+    artists: list[str] | None = None,
+) -> Track | BaseError:
+    return track_repository.find_track(session, title, album_title, artists)
+
+
+def get_all_tracks_storage_links(session: Session) -> set[tuple[str, str]]:
+    return track_repository.get_all_tracks_storage_links(session)
 
 
 def get_tracks_cursor(

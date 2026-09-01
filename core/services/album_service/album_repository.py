@@ -1,5 +1,5 @@
 from core.errors import NotFoundError, BaseError
-from core.utils.utils import encode_datetime_cursor, decode_datetime_cursor
+from core.utils import encode_datetime_cursor, decode_datetime_cursor
 from core.db.mappers import album_from_orm, album_short_from_orm
 from core.schemas import Album, AlbumShort
 from core.db.utils import in_load_typing
@@ -109,7 +109,7 @@ def get_album_orm_by_id(session: Session, id: int) -> AlbumORM | None:
     return session.get(AlbumORM, id)
 
 
-def get_album_by_name(session: Session, title: str) -> Album | BaseError:
+def get_album_by_title(session: Session, title: str) -> Album | BaseError:
     album = session.exec(select(AlbumORM).where(col(AlbumORM.title) == title)).first()
     return album_from_orm(album) if album else NotFoundError()
 
@@ -132,3 +132,7 @@ def search_albums(session: Session, query: str, limit: int, offset: int) -> list
     )
     orm_albums = session.exec(statement).all()
     return [album_from_orm(album) for album in orm_albums]
+
+
+def get_album_orm_by_title(session: Session, title: str) -> AlbumORM | None:
+    return session.exec(select(AlbumORM).where(AlbumORM.title == title)).first()

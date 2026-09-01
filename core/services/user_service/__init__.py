@@ -64,6 +64,10 @@ def update_user_by_username(
     )
 
 
+def get_user_by_id(session: Session, user_id: int) -> StoredUser | None:
+    return user_repository.get_user_by_id(session, user_id)
+
+
 def update_user_by_id(
     session: Session,
     acting_user_id: int,
@@ -166,6 +170,12 @@ def get_user_playlists(
     session: Session, user_id: int, size: int = 10, offset: int = 0
 ) -> list[Playlist]:
     return user_repository.get_user_playlists(session, user_id, size, offset)
+
+
+def get_provider_key(
+    session: Session, provider: str, user_id: int
+) -> ProviderKey | None:
+    return user_repository.get_provider_key(session, provider, user_id)
 
 
 def delete_provider_key(session: Session, key_id: int) -> None:

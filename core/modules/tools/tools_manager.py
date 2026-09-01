@@ -1,14 +1,13 @@
-from core.loader import import_modules, load_tools
-from tool.base import Tool, ToolFunction
-from tool.events import Event
-from core.schemas.schemas import ShortToolResponse
+from core.loader import import_modules
+from core.modules.tools.loader import load_tools
+from core.modules.tools.base import Tool
+from core.modules.tools.events import Event
+from core.responses import ShortToolResponse
 
 
 class ToolsManager:
     def __init__(self, plugin_dir: str | None = None):
-        self.functions: dict[Event, list[ToolFunction]] = load_tools(
-            import_modules("tool", Tool)
-        )
+        self.functions = load_tools(import_modules("tool", Tool))
 
     def send_event(self, event: Event, **kwargs):
         event_functions = self.functions.get(event, [])

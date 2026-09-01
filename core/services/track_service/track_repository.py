@@ -1,4 +1,4 @@
-from core.utils.utils import decode_datetime_cursor, encode_datetime_cursor
+from core.utils import decode_datetime_cursor, encode_datetime_cursor
 from core.db.mappers import (
     track_from_orm,
     track_short_from_orm,
@@ -70,7 +70,7 @@ def get_track_by_id(session: Session, id: int) -> Track | BaseError:
     return track_from_orm(orm_track) if orm_track else NotFoundError()
 
 
-def get_track_by_name(session: Session, title: str) -> Track | BaseError:
+def get_track_by_title(session: Session, title: str) -> Track | BaseError:
     orm_track = session.exec(
         select(TrackORM).where(col(TrackORM.title).ilike(title))
     ).first()

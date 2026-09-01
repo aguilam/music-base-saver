@@ -1,10 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Callable
-from core.base_service import Service
+from core.modules import Service
 
 
 class Downloader(Service, ABC):
-
     def __init__(self, config):
         self.config = config
 

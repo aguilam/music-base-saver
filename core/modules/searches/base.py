@@ -1,7 +1,7 @@
+from core.modules import Service
 from abc import ABC, abstractmethod
 from core.errors import BaseError
-from core.schemas.schemas import Track, Album, Artist
-from core.base_service import Service
+from core.schemas import TrackShort, AlbumShort, ArtistShort, Track, Album, Artist
 
 
 class Search(Service, ABC):
@@ -9,15 +9,15 @@ class Search(Service, ABC):
         self.config = config
 
     @abstractmethod
-    def search_tracks(self, query: str) -> list[Track]:
+    def search_tracks(self, query: str) -> list[TrackShort]:
         pass
 
     @abstractmethod
-    def search_albums(self, query: str) -> list[Album]:
+    def search_albums(self, query: str) -> list[AlbumShort]:
         pass
 
     @abstractmethod
-    def search_artists(self, query: str) -> list[Artist]:
+    def search_artists(self, query: str) -> list[ArtistShort]:
         pass
 
     @abstractmethod

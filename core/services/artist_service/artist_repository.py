@@ -1,7 +1,7 @@
 from core.errors import NotFoundError, BaseError
 from core.db.utils import in_load_typing
 from core.db.mappers import artist_short_from_orm, track_short_from_orm, artist_from_orm
-from core.utils.utils import decode_datetime_cursor, encode_datetime_cursor
+from core.utils import decode_datetime_cursor, encode_datetime_cursor
 from core.schemas import ArtistShort, TrackShort, Artist
 from sqlalchemy import or_, and_, func
 from sqlalchemy.orm import selectinload
@@ -117,18 +117,14 @@ def get_artists_random_tracks(
 
 def get_artists_by_name(
     session: Session, artists: list[str], count: int
-) -> list[Artist]:
+) -> list[ArtistShort]:
     normalized_names = [artist.strip().lower() for artist in artists]
     db_artists = session.exec(
         select(ArtistORM)
         .where(col(ArtistORM.normalized_name).in_(normalized_names))
         .limit(count)
     ).all()
-    return [artist_from_orm(artist) for artist in db_artists]
-
-
-def get_album_orm_by_title(session: Session, title: str) -> AlbumORM | None:
-    return session.exec(select(AlbumORM).where(AlbumORM.title == title)).first()
+    return [artist_short_from_orm(artist) for artist in db_artists]
 
 
 def get_artist_orm_by_name(session: Session, name: str) -> ArtistORM | None:
@@ -139,13 +135,13 @@ def get_artist_orm_by_id(session: Session, id: int) -> ArtistORM | None:
     return session.get(ArtistORM, id)
 
 
-def get_artist_by_name(session: Session, name: str) -> Artist | None:
+def get_artist_by_name(session: Session, name: str) -> Artist | BaseError:
     orm_artist = session.exec(
         select(ArtistORM)
         .outerjoin(ArtistAlias)
         .where((col(ArtistORM.name).ilike(name)) | (col(ArtistAlias.name).ilike(name)))
     ).first()
-    return artist_from_orm(orm_artist) if orm_artist else None
+    return artist_from_orm(orm_artist) if orm_artist else NotFoundError()
 
 
 def search_artists(

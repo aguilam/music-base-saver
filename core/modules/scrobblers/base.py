@@ -1,10 +1,9 @@
+from core.modules import Service
 from abc import ABC, abstractmethod
-from core.schemas.schemas import Track, Artist
-from core.base_service import Service
+from core.schemas import Track, Artist
 
 
 class Scrobbler(Service, ABC):
-
     @abstractmethod
     def post_playing_now(self, track: Track, token: str):
         pass
