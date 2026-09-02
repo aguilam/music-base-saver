@@ -1,6 +1,5 @@
 from core.db.mappers import (
     track_short_from_orm,
-    listed_user_from_orm,
     api_key_from_orm,
     stored_user_from_orm,
     album_short_from_orm,

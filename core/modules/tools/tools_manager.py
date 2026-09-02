@@ -5,7 +5,7 @@ from core.modules.tools.events import Event
 from core.responses import ShortToolResponse
 
 
-class ToolsManager:
+class _ToolsManager:
     def __init__(self, plugin_dir: str | None = None):
         self.functions = load_tools(import_modules("tool", Tool))
 
@@ -28,3 +28,6 @@ class ToolsManager:
             for func in self.functions.get(Event.PROCESS_TRACK, [])
             if func.__func_name__ is not None
         ]
+
+
+ToolsManager = _ToolsManager()

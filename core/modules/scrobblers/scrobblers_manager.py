@@ -83,7 +83,7 @@ class _ScrobblersManager:
                 provider_key.key, count
             )
             db_tracks: list[Track] = []
-            # TODO: Rewrite fund track to TrackShort and get tracks
+            # TODO: Rewrite find track to TrackShort and get by albums
             for track in tracks:
                 album_name = next((album.title for album in track.albums), None)
                 artists_names = [artist.name for artist in track.artists]
@@ -95,4 +95,4 @@ class _ScrobblersManager:
             return db_tracks
 
 
-ScrobblersManager = _ScrobblersManager
+ScrobblersManager = _ScrobblersManager()

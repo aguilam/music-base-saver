@@ -27,12 +27,6 @@ class ShortAlbumResponse:
 class ShortUserResponse:
     id: int
     username: str
-
-
-@dataclass(slots=True)
-class ListedUserResponse:
-    id: int
-    username: str
     is_admin: bool
 
 
@@ -127,6 +121,18 @@ class FullPlaylistResponse:
     duration: int
     created_at: datetime
     tracks: list[ShortTrackResponse] = field(default_factory=list)
+    cover_id: int | None = None
+
+
+@dataclass(slots=True)
+class ShortPlaylistResponse:
+    id: int
+    title: str
+    is_public: bool
+    owners: list[ShortUserResponse]
+    tracks_count: int
+    duration: int
+    created_at: datetime
     cover_id: int | None = None
 
 

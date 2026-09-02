@@ -1,4 +1,4 @@
-from asyncio.futures import Future
+from concurrent.futures import Future
 from dataclasses import dataclass, field
 
 

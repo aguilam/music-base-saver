@@ -93,6 +93,19 @@ def get_genres(session: Session) -> list[dict[str, str | int]]:
     return counted_genres
 
 
+def get_moods(session: Session) -> list[dict[str, str | int]]:
+    moods = track_repository.get_moods(session)
+    counted_moods = []
+    for mood in moods:
+        counted_moods.append(
+            {
+                "name": mood.name,
+                "track_count": len(mood.tracks),
+            }
+        )
+    return counted_moods
+
+
 def add_new_track(
     session: Session,
     track_metadata: TrackMetadata,

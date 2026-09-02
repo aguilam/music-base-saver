@@ -12,6 +12,7 @@ from core.responses import (
     ShortUserResponse,
     ShortLyricsResponse,
     ShortMusicVideoResponse,
+    ShortPlaylistResponse,
 )
 from core.schemas import (
     Album,
@@ -24,6 +25,7 @@ from core.schemas import (
     User,
     Lyrics,
     MusicVideo,
+    StoredUser,
 )
 
 T = TypeVar("T")
@@ -58,9 +60,10 @@ def to_short_album_response(album: Album | AlbumShort) -> ShortAlbumResponse:
     )
 
 
-def to_short_user_response(user: User) -> ShortUserResponse:
+def to_short_user_response(user: User | StoredUser) -> ShortUserResponse:
     return ShortUserResponse(
         id=_required(user.id),
+        is_admin=user.is_admin,
         username=user.username,
     )
 
@@ -111,6 +114,19 @@ def to_full_playlist_response(playlist: Playlist) -> FullPlaylistResponse:
         duration=playlist.duration,
         created_at=_required(playlist.created_at),
         tracks=[to_short_track_response(track) for track in playlist.tracks],
+        cover_id=playlist.cover_path,
+    )
+
+
+def to_short_playlist_response(playlist: Playlist) -> ShortPlaylistResponse:
+    return ShortPlaylistResponse(
+        id=_required(playlist.id),
+        title=playlist.title,
+        is_public=playlist.is_public,
+        owners=[to_short_user_response(owner) for owner in playlist.owners],
+        tracks_count=playlist.tracks_count,
+        duration=playlist.duration,
+        created_at=_required(playlist.created_at),
         cover_id=playlist.cover_path,
     )
 

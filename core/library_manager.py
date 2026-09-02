@@ -1,12 +1,62 @@
+from core.modules.importers.importers_manager import ImportersManager
+from core.tasks.schemas import (
+    DownloadTaskResult,
+    ImportTaskResult,
+    SyncTaskResult,
+    Task,
+)
+from core.tasks.tasks_manager import TasksManager
+from core.modules.storages.storages_manager import StoragesManager
+from core.modules.tools.events import Event
+from core.modules.tools.tools_manager import ToolsManager
+from core.responses.mappers import (
+    to_short_track_response,
+    to_short_album_response,
+    to_short_artist_response,
+    to_full_track_response,
+    to_full_playlist_response,
+    to_short_user_response,
+    to_full_artist_response,
+    to_full_album_response,
+    to_short_playlist_response,
+)
+from core.modules.scrobblers.scrobblers_manager import ScrobblersManager
+from core.modules.searches.searches_manager import SearchesManager
+from core.db.manager import DBManager
 import tomllib
 from pathlib import Path
-from core.schemas import ApiKey, ProviderKey, BinaryBlob, ServicesStatus, LibraryStats, SearchResults
-from core.errors import BaseError
-from core.responses import FullTrackResponse, FullAlbumResponse, FullArtistResponse, ShortTrackResponse, ShortToolResponse, ShortArtistResponse, ShortAlbumResponse, FullPlaylistResponse, ShortUserResponse, ListedUserResponse, LyricsResponse
+from core.schemas import (
+    ApiKey,
+    ProviderKey,
+    BinaryBlob,
+    ServicesStatus,
+    LibraryStats,
+    SearchResults,
+)
+from core.errors import BaseError, check_error, NotFoundError
+from core.responses import (
+    FullTrackResponse,
+    FullAlbumResponse,
+    FullArtistResponse,
+    ShortTrackResponse,
+    ShortToolResponse,
+    ShortArtistResponse,
+    ShortAlbumResponse,
+    FullPlaylistResponse,
+    ShortUserResponse,
+    LyricsResponse,
+    ShortPlaylistResponse,
+)
 from typing import Literal, Generator, overload
-from core.services import album_service, artist_service, playlist_service, server_service, track_service, user_service
+from core.services import (
+    album_service,
+    artist_service,
+    playlist_service,
+    server_service,
+    track_service,
+    user_service,
+)
 from core.modules.downloaders.downloaders_manager import DownloadManager
-QueueName = Literal["download", "sync", "importing"]
 
 
 class LibraryManager:
@@ -17,9 +67,6 @@ class LibraryManager:
         with self.config_path.open("r", encoding="utf-8") as config_file:
             self.toml_config = config_file.read()
             self.config = tomllib.loads(self.toml_config)
-        self.start_errors: StartStatuses = StartStatuses()
-        self.db_manager = DBManager()
-        self.logger: BoundLogger = get_logger(__name__)
 
     def local_search(
         self,
@@ -31,11 +78,21 @@ class LibraryManager:
         songCount: int,
         songOffset: int,
     ) -> SearchResults:
-        with self.db_manager.get_session() as session:
-            server_service.local_search()
+        with DBManager.get_session() as session:
+            return server_service.local_search(
+                session,
+                query,
+                artistCount,
+                artistOffset,
+                albumCount,
+                albumOffset,
+                songCount,
+                songOffset,
+            )
+
     def global_search(self, query: str) -> SearchResults:
-        with self.db_manager.get_session() as session:
-        
+        return SearchesManager.global_search(query)
+
     @overload
     def get_global_object(
         self, object_type: Literal["track"], object_id: str
@@ -52,28 +109,35 @@ class LibraryManager:
     def get_global_object(
         self, object_type: Literal["track", "album", "artist"], object_id: str
     ):
-        with self.db_manager.get_session() as session:
+        return SearchesManager.get_global_object(object_type, object_id)
+
     def get_similiar_artists_random_tracks(
         self, artist_id: int, count: int
     ) -> list[ShortTrackResponse] | BaseError:
-        with self.db_manager.get_session() as session:
+        tracks = ScrobblersManager.get_similiar_artists_random_tracks(artist_id, count)
+        if isinstance(tracks, BaseError):
+            return tracks
+        return [to_short_track_response(track) for track in tracks]
 
     def get_track_tools(self) -> list[ShortToolResponse]:
-        return self.tools_manager.get_track_process_events()
+        return ToolsManager.get_track_process_events()
 
     def process_track(self, tool_func_id: str, track_id: int) -> BaseError | None:
-        with self.db_manager.get_session() as session:
-            track = self.db_manager.get_track_by_id(session, track_id)
+        with DBManager.get_session() as session:
+            track = track_service.get_track_by_id(session, track_id)
             if isinstance(track, BaseError):
                 return NotFoundError()
-            return self.tools_manager.send_event(
+            return ToolsManager.send_event(
                 Event.PROCESS_TRACK, track=track, tool_func_id=tool_func_id
             )
 
     def get_user_tracks_recommendations(
         self, user_id: int, count: int
     ) -> list[ShortTrackResponse] | BaseError:
-        with self.db_manager.get_session() as session:
+        tracks = ScrobblersManager.get_user_tracks_recommendations(user_id, count)
+        if isinstance(tracks, BaseError):
+            return tracks
+        return [to_short_track_response(track) for track in tracks]
 
     def download(
         self,
@@ -81,121 +145,154 @@ class LibraryManager:
         query: str | None = None,
         object_id: str | None = None,
     ) -> str:
-        task_id = self.post_task(
-            func=self.download_track,
+        task_id = TasksManager.post_task(
+            func=DownloadManager.download_track,
             queue_name="download",
             task_id=task_id,
             query=query,
             object_id=object_id,
         )
-        self.task_queue.download[task_id].result = DownloadTaskResult()
+        TasksManager.task_queue.download[task_id].result = DownloadTaskResult()
         return task_id
 
-    def download_track(
-        self,
-        task_id: str,
-        query: str | None = None,
-        object_id: str | None = None,
-    ):
-        DownloadManager.download_track(task_id=task_id,query=query,object_id=object_id)
-
-    def get_file(self, path: str, storage_id: str) -> bytes | None:
-        with self.db_manager.get_session() as session:
     def get_all_tracks(self) -> list[ShortTrackResponse]:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            tracks = track_service.get_all_tracks(session)
+            return [to_short_track_response(track) for track in tracks]
 
     def get_all_artists(
         self, size: int | None = None, offset: int | None = None
     ) -> list[ShortArtistResponse]:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            artists = artist_service.get_all_artists(session)
+            return [to_short_artist_response(artist) for artist in artists]
+
     def get_all_albums(
         self, size: int = 10, offset: int = 0
     ) -> list[ShortAlbumResponse]:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            albums = album_service.get_all_albums(session)
+            return [to_short_album_response(album) for album in albums]
 
     def get_track_by_id(self, id: int) -> FullTrackResponse | BaseError:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            track = track_service.get_track_by_id(session, id)
+            return check_error(track, to_full_track_response)
 
     def scrobble(
         self, id: int, user_id: int, listen_time: int | None = None
     ) -> BaseError | None:
-        with self.db_manager.get_session() as session:
+        return ScrobblersManager.scrobble(id, user_id, listen_time)
 
     def post_now_playing(self, id: int, user_id: int) -> BaseError | None:
-        with self.db_manager.get_session() as session:
+        return ScrobblersManager.post_now_playing(id, user_id)
 
     def delete_provider_key(self, key_id: int):
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return user_service.delete_provider_key(session, key_id)
 
     def get_provider_types(self) -> list[str]:
-        return [scrobbler.tag for scrobbler in self.scrobblers]
+        return [scrobbler.tag for scrobbler in ScrobblersManager.scrobblers]
 
     def create_api_key(self, user_id: int) -> ApiKey | BaseError:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return user_service.create_api_key(session, user_id)
 
     def create_provider_key(
         self, user_id: int, key: str, provider: str
     ) -> ProviderKey | BaseError:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return user_service.create_provider_key(session, user_id, key, provider)
 
     def change_provider_key(
         self, user_id: int, key_id: int, new_key: str
     ) -> BaseError | None:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return user_service.change_provider_key(session, user_id, key_id, new_key)
 
     def check_api_key_availability(self, api_key: str) -> ApiKey | BaseError:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return user_service.check_api_key_availability(session, api_key)
 
     def get_user_provider_keys(self, user_id: int) -> list[ProviderKey]:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return user_service.get_user_provider_keys(session, user_id)
 
     def get_user_api_keys(self, user_id: int) -> list[ApiKey]:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return user_service.get_user_api_keys(session, user_id)
 
     def revoke_api_key(self, key_id: int):
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return user_service.revoke_api_key(session, key_id)
 
-    def get_similiar_artists(self, id: int, count: int = 5) -> list[ShortArtistResponse] | BaseError:
-        with self.db_manager.get_session() as session:
+    def get_similiar_artists(
+        self, id: int, count: int = 5
+    ) -> list[ShortArtistResponse] | BaseError:
+        artists = ScrobblersManager.get_similiar_artists(id, count)
+        if isinstance(artists, BaseError):
+            return artists
+        return [to_short_artist_response(artist) for artist in artists]
 
     def get_album_by_id(self, id: int) -> FullAlbumResponse | BaseError:
-        with self.db_manager.get_session() as session:
-    def get_artist_by_id(self, id: int) -> FullArtistResponse | BaseError:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            album = album_service.get_album_by_id(session, id)
+            return check_error(album, to_full_album_response)
 
-    def get_artist_top_songs(self, name: str, count: int) -> list[ShortTrackResponse]:
-        with self.db_manager.get_session() as session:
+    def get_artist_by_id(self, id: int) -> FullArtistResponse | BaseError:
+        with DBManager.get_session() as session:
+            artist = artist_service.get_artist_by_id(session, id)
+            return check_error(artist, to_full_artist_response)
+
+    def get_artist_top_tracks(self, name: str, count: int) -> list[ShortTrackResponse]:
+        with DBManager.get_session() as session:
+            tracks = artist_service.get_artist_top_songs(session, name, count)
+            return [to_short_track_response(track) for track in tracks]
+
     def get_cover_art(self, id: int) -> BinaryBlob | BaseError:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return StoragesManager.get_cover_art(session, id)
+
     def get_genres(self) -> list[dict[str, str | int]]:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return track_service.get_genres(session)
+
     def get_moods(self) -> list[dict[str, str | int]]:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return track_service.get_moods(session)
 
     def get_playlist_by_id(self, id: int) -> FullPlaylistResponse | BaseError:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            playlist = playlist_service.get_playlist_by_id(session, id)
+            return check_error(playlist, to_full_playlist_response)
 
     def delete_user_by_username(self, username: str, user_id: int) -> int | BaseError:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return user_service.delete_user_by_username(session, username, user_id)
 
     def delete_user_by_id(self, id: int, user_id: int) -> int | BaseError:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return user_service.delete_user_by_id(session, id, user_id)
 
-    #def delete_track(self, track_id: int):
-
+    # def delete_track(self, track_id: int):
 
     def star(self, user_id: int, object_id: int, object_type: str) -> BaseError | None:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return user_service.star(session, user_id, object_id, object_type)
 
     def unstar(
         self, user_id: int, object_id: int, object_type: str
     ) -> BaseError | None:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return user_service.unstar(session, user_id, object_id, object_type)
 
     def get_user_playlists(
         self, user_id: int, size: int = 10, offset: int = 0
-    ) -> list[FullPlaylistResponse]:
-        with self.db_manager.get_session() as session:
+    ) -> list[ShortPlaylistResponse]:
+        with DBManager.get_session() as session:
+            playlists = user_service.get_user_playlists(session, user_id, size, offset)
+            return [to_short_playlist_response(playlist) for playlist in playlists]
+
     def create_playlist(
         self,
         user_id: int,
@@ -204,7 +301,12 @@ class LibraryManager:
         is_public: bool = False,
         cover_path: int | None = None,
     ) -> FullPlaylistResponse | BaseError:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            playlist = playlist_service.create_playlist(
+                session, user_id, title, tracks_id, is_public, cover_path
+            )
+            return check_error(playlist, to_full_playlist_response)
+
     def get_config(self) -> str:
         return self.toml_config
 
@@ -225,7 +327,17 @@ class LibraryManager:
         new_password: str | None = None,
         set_is_admin: bool | None = None,
     ) -> ShortUserResponse | BaseError:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            user = user_service.update_user_by_username(
+                session,
+                acting_user_id,
+                current_username,
+                new_username,
+                new_password,
+                set_is_admin,
+            )
+            return check_error(user, to_short_user_response)
+
     def update_user_by_id(
         self,
         acting_user_id: int,
@@ -234,14 +346,27 @@ class LibraryManager:
         new_password: str | None = None,
         set_is_admin: bool | None = None,
     ) -> ShortUserResponse | BaseError:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            user = user_service.update_user_by_id(
+                session,
+                acting_user_id,
+                changed_user_id,
+                new_username,
+                new_password,
+                set_is_admin,
+            )
+            return check_error(user, to_short_user_response)
+
     def create_user(
         self, username: str, email: str, password: str
-    ) -> ListedUserResponse:
-        with self.db_manager.get_session() as session:
+    ) -> ShortUserResponse:
+        with DBManager.get_session() as session:
+            user = user_service.create_user(session, username, email, password)
+            return to_short_user_response(user)
 
     def delete_playlist(self, playlist_id: int):
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return playlist_service.delete_playlist(session, playlist_id)
 
     def update_playlist(
         self,
@@ -252,85 +377,104 @@ class LibraryManager:
         owner_ids: list[int] | None,
         is_public: bool | None,
     ) -> FullPlaylistResponse | BaseError:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            playlist = playlist_service.update_playlist(
+                session, playlist_id, user_id, title, track_ids, owner_ids, is_public
+            )
+            return check_error(playlist, to_full_playlist_response)
+
     def get_all_user_starred(
         self, user_id: int
-    ) -> tuple[list[ShortTrackResponse], list[ShortAlbumResponse], list[ShortArtistResponse]] | None:
-        with self.db_manager.get_session() as session:
+    ) -> (
+        tuple[
+            list[ShortTrackResponse],
+            list[ShortAlbumResponse],
+            list[ShortArtistResponse],
+        ]
+        | None
+    ):
+        with DBManager.get_session() as session:
+            starred = user_service.get_all_user_starred(session, user_id)
+            if starred is None:
+                return None
+            tracks, albums, artists = starred
+            return (
+                [to_short_track_response(track) for track in tracks],
+                [to_short_album_response(track) for track in albums],
+                [to_short_artist_response(track) for track in artists],
+            )
+
     def get_track_by_title(self, title: str) -> FullTrackResponse | BaseError:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            track = track_service.get_track_by_title(session, title)
+            return check_error(track, to_full_track_response)
 
     def get_lyrics(self, track_id: int) -> list[LyricsResponse] | BaseError:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return track_service.get_lyrics(session, track_id)
 
     def get_user(
         self, username: str | None = None, user_id: int | None = None
-    ) -> ListedUserResponse | None | BaseError:
-        with self.db_manager.get_session() as session:
+    ) -> ShortUserResponse | None | BaseError:
+        with DBManager.get_session() as session:
+            user = user_service.get_user(session, username, user_id)
+            if user is None or isinstance(user, BaseError):
+                return user
+            return to_short_user_response(user)
 
     def stream_track(
         self, id: str, start_bytes: int, end_bytes: int
     ) -> Generator[bytes] | BaseError:
-        with self.db_manager.get_session() as session:
+        return StoragesManager.stream_track(id, start_bytes, end_bytes)
 
     def get_albums_cursor(
         self, cursor: str | None, limit: int = 20
     ) -> tuple[list[ShortAlbumResponse], str | None]:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            albums, cursor = album_service.get_albums_cursor(session, cursor, limit)
+            return [to_short_album_response(album) for album in albums], cursor
+
     def get_artists_cursor(
         self, cursor: str | None, limit: int = 20
     ) -> tuple[list[ShortArtistResponse], str | None]:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            artists, cursor = artist_service.get_artists_cursor(session, cursor, limit)
+            return [to_short_artist_response(artist) for artist in artists], cursor
 
     def get_tracks_cursor(
         self, cursor: str | None, limit: int = 20
     ) -> tuple[list[ShortTrackResponse], str | None]:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            tracks, cursor = track_service.get_tracks_cursor(session, cursor, limit)
+            return [to_short_track_response(track) for track in tracks], cursor
 
     def get_file_metadata(self, id: str) -> dict | BaseError:
-        with self.db_manager.get_session() as session:
+        return StoragesManager.get_file_metadata(id)
 
     def get_sync_task(self, task_id: str) -> Task[SyncTaskResult] | BaseError:
-        task = self.task_queue.sync.get(task_id, NotFoundError())
-        return task
+        return TasksManager.get_task("sync", task_id)
 
     def cancel_sync_task(self, task_id: str) -> bool | BaseError:
-        task = self.task_queue.sync.get(task_id)
-        if task is None:
-            return NotFoundError()
-        return task.task.cancel()
+        return TasksManager.cancel_task("sync", task_id)
 
     def get_download_task(self, task_id: str) -> Task[DownloadTaskResult] | BaseError:
-        task = self.task_queue.download.get(task_id, NotFoundError())
-        return task
+        return TasksManager.get_task("download", task_id)
 
     def cancel_download_task(self, task_id: str) -> bool | BaseError:
-        task = self.task_queue.download.get(task_id)
-        if task is None:
-            return NotFoundError()
-        return task.task.cancel()
+        return TasksManager.cancel_task("download", task_id)
 
     def get_import_task(self, task_id: str) -> Task[ImportTaskResult] | BaseError:
-        task = self.task_queue.importing.get(task_id, NotFoundError())
-        return task
+        return TasksManager.get_task("importing", task_id)
 
-    def post_task(
-        self, func, queue_name: QueueName, task_id: str | None = None, *args, **kwargs
-    ) -> str:
-        task_id = str(uuid4())[:8] if task_id is None else task_id
-        task_body = self.executor.submit(func, task_id, *args, **kwargs)
-        target = getattr(self.task_queue, queue_name)
-        target[task_id] = Task(task=task_body)
-        return task_id
-
+    def cancel_import_task(self, task_id: str) -> bool | BaseError:
+        return TasksManager.cancel_task("importing", task_id)
 
     def sync(self, task_id: str | None = None) -> str:
-        task_id = self.post_task(self.sync_library, task_id=task_id, queue_name="sync")
-        self.task_queue.sync[task_id].result = SyncTaskResult()
+        task_id = TasksManager.post_task(
+            StoragesManager.sync_library, task_id=task_id, queue_name="sync"
+        )
+        TasksManager.task_queue.sync[task_id].result = SyncTaskResult()
         return task_id
-
-    def sync_library(self, task_id: str):
-        with self.db_manager.get_session() as session:
 
     def import_library(
         self,
@@ -338,26 +482,24 @@ class LibraryManager:
         importer_tag: str | None = None,
         user_id: int | None = None,
     ) -> str:
-        task_id = self.post_task(
-            func=self.import_tracks,
+        task_id = TasksManager.post_task(
+            func=ImportersManager.import_tracks,
             queue_name="importing",
             task_id=task_id,
             importer_tag=importer_tag,
             user_id=user_id,
         )
-        self.task_queue.importing[task_id].result = ImportTaskResult()
+        TasksManager.task_queue.importing[task_id].result = ImportTaskResult()
         return task_id
 
-    def import_tracks(
-        self, task_id: str, importer_tag: str, user_id: int | None = None
-    ):
-        with self.db_manager.get_session() as session:
-
-    def get_all_users(self) -> list[ListedUserResponse]:
-        with self.db_manager.get_session() as session:
+    def get_all_users(self) -> list[ShortUserResponse]:
+        with DBManager.get_session() as session:
+            users = user_service.get_all_users(session)
+            return [to_short_user_response(user) for user in users]
 
     def check_status(self) -> ServicesStatus:
-         with self.db_manager.get_session() as session:
+        return server_service.check_status()
 
     def get_library_stats(self) -> LibraryStats:
-        with self.db_manager.get_session() as session:
+        with DBManager.get_session() as session:
+            return server_service.get_library_stats(session)
