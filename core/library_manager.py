@@ -31,7 +31,6 @@ from core.schemas import (
     BinaryBlob,
     ServicesStatus,
     LibraryStats,
-    SearchResults,
 )
 from core.errors import BaseError, check_error, NotFoundError, UnauthorizedError
 from core.responses import (
@@ -46,6 +45,7 @@ from core.responses import (
     ShortUserResponse,
     LyricsResponse,
     ShortPlaylistResponse,
+    SearchResultsResponse,
 )
 from typing import Literal, Generator, overload
 from core.services import (
@@ -77,9 +77,9 @@ class LibraryManager:
         albumOffset: int,
         songCount: int,
         songOffset: int,
-    ) -> SearchResults:
+    ) -> SearchResultsResponse:
         with DBManager.get_session() as session:
-            return server_service.local_search(
+            searched = server_service.local_search(
                 session,
                 query,
                 artistCount,
@@ -89,9 +89,21 @@ class LibraryManager:
                 songCount,
                 songOffset,
             )
+            return SearchResultsResponse(
+                artists=[
+                    to_short_artist_response(artist) for artist in searched.artists
+                ],
+                albums=[to_short_album_response(album) for album in searched.albums],
+                tracks=[to_short_track_response(track) for track in searched.tracks],
+            )
 
-    def global_search(self, query: str) -> SearchResults:
-        return SearchesManager.global_search(query)
+    def global_search(self, query: str) -> SearchResultsResponse:
+        searched = SearchesManager.global_search(query)
+        return SearchResultsResponse(
+            artists=[to_short_artist_response(artist) for artist in searched.artists],
+            albums=[to_short_album_response(album) for album in searched.albums],
+            tracks=[to_short_track_response(track) for track in searched.tracks],
+        )
 
     @overload
     def get_global_object(
@@ -372,10 +384,10 @@ class LibraryManager:
         self,
         playlist_id: int,
         user_id: int,
-        title: str | None,
-        track_ids: list[int] | None,
-        owner_ids: list[int] | None,
-        is_public: bool | None,
+        title: str | None = None,
+        track_ids: list[int] | None = None,
+        owner_ids: list[int] | None = None,
+        is_public: bool | None = None,
     ) -> FullPlaylistResponse | BaseError:
         with DBManager.get_session() as session:
             playlist = playlist_service.update_playlist(
@@ -391,12 +403,12 @@ class LibraryManager:
             list[ShortAlbumResponse],
             list[ShortArtistResponse],
         ]
-        | None
+        | BaseError
     ):
         with DBManager.get_session() as session:
             starred = user_service.get_all_user_starred(session, user_id)
-            if starred is None:
-                return None
+            if isinstance(starred, BaseError):
+                return starred
             tracks, albums, artists = starred
             return (
                 [to_short_track_response(track) for track in tracks],

@@ -1,3 +1,4 @@
+from core.errors import BaseError
 from fastapi import FastAPI, Request, APIRouter, Depends, status
 from fastapi.responses import Response, JSONResponse, StreamingResponse
 from collections import defaultdict
@@ -19,12 +20,12 @@ from interfaces.subsonic_api.mappers import (
 )
 import json
 from interfaces.base_interface import Interface
-from core.tasks.schemas import Task, DownloadTaskResult, SyncTaskResult
 from interfaces.subsonic_api import admin_router
 from interfaces.subsonic_api.utils import (
     CurrentLibrary,
     raise_subsonic_error,
     SubsonicException,
+    check_subsonic_error,
 )
 
 
@@ -43,7 +44,7 @@ def get_user(
         raise_subsonic_error(43)
     if api_key is not None and username is None:
         key = library_manager.check_api_key_availability(api_key)
-        if key is None:
+        if isinstance(key, BaseError):
             raise_subsonic_error(44)
         user = library_manager.get_user(user_id=key.user_id)
         if user is None:
@@ -55,6 +56,7 @@ def get_user(
         and salt is not None
         and token is not None
     ):
+        raise_subsonic_error(42)
         user = library_manager.get_user(username=username)
         if user is None or (
             not (
@@ -93,14 +95,27 @@ async def subsonic_middleware(request: Request, call_next):
     if not content_type.startswith("application/json"):
         return response
 
-    body = b""
-    async for chunk in response.body_iterator:
-        body += chunk
+    body: bytes = b""
+    if isinstance(response, StreamingResponse):
+        async for chunk in response.body_iterator:
+            if isinstance(chunk, str):
+                body += chunk.encode("utf-8")
+            else:
+                body += bytes(chunk)
+    else:
+        body = (
+            response.body if isinstance(response.body, bytes) else bytes(response.body)
+        )
     try:
         response_body = json.loads(body)
-
     except json.JSONDecodeError:
-        return response
+        return Response(
+            content=body,
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            media_type=response.media_type,
+        )
+
     status = "failed" if response_body.get("error") else "ok"
     wrapped_body = {
         "subsonic-response": {
@@ -127,7 +142,7 @@ async def subsonic_middleware(request: Request, call_next):
 @subsonic_router.get("/stream.view")
 @subsonic_router.get("/stream")
 def stream_track(library_manager: CurrentLibrary, request: Request, id: str):
-    metadata = library_manager.get_file_metadata(id)
+    metadata = check_subsonic_error(library_manager.get_file_metadata(id))
     range_header = request.headers.get("range")
     if not range_header:
         start = 0
@@ -153,7 +168,7 @@ def stream_track(library_manager: CurrentLibrary, request: Request, id: str):
             "Accept-Ranges": "bytes",
         }
     return StreamingResponse(
-        library_manager.stream_track(id, start, end),
+        check_subsonic_error(library_manager.stream_track(id, start, end)),
         headers=headers,
         status_code=response_status,
     )
@@ -179,9 +194,16 @@ def create_playlist(
     name: str | None = None,
     playlistId: int | None = None,
 ):
-    new_playlist = library_manager.create_playlist(user.id, name, songId)
-    if new_playlist is None:
-        raise_subsonic_error(70)
+    if name is not None:
+        new_playlist = check_subsonic_error(
+            library_manager.create_playlist(user.id, name, songId)
+        )
+    elif playlistId is not None:
+        new_playlist = check_subsonic_error(
+            library_manager.update_playlist(
+                playlist_id=playlistId, user_id=user.id, track_ids=songId, title=name
+            )
+        )
     subsonic_playlist = to_subsonic_playlist(new_playlist)
     tracks = []
     for track in new_playlist.tracks:
@@ -197,7 +219,7 @@ def delete_playlist(
     id: int,
     user: Annotated[User, Depends(get_user)],
 ):
-    library_manager.delete_playlist(id, user.id)
+    check_subsonic_error(library_manager.delete_playlist(id, user.id))
     return {}
 
 
@@ -208,7 +230,9 @@ def change_password(
     password: str,
     user: Annotated[User, Depends(get_user)],
 ):
-    library_manager.update_user(user.id, username, password)
+    library_manager.update_user_by_username(
+        acting_user_id=user.id, current_username=username, new_password=password
+    )
     return {}
 
 
@@ -220,7 +244,14 @@ def update_user(
     adminRole: bool | None = None,
     password: str | None = None,
 ):
-    library_manager.update_user(user.id, username, password, adminRole)
+    check_subsonic_error(
+        library_manager.update_user_by_username(
+            acting_user_id=user.id,
+            current_username=username,
+            new_password=password,
+            set_is_admin=adminRole,
+        )
+    )
     return {}
 
 
@@ -236,9 +267,7 @@ def create_user(
 def get_playlist(
     library_manager: CurrentLibrary, id: int, user: Annotated[User, Depends(get_user)]
 ):
-    playlist = library_manager.get_playlist_by_id(id)
-    if playlist is None:
-        raise_subsonic_error(70)
+    playlist = check_subsonic_error(library_manager.get_playlist_by_id(id))
     subsonic_playlist = to_subsonic_playlist(playlist)
     tracks = []
     for track in playlist.tracks:
@@ -254,7 +283,9 @@ def get_playlist(
 def get_user_starred(
     library_manager: CurrentLibrary, user: Annotated[User, Depends(get_user)]
 ):
-    tracks, albums, artists = library_manager.get_all_user_starred(user.id)
+    tracks, albums, artists = check_subsonic_error(
+        library_manager.get_all_user_starred(user.id)
+    )
     parsed_tracks = [to_subsonic_song(track) for track in tracks]
     parsed_albums = [to_subsonic_album(album) for album in albums]
     parsed_artist = [to_subsonic_artist(artist) for artist in artists]
@@ -270,9 +301,7 @@ def get_user_starred(
 @subsonic_router.get("/getCoverArt.view")
 @subsonic_router.get("/getCoverArt")
 def get_cover_art(library_manager: CurrentLibrary, id: int):
-    cover_art = library_manager.get_cover_art(id)
-    if cover_art is None:
-        raise_subsonic_error(70)
+    cover_art = check_subsonic_error(library_manager.get_cover_art(id))
     return Response(content=cover_art.content, media_type=cover_art.mime)
 
 
@@ -327,9 +356,7 @@ def global_download(
 
 @subsonic_router.get("/checkGlobalDownload")
 def check_global_download(library_manager: CurrentLibrary, id: str):
-    download: Task[DownloadTaskResult] | None = library_manager.get_download_task(id)
-    if download is None:
-        raise_subsonic_error(70)
+    download = check_subsonic_error(library_manager.get_download_task(id))
     download_response = {
         "download": {
             "status": download.status,
@@ -371,15 +398,13 @@ def global_search(
 @subsonic_router.get("/getArtist")
 def get_artist(library_manager: CurrentLibrary, id: str):
     if "-" in id:
-        artist = library_manager.get_global_object("artist", id)
+        artist = check_subsonic_error(library_manager.get_global_object("artist", id))
         parsed_artist = external_artist_to_subsonic(artist)
         parsed_artist["album"] = [
             external_album_to_subsonic(album) for album in artist.albums
         ]
     else:
-        artist = library_manager.get_artist_by_id(int(id))
-        if artist is None:
-            raise_subsonic_error(70)
+        artist = check_subsonic_error(library_manager.get_artist_by_id(int(id)))
         parsed_artist = to_subsonic_artist(artist)
         parsed_artist["album"] = [to_subsonic_album(album) for album in artist.albums]
     return {
@@ -411,9 +436,9 @@ def get_artists(library_manager: CurrentLibrary):
 def get_song(library_manager: CurrentLibrary, id: str):
     if "-" in id:
         track = library_manager.get_global_object("track", id)
-        song = external_track_to_subsonic(track)
+        song = check_subsonic_error(external_track_to_subsonic(track))
     else:
-        track = library_manager.get_track_by_id(int(id))
+        track = check_subsonic_error(library_manager.get_track_by_id(int(id)))
         if track is None:
             raise_subsonic_error(70)
         # song_link = next(
@@ -430,15 +455,13 @@ def get_song(library_manager: CurrentLibrary, id: str):
 @subsonic_router.get("/getAlbum")
 def get_album(library_manager: CurrentLibrary, id: str):
     if "-" in id:
-        album = library_manager.get_global_object("album", id)
+        album = check_subsonic_error(library_manager.get_global_object("album", id))
         parsed_album = external_album_to_subsonic(album)
         parsed_album["song"] = [
             external_track_to_subsonic(track) for track in album.tracks
         ]
     else:
-        album = library_manager.get_album_by_id(int(id))
-        if album is None:
-            raise_subsonic_error(70)
+        album = check_subsonic_error(library_manager.get_album_by_id(int(id)))
         parsed_album = to_subsonic_album(album)
         tracks = []
         for track in album.tracks:
@@ -460,7 +483,7 @@ def get_album(library_manager: CurrentLibrary, id: str):
 @subsonic_router.get("/getAlbumList2")
 def get_albums(library_manager: CurrentLibrary, size: int = 10, offset: int = 0):
     albums = library_manager.get_all_albums(size, offset)
-    if albums is None:
+    if len(albums) == 0:
         raise_subsonic_error(70)
     parsed_albums = [to_subsonic_album(album) for album in albums]
     return {
@@ -531,10 +554,8 @@ def scrobble(
 
 @subsonic_router.get("/getLyrics")
 def get_lyrics(library_manager: CurrentLibrary, title: str, artist: str | None = None):
-    track = library_manager.get_track_by_title(title)
-    if track is None:
-        raise_subsonic_error(70)
-    lyrics = library_manager.get_lyrics(track.id)
+    track = check_subsonic_error(library_manager.get_track_by_title(title))
+    lyrics = check_subsonic_error(library_manager.get_lyrics(track.id))
     lyric = next((lyric for lyric in lyrics if not lyric.is_synced), None)
     if lyric is None:
         raise_subsonic_error(70)
@@ -551,7 +572,7 @@ def get_lyrics(library_manager: CurrentLibrary, title: str, artist: str | None =
 def get_lyrics_by_song(
     library_manager: CurrentLibrary, id: int, enhanced: bool | None = False
 ):
-    lyrics = library_manager.get_lyrics(id)
+    lyrics = check_subsonic_error(library_manager.get_lyrics(id))
     sub_lyrics = [to_subsonic_lyric(lyric) for lyric in lyrics]
     return {
         "lyricsList": {"structuredLyrics": sub_lyrics},
@@ -560,7 +581,7 @@ def get_lyrics_by_song(
 
 @subsonic_router.get("/getTopSongs")
 def get_artist_top_songs(library_manager: CurrentLibrary, artist: str, count: int = 50):
-    tracks = library_manager.get_artist_top_songs(artist, count)
+    tracks = check_subsonic_error(library_manager.get_artist_top_tracks(artist, count))
     artist_songs = [to_subsonic_song(track) for track in tracks]
     return {
         "topSongs": {"song": artist_songs},
@@ -608,11 +629,7 @@ def delete_user(
     username: str,
     user: Annotated[User, Depends(get_user)],
 ):
-    result = library_manager.delete_user_by_username(username, user.id)
-    if result is None:
-        raise_subsonic_error(50)
-    elif result == 0:
-        raise_subsonic_error(70)
+    check_subsonic_error(library_manager.delete_user_by_username(username, user.id))
     return {}
 
 
@@ -631,21 +648,25 @@ def start_scan(library_manager: CurrentLibrary):
 
 @subsonic_router.get("/getSimilarSongs2")
 def getSimiliarSong(library_manager: CurrentLibrary, id: int, count: int = 50):
-    tracks = library_manager.get_similiar_artists_random_tracks(id, count)
-    if tracks is None:
-        raise_subsonic_error(70)
+    tracks = check_subsonic_error(
+        library_manager.get_similiar_artists_random_tracks(id, count)
+    )
     return {"similarSongs2": {"song": [to_subsonic_song(track) for track in tracks]}}
 
 
 @subsonic_router.get("/getScanStatus.view")
 @subsonic_router.get("/getScanStatus")
 def scan_status(library_manager: CurrentLibrary):
-    task: Task[SyncTaskResult] | None = library_manager.get_sync_task("sub")
-    if task is None:
-        raise_subsonic_error(70)
+    task = check_subsonic_error(library_manager.get_sync_task("sub"))
     is_scanning = True if task.status == "processing" else False
+    count = (
+        task.result.covers.added
+        + task.result.lyrics.added
+        + task.result.tracks.added
+        + task.result.videos.added
+    )
     return {
-        "scanStatus": {"scanning": is_scanning, "count": task.result.added},
+        "scanStatus": {"scanning": is_scanning, "count": count},
     }
 
 

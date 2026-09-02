@@ -165,3 +165,10 @@ class LyricsResponse:
 class ShortToolResponse:
     tool_id: str
     tool_name: str
+
+
+@dataclass(slots=True)
+class SearchResultsResponse:
+    artists: list[ShortArtistResponse]
+    albums: list[ShortAlbumResponse]
+    tracks: list[ShortTrackResponse]

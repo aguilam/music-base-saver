@@ -1,12 +1,17 @@
-from core.schemas import (
-    Artist,
-    Album,
-    Playlist,
-    Track,
+from core.responses import (
+    FullArtistResponse,
+    FullAlbumResponse,
+    FullPlaylistResponse,
+    FullTrackResponse,
+    ShortAlbumResponse,
+    ShortArtistResponse,
+    ShortTrackResponse,
+    ShortPlaylistResponse,
+    LyricsResponse,
 )
 
 
-def to_subsonic_song(track: Track):
+def to_subsonic_song(track: FullTrackResponse | ShortTrackResponse):
     primary_album = next((album for album in track.albums if album.is_primary), None)
     song = {
         "id": str(track.id),
@@ -15,23 +20,24 @@ def to_subsonic_song(track: Track):
         "title": track.title,
         "album": primary_album.title if primary_album else None,
         "artist": ", ".join(artist.name for artist in track.artists),
-        "duration": int(track.length / 1000),
+        "duration": int(track.duration / 1000),
         "created": track.created_at,
         "albumId": str(primary_album.id) if primary_album else None,
         "artistId": str(primary_album.artists[0].id) if primary_album else None,
-        "musicVideo": (
-            f"cl-{track.music_videos[0].id}" if len(track.music_videos) > 0 else None
-        ),
         "type": "music",
         "mediaType": "song",
         "isVideo": False,
     }
+    if isinstance(track, FullTrackResponse):
+        song["musicVideo"] = (
+            f"cl-{track.music_videos[0].id}" if len(track.music_videos) > 0 else None
+        )
     if primary_album and primary_album.cover_path:
         song["coverArt"] = f"{primary_album.cover_path}"
     return song
 
 
-def to_subsonic_album(album: Album):
+def to_subsonic_album(album: FullAlbumResponse | ShortAlbumResponse):
     artist = album.artists[0]
     sub_album = {
         "id": str(album.id),
@@ -46,23 +52,23 @@ def to_subsonic_album(album: Album):
         "artistId": str(artist.id),
         "artist": artist.name,
     }
-    if album.cover_path:
-        sub_album["coverArt"] = f"{album.cover_path}"
+    if album.cover_id:
+        sub_album["coverArt"] = f"{album.cover_id}"
     return sub_album
 
 
-def to_subsonic_artist(artist: Artist):
+def to_subsonic_artist(artist: FullArtistResponse | ShortArtistResponse):
     sub_artist = {
         "id": str(artist.id),
         "name": artist.name,
         "albumCount": len(artist.albums),
     }
-    if artist.cover_path:
-        sub_artist["coverArt"] = f"{artist.cover_path}"
+    if artist.cover_id:
+        sub_artist["coverArt"] = f"{artist.cover_id}"
     return sub_artist
 
 
-def to_subsonic_playlist(playlist: Playlist):
+def to_subsonic_playlist(playlist: FullPlaylistResponse | ShortPlaylistResponse):
     sub_playlist = {
         "id": str(playlist.id),
         "name": playlist.title,

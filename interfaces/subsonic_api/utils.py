@@ -23,6 +23,15 @@ opensubsonic_error = {
     50: "User is not authorized for the given operation.",
     70: "The requested data was not found.",
 }
+server_to_subsonic_errors = {404: 70, 403: 50, 401: 40, 422: 10}
+
+
+def check_subsonic_error[T](result: T | BaseError) -> T:
+    if isinstance(result, BaseError):
+        code = server_to_subsonic_errors.get(result.code, 0)
+        message = opensubsonic_error.get(code, "Error")
+        raise SubsonicException(code, message)
+    return result
 
 
 def raise_subsonic_error(code: int) -> NoReturn:

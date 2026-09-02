@@ -191,10 +191,10 @@ def delete_user_by_username(session: Session, username: str) -> int:
 
 def get_all_user_starred(
     session: Session, user_id: int
-) -> tuple[list[TrackShort], list[AlbumShort], list[ArtistShort]] | None:
+) -> tuple[list[TrackShort], list[AlbumShort], list[ArtistShort]] | BaseError:
     user = session.exec(select(UserORM).where(UserORM.id == user_id)).first()
     if user is None:
-        return None
+        return NotFoundError()
     starred_tracks = [track_short_from_orm(track) for track in user.starred_tracks]
     starred_albums = [album_short_from_orm(album) for album in user.starred_albums]
     starred_artists = [artist_short_from_orm(artist) for artist in user.starred_artists]

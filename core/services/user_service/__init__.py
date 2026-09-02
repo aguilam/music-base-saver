@@ -114,7 +114,7 @@ def get_all_users(session: Session) -> list[StoredUser]:
 
 def get_all_user_starred(
     session: Session, user_id: int
-) -> tuple[list[TrackShort], list[AlbumShort], list[ArtistShort]] | None:
+) -> tuple[list[TrackShort], list[AlbumShort], list[ArtistShort]] | BaseError:
     return user_repository.get_all_user_starred(session, user_id)
 
 
