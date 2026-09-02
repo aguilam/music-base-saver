@@ -20,6 +20,12 @@ class ForbiddenError(BaseError):
     detail: str = "Not permitted action"
 
 
+@dataclass(slots=True)
+class UnprocessableDataError(BaseError):
+    code: int = 422
+    detail: str = "Not enought data or invalid data types"
+
+
 T = TypeVar("T")
 
 U = TypeVar("U")

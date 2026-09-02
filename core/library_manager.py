@@ -1,135 +1,62 @@
-import secrets
-from datetime import datetime
-from pathlib import Path
-import tomllib
-from structlog import get_logger
-from structlog.stdlib import BoundLogger
-from search.base import Search as BaseSearch
-from downloader.base import Downloader as BaseDownloader
-from storage.base import Storage as BaseStorage
-from core.tools_manager import ToolsManager
-from tool.events import Event
-from importer.base import Importer as BaseImporter
-from scrobbler.base import Scrobbler as BaseScrobbler
-from tool.base import Tool as BaseTool
-from collections import defaultdict
-from core.utils import (
-    compare_tracks,
-    find_best_track,
-    full_track_save,
-    find_best_storage,
-    get_track_metadata_by_path,
-    analyze_lrc,
-    save_file_from_url,
-    image_mime,
-    get_video_metadata,
-    get_track_metadata_by_bytes,
-    get_cover_metadata,
-    write_cover_metadata,
-    write_track_metadata,
-    write_video_metadata,
-    _get_runtime_errors,
-    sanitize_filename,
-    read_lyrics_text,
-    get_id_from_string,
-)
-import shutil
-from .db.manager import DBManager
-from .db.models import (
-    TrackORM,
-    ObjectStorageORM,
-    AlbumORM,
-    ArtistORM,
-    StarredAlbum,
-    StarredArtist,
-    StarredTrack,
-    PlaylistORM,
-    TrackArtistsLink,
-    LyricsORM,
-    PlaylistTrackLink,
-    PlaylistOwnerORM,
-    MusicVideoORM,
-    AudioFileORM,
-    TrackGenreLink,
-    TrackAlbumLink,
-    TrackMoodLink,
-    AlbumArtistLink,
-    AlbumGenreLink,
-    ArtistGenreLink,
-)
-from .schemas.schemas import (
-    Artist,
-    Album,
-    Playlist,
-    Track,
-    Lyrics,
-    MusicVideo,
-    Genre,
-    Mood,
-    TaskStorage,
-    StoredUser,
-    LyricsResponse,
-    TrackMetadata,
-    TrackAlbumMetadata,
-    ServiceStatus,
-    ServicesStatus,
-    SearchResults,
-    ProviderKey,
-    BinaryBlob,
-    FilePathInfo,
-    User,
-    Task,
-    SyncTaskResult,
+from core.modules.importers.importers_manager import ImportersManager
+from core.tasks.schemas import (
     DownloadTaskResult,
     ImportTaskResult,
-    ImporterPlaylistTrack,
-    LRCLyrics,
-    LibraryStats,
-    StartStatuses,
-    ApiKey,
-    FullAlbumResponse,
-    FullArtistResponse,
-    FullPlaylistResponse,
-    ShortAlbumResponse,
-    ShortArtistResponse,
-    ShortTrackResponse,
-    ShortUserResponse,
-    ListedUserResponse,
-    FullTrackResponse,
-    ShortToolResponse,
+    SyncTaskResult,
+    Task,
 )
-from .schemas.mappers import (
-    to_full_album_response,
-    to_full_artist_response,
-    to_full_playlist_response,
+from core.tasks.tasks_manager import TasksManager
+from core.modules.storages.storages_manager import StoragesManager
+from core.modules.tools.events import Event
+from core.modules.tools.tools_manager import ToolsManager
+from core.responses.mappers import (
+    to_short_track_response,
     to_short_album_response,
     to_short_artist_response,
-    to_short_track_response,
-    to_short_user_response,
     to_full_track_response,
+    to_full_playlist_response,
+    to_short_user_response,
+    to_full_artist_response,
+    to_full_album_response,
+    to_short_playlist_response,
 )
-from .errors import NotFoundError, ForbiddenError, BaseError, check_error
-from core.loader import import_modules, load_storages, load_modules
-from concurrent.futures import ThreadPoolExecutor
-from uuid import uuid4
-from typing import Literal, overload, cast, Generator
-import time
-import os
-from sqlmodel import Session, col, select
-
-STAR_LINK_MAP = {
-    "track": lambda user_id, obj_id: StarredTrack(user_id=user_id, track_id=obj_id),
-    "album": lambda user_id, obj_id: StarredAlbum(user_id=user_id, album_id=obj_id),
-    "artist": lambda user_id, obj_id: StarredArtist(user_id=user_id, artist_id=obj_id),
-}
-
-UNSTAR_LINK_MAP = {
-    "track": (StarredTrack, "song_id"),
-    "album": (StarredAlbum, "album_id"),
-    "artist": (StarredArtist, "artist_id"),
-}
-
-QueueName = Literal["download", "sync", "importing"]
+from core.modules.scrobblers.scrobblers_manager import ScrobblersManager
+from core.modules.searches.searches_manager import SearchesManager
+from core.db.manager import DBManager
+import tomllib
+from pathlib import Path
+from core.schemas import (
+    ApiKey,
+    ProviderKey,
+    BinaryBlob,
+    ServicesStatus,
+    LibraryStats,
+    SearchResults,
+)
+from core.errors import BaseError, check_error, NotFoundError
+from core.responses import (
+    FullTrackResponse,
+    FullAlbumResponse,
+    FullArtistResponse,
+    ShortTrackResponse,
+    ShortToolResponse,
+    ShortArtistResponse,
+    ShortAlbumResponse,
+    FullPlaylistResponse,
+    ShortUserResponse,
+    LyricsResponse,
+    ShortPlaylistResponse,
+)
+from typing import Literal, Generator, overload
+from core.services import (
+    album_service,
+    artist_service,
+    playlist_service,
+    server_service,
+    track_service,
+    user_service,
+)
+from core.modules.downloaders.downloaders_manager import DownloadManager
 
 
 class LibraryManager:
@@ -140,32 +67,6 @@ class LibraryManager:
         with self.config_path.open("r", encoding="utf-8") as config_file:
             self.toml_config = config_file.read()
             self.config = tomllib.loads(self.toml_config)
-        self.temp_dir = Path("temp_tracks")
-        self.task_queue: TaskStorage = TaskStorage()
-        self.start_errors: StartStatuses = StartStatuses()
-        self.search_engines, self.start_errors.search = load_modules(
-            self.config.get("search", {}), import_modules("search", BaseSearch)
-        )
-        self.storages, self.start_errors.storages = load_storages(
-            self.config, import_modules("storage", BaseStorage)
-        )
-        self.downloaders, self.start_errors.downloaders = load_modules(
-            self.config.get("downloader", {}),
-            import_modules("downloader", BaseDownloader),
-        )
-        self.importers, self.start_errors.importers = load_modules(
-            self.config.get("importer", {}), import_modules("importer", BaseImporter)
-        )
-        self.scrobblers, self.start_errors.scrobblers = load_modules(
-            self.config.get("scrobbler", {}), import_modules("scrobbler", BaseScrobbler)
-        )
-        self.tools = load_modules(
-            self.config.get("tool", {}), import_modules("tool", BaseTool)
-        )
-        self.tools_manager = ToolsManager()
-        self.db_manager = DBManager()
-        self.logger: BoundLogger = get_logger(__name__)
-        self.executor = ThreadPoolExecutor(max_workers=5)
 
     def local_search(
         self,
@@ -177,229 +78,66 @@ class LibraryManager:
         songCount: int,
         songOffset: int,
     ) -> SearchResults:
-        with self.db_manager.get_session() as session:
-            return SearchResults(
-                artists=self.db_manager.search_artists(
-                    session, query, artistCount, artistOffset
-                ),
-                albums=self.db_manager.search_albums(
-                    session, query, albumCount, albumOffset
-                ),
-                tracks=self.db_manager.search_tracks(
-                    session, query, songCount, songOffset
-                ),
+        with DBManager.get_session() as session:
+            return server_service.local_search(
+                session,
+                query,
+                artistCount,
+                artistOffset,
+                albumCount,
+                albumOffset,
+                songCount,
+                songOffset,
             )
 
     def global_search(self, query: str) -> SearchResults:
-        search_results = SearchResults(artists=[], albums=[], tracks=[])
-        for engine in self.search_engines:
-            search_engine = engine.instance
-
-            res = search_engine.search_tracks(query)
-            if res:
-                for item in res:
-                    item.external_id = f"{search_engine.TAG}-{item.external_id}"
-                search_results.tracks.extend(res)
-
-            res = search_engine.search_albums(query)
-            if res:
-                for item in res:
-                    item.external_id = f"{search_engine.TAG}-{item.external_id}"
-                search_results.albums.extend(res)
-
-            res = search_engine.search_artists(query)
-            if res:
-                for item in res:
-                    item.external_id = f"{search_engine.TAG}-{item.external_id}"
-                search_results.artists.extend(res)
-
-        with self.db_manager.get_session() as session:
-            for artist in search_results.artists:
-                db_artist = self.db_manager.get_artist_by_name(session, artist.name)
-                artist.id = db_artist.id if db_artist else None
-            for album in search_results.albums:
-                db_album = self.db_manager.get_album_by_name(session, album.title)
-                album.id = db_album.id if db_album else None
-            for track in search_results.tracks:
-                db_track = self.db_manager.get_track_by_name(session, track.title)
-                track.id = db_track.id if not isinstance(db_track, BaseError) else None
-        return search_results
+        return SearchesManager.global_search(query)
 
     @overload
     def get_global_object(
         self, object_type: Literal["track"], object_id: str
-    ) -> Track | BaseError: ...
+    ) -> FullTrackResponse | BaseError: ...
     @overload
     def get_global_object(
         self, object_type: Literal["album"], object_id: str
-    ) -> Album | BaseError: ...
+    ) -> FullAlbumResponse | BaseError: ...
     @overload
     def get_global_object(
         self, object_type: Literal["artist"], object_id: str
-    ) -> Artist | BaseError: ...
+    ) -> FullArtistResponse | BaseError: ...
 
     def get_global_object(
         self, object_type: Literal["track", "album", "artist"], object_id: str
     ):
-        parts = object_id.split("-", 1)
-        search_tag = parts[0]
-        search_id = parts[1]
-        for engine in self.search_engines:
-            if engine.tag == search_tag:
-                search_engine = engine.instance
-                if object_type == "track":
-                    track = search_engine.get_track(search_id)
-                    if isinstance(track, BaseError):
-                        return track
-                elif object_type == "album":
-                    album = search_engine.get_album(search_id)
-                    if isinstance(album, BaseError):
-                        return album
-                    for track in album.tracks:
-                        track.external_id = f"{engine.tag}-{track.external_id}"
-                    return album
-                elif object_type == "artist":
-                    artist = search_engine.get_artist(search_id)
-                    if isinstance(artist, BaseError):
-                        return artist
-                    for album in artist.albums:
-                        album.external_id = f"{engine.tag}-{album.external_id}"
-                    return artist
-
-    def add_new_track(
-        self,
-        session: Session,
-        track_metadata: TrackMetadata,
-        track_info: FilePathInfo,
-        storage_id: str,
-        cover_id: int | None = None,
-    ) -> int:
-        db_album = None
-        track_artists = [
-            self.db_manager.find_or_create_artist(session, artist)
-            for artist in track_metadata.artists
-        ]
-        new_track = TrackORM(
-            title=track_metadata.title,
-            normalized_title=track_metadata.title.strip().lower(),
-            length=track_metadata.length,
-            bpm=track_metadata.bpm,
-            year=track_metadata.year,
-        )
-        session.add(new_track)
-        session.flush()
-        for album in track_metadata.albums:
-            db_album = self.db_manager.find_or_create_album(
-                session, album.title, album.album_artists
-            )
-            if db_album.cover_path is None and cover_id:
-                db_album.cover_path = cover_id
-            session.add(db_album)
-            session.flush()
-            db_album_artists = [
-                self.db_manager.find_or_create_artist(session, artist)
-                for artist in album.album_artists
-            ]
-            for artist in db_album_artists:
-                exists = session.exec(
-                    select(AlbumArtistLink).where(
-                        AlbumArtistLink.artist_id == artist.id,
-                        AlbumArtistLink.album_id == db_album.id,
-                    )
-                ).first()
-
-                if not exists:
-                    session.add(
-                        AlbumArtistLink(artist_id=artist.id, album_id=db_album.id)
-                    )
-            track_album = TrackAlbumLink(
-                track_id=new_track.id,
-                album_id=db_album.id,
-                album_position=album.album_position,
-                disc_number=album.disc_number,
-            )
-            session.add(track_album)
-            session.flush()
-        for genre in track_metadata.genres:
-            track_genre = self.db_manager.find_or_create_genre(session, genre)
-            track_genre_link = TrackGenreLink(
-                track_id=new_track.id, genre_id=track_genre.id
-            )
-            session.add(track_genre_link)
-            session.flush()
-        for mood in track_metadata.moods:
-            track_mood = self.db_manager.find_or_create_mood(session, mood)
-            track_mood_link = TrackMoodLink(
-                track_id=new_track.id, mood_id=track_mood.id
-            )
-            session.add(track_mood_link)
-            session.flush()
-        audio_file = AudioFileORM(
-            track_id=new_track.id, bitrate=track_metadata.bitrate, is_primary=True
-        )
-        new_track.files.append(audio_file)
-        session.add(audio_file)
-        session.flush()
-        new_link = ObjectStorageORM(
-            link_type="storage",
-            audio_id=audio_file.id,
-            file_name=track_info.filename,
-            link_provider=storage_id,
-            link=track_info.link,
-        )
-        session.add(new_link)
-        for artist in track_artists:
-            track_artist = TrackArtistsLink(artist_id=artist.id, track_id=new_track.id)
-            session.add(track_artist)
-        session.flush()
-        return new_track.id
+        return SearchesManager.get_global_object(object_type, object_id)
 
     def get_similiar_artists_random_tracks(
         self, artist_id: int, count: int
-    ) -> list[Track] | BaseError:
-        with self.db_manager.get_session() as session:
-            artist = self.db_manager.get_artist_by_id(session, artist_id)
-            if artist is None:
-                return NotFoundError()
-            artists = self.scrobblers[0].instance.get_similiar_artists(artist)
-            tracks = self.db_manager.get_artists_random_tracks(session, artists, count)
+    ) -> list[ShortTrackResponse] | BaseError:
+        tracks = ScrobblersManager.get_similiar_artists_random_tracks(artist_id, count)
+        if isinstance(tracks, BaseError):
             return tracks
+        return [to_short_track_response(track) for track in tracks]
 
     def get_track_tools(self) -> list[ShortToolResponse]:
-        return self.tools_manager.get_track_process_events()
+        return ToolsManager.get_track_process_events()
 
     def process_track(self, tool_func_id: str, track_id: int) -> BaseError | None:
-        with self.db_manager.get_session() as session:
-            track = self.db_manager.get_track_by_id(session, track_id)
+        with DBManager.get_session() as session:
+            track = track_service.get_track_by_id(session, track_id)
             if isinstance(track, BaseError):
                 return NotFoundError()
-            return self.tools_manager.send_event(
+            return ToolsManager.send_event(
                 Event.PROCESS_TRACK, track=track, tool_func_id=tool_func_id
             )
 
     def get_user_tracks_recommendations(
         self, user_id: int, count: int
-    ) -> list[Track] | BaseError:
-        with self.db_manager.get_session() as session:
-            scrobbler = self.scrobblers[0]
-            provider_key = self.db_manager.get_provider_key(
-                session, scrobbler.tag, user_id
-            )
-            if provider_key is None:
-                return NotFoundError()
-            tracks = scrobbler.instance.get_tracks_recommendations(
-                provider_key.key, count
-            )
-            db_tracks: list[Track] = []
-            for track in tracks:
-                album_name = next((album.title for album in track.albums), None)
-                artists_names = [artist.name for artist in track.artists]
-                db_track = self.db_manager.find_track(
-                    session, track.title, album_name, artists_names
-                )
-                if db_track is not None:
-                    db_tracks.append(db_track)
-            return db_tracks
+    ) -> list[ShortTrackResponse] | BaseError:
+        tracks = ScrobblersManager.get_user_tracks_recommendations(user_id, count)
+        if isinstance(tracks, BaseError):
+            return tracks
+        return [to_short_track_response(track) for track in tracks]
 
     def download(
         self,
@@ -407,359 +145,153 @@ class LibraryManager:
         query: str | None = None,
         object_id: str | None = None,
     ) -> str:
-        task_id = self.post_task(
-            func=self.download_track,
+        task_id = TasksManager.post_task(
+            func=DownloadManager.download_track,
             queue_name="download",
             task_id=task_id,
             query=query,
             object_id=object_id,
         )
-        self.task_queue.download[task_id].result = DownloadTaskResult()
+        TasksManager.task_queue.download[task_id].result = DownloadTaskResult()
         return task_id
 
-    def download_track(
-        self,
-        task_id: str,
-        query: str | None = None,
-        object_id: str | None = None,
-    ):
-        if query is None and object_id is None:
-            return None
-        downloaders = self.downloaders
-        original_track: Track | None = None
-
-        tracks_dict = []
-        searched_tracks = []
-        if query:
-            search_results = self.global_search(query).tracks
-            if len(search_results) < 1:
-                return None
-            original_track = find_best_track(search_results)
-        elif object_id:
-            track = self.get_global_object("track", object_id)
-            original_track = track
-        if original_track is None:
-            return None
-        search_query = original_track.title if object_id else query
-        for downloader in downloaders:
-            current_downloader = downloader.instance
-            downloader_search = current_downloader.search(search_query)
-            for file in downloader_search:
-                file["downloader"] = current_downloader.TAG
-                searched_tracks.append(file)
-        for track in searched_tracks:
-            similarity = compare_tracks(original_track, track)
-            tracks_dict.append({"id": track["id"], "similarity": similarity})
-        tracks = sorted(
-            tracks_dict, key=lambda track: track["similarity"], reverse=True
-        )
-        best_track = next(
-            (t for t in searched_tracks if t["id"] == tracks[0]["id"]), None
-        )
-        track_downloader = next(
-            (d for d in downloaders if d.tag == best_track["downloader"]), None
-        )
-        downloader = track_downloader.instance
-        track_path = downloader.download(
-            best_track, lambda progress: self._update_progress(task_id, progress)
-        )
-        downloaded_path = Path(track_path)
-        dst = self.temp_dir / downloaded_path.name
-
-        if downloaded_path.exists():
-            shutil.copy2(downloaded_path, dst)
-            track = get_track_metadata_by_path(dst)
-            title = track.title
-            artist_name = track.artists[0]
-            album_title = track.albums[0].title
-            saving_path = Path((f"{artist_name}/{album_title}/{dst.name}"))
-            best_storage = find_best_storage(self.storages, best_track["size"])
-            paths = full_track_save(best_storage, dst, saving_path)
-            cover_storage_path = paths["cover_path"]
-            saved_path = paths["track_path"]
-            with self.db_manager.get_session() as session:
-                cover = ObjectStorageORM(
-                    link_type="storage",
-                    file_name=Path(cover_storage_path).name,
-                    link_provider=best_storage.id,
-                    link=cover_storage_path,
-                )
-                session.add(cover)
-                session.flush(cover)
-                self.add_new_track(
-                    session,
-                    track,
-                    FilePathInfo(link=saved_path, filename=dst.name),
-                    best_storage.id,
-                    cover.id,
-                )
-                session.commit()
-            self.task_queue.download[task_id].result = DownloadTaskResult(
-                title=title,
-                artist=track.artists,
-                length=track.length,
-                storage=best_storage.name,
-                download_source=downloader.TAG,
-                saved_path=saved_path,
-            )
-            self.task_queue.download[task_id].status = "finished"
-
-    def get_file(self, path: str, storage_id: str) -> bytes | None:
-        for storage in self.storages:
-            current_storage = storage.instance
-            if current_storage.id == storage_id:
-                cover_path = current_storage.get_file(path)
-                return Path(cover_path).read_bytes()
-
-    def get_all_tracks(self) -> list[Track]:
-        with self.db_manager.get_session() as session:
-            tracks = self.db_manager.get_all_tracks(session)
-            return tracks
+    def get_all_tracks(self) -> list[ShortTrackResponse]:
+        with DBManager.get_session() as session:
+            tracks = track_service.get_all_tracks(session)
+            return [to_short_track_response(track) for track in tracks]
 
     def get_all_artists(
         self, size: int | None = None, offset: int | None = None
     ) -> list[ShortArtistResponse]:
-        with self.db_manager.get_session() as session:
-            artists = self.db_manager.get_all_artists(session, size, offset)
+        with DBManager.get_session() as session:
+            artists = artist_service.get_all_artists(session)
             return [to_short_artist_response(artist) for artist in artists]
 
     def get_all_albums(
         self, size: int = 10, offset: int = 0
     ) -> list[ShortAlbumResponse]:
-        with self.db_manager.get_session() as session:
-            albums = self.db_manager.get_all_albums(session, size, offset)
+        with DBManager.get_session() as session:
+            albums = album_service.get_all_albums(session)
             return [to_short_album_response(album) for album in albums]
 
     def get_track_by_id(self, id: int) -> FullTrackResponse | BaseError:
-        with self.db_manager.get_session() as session:
-            track = self.db_manager.get_track_by_id(session, id)
+        with DBManager.get_session() as session:
+            track = track_service.get_track_by_id(session, id)
             return check_error(track, to_full_track_response)
 
     def scrobble(
         self, id: int, user_id: int, listen_time: int | None = None
     ) -> BaseError | None:
-        with self.db_manager.get_session() as session:
-            track = self.db_manager.get_track_by_id(session, id)
-            if isinstance(track, BaseError):
-                return track
-            if listen_time is None:
-                listen_time = int(time.time())
-            for scrobbler in self.scrobblers:
-                provider_key = self.db_manager.get_provider_key(
-                    session, scrobbler.tag, user_id
-                )
-                if provider_key is None:
-                    continue
-                scrobbler_class = scrobbler.instance
-                scrobbler_class.submit_listen(track, provider_key.key, listen_time)
+        return ScrobblersManager.scrobble(id, user_id, listen_time)
 
     def post_now_playing(self, id: int, user_id: int) -> BaseError | None:
-        with self.db_manager.get_session() as session:
-            track = self.db_manager.get_track_by_id(session, id)
-            if isinstance(track, BaseError):
-                return track
-            for scrobbler in self.scrobblers:
-                provider_key = self.db_manager.get_provider_key(
-                    session, scrobbler.tag, user_id
-                )
-                if provider_key is None:
-                    continue
-                scrobbler_class = scrobbler.instance
-                scrobbler_class.post_playing_now(track, provider_key.key)
+        return ScrobblersManager.post_now_playing(id, user_id)
 
     def delete_provider_key(self, key_id: int):
-        with self.db_manager.get_session() as session:
-            self.db_manager.delete_provider_key(session, key_id)
-            session.commit()
+        with DBManager.get_session() as session:
+            return user_service.delete_provider_key(session, key_id)
 
     def get_provider_types(self) -> list[str]:
-        return [scrobbler.tag for scrobbler in self.scrobblers]
+        return [scrobbler.tag for scrobbler in ScrobblersManager.scrobblers]
 
     def create_api_key(self, user_id: int) -> ApiKey | BaseError:
-        with self.db_manager.get_session() as session:
-            user = self.db_manager.get_user_by_id(session, user_id)
-            if user is None:
-                return NotFoundError()
-            key = secrets.token_hex(16)
-            api_key = self.db_manager.create_api_key(session, user_id, key=f"ms_{key}")
-            session.commit()
-            return api_key
+        with DBManager.get_session() as session:
+            return user_service.create_api_key(session, user_id)
 
     def create_provider_key(
         self, user_id: int, key: str, provider: str
     ) -> ProviderKey | BaseError:
-        with self.db_manager.get_session() as session:
-            user = self.db_manager.get_user_by_id(session, user_id)
-            if user is None:
-                return NotFoundError()
-            provider_key = self.db_manager.create_provider_key(
-                session, user_id, key=key, provider=provider
-            )
-            session.commit()
-            return provider_key
+        with DBManager.get_session() as session:
+            return user_service.create_provider_key(session, user_id, key, provider)
 
     def change_provider_key(
         self, user_id: int, key_id: int, new_key: str
     ) -> BaseError | None:
-        with self.db_manager.get_session() as session:
-            user = self.db_manager.get_user_by_id(session, user_id)
-            if user is None:
-                return NotFoundError()
-            self.db_manager.change_provider_key(session, key_id, new_value=new_key)
-            session.commit()
+        with DBManager.get_session() as session:
+            return user_service.change_provider_key(session, user_id, key_id, new_key)
 
     def check_api_key_availability(self, api_key: str) -> ApiKey | BaseError:
-        with self.db_manager.get_session() as session:
-            key = self.db_manager.check_api_key_availability(session, api_key)
-            return key
+        with DBManager.get_session() as session:
+            return user_service.check_api_key_availability(session, api_key)
 
     def get_user_provider_keys(self, user_id: int) -> list[ProviderKey]:
-        with self.db_manager.get_session() as session:
-            api_keys = self.db_manager.get_user_provider_keys(session, user_id)
-            return api_keys
+        with DBManager.get_session() as session:
+            return user_service.get_user_provider_keys(session, user_id)
 
     def get_user_api_keys(self, user_id: int) -> list[ApiKey]:
-        with self.db_manager.get_session() as session:
-            api_keys = self.db_manager.get_user_api_keys(session, user_id)
-            return api_keys
+        with DBManager.get_session() as session:
+            return user_service.get_user_api_keys(session, user_id)
 
     def revoke_api_key(self, key_id: int):
-        with self.db_manager.get_session() as session:
-            self.db_manager.revoke_api_key(session, key_id)
-            session.commit()
+        with DBManager.get_session() as session:
+            return user_service.revoke_api_key(session, key_id)
 
-    def get_similiar_artists(self, id: int, count: int = 5) -> list[Artist] | BaseError:
-        with self.db_manager.get_session() as session:
-            artist = self.db_manager.get_artist_by_id(session, id)
-            if artist is None:
-                return NotFoundError()
-            artists = self.scrobblers[0].instance.get_similiar_artists(artist)
-            db_artists = self.db_manager.get_artists_by_name(session, artists, count)
-            return db_artists
+    def get_similiar_artists(
+        self, id: int, count: int = 5
+    ) -> list[ShortArtistResponse] | BaseError:
+        artists = ScrobblersManager.get_similiar_artists(id, count)
+        if isinstance(artists, BaseError):
+            return artists
+        return [to_short_artist_response(artist) for artist in artists]
 
     def get_album_by_id(self, id: int) -> FullAlbumResponse | BaseError:
-        with self.db_manager.get_session() as session:
-            album = self.db_manager.get_album_by_id(session, id)
-            return to_full_album_response(album) if album else NotFoundError()
+        with DBManager.get_session() as session:
+            album = album_service.get_album_by_id(session, id)
+            return check_error(album, to_full_album_response)
 
     def get_artist_by_id(self, id: int) -> FullArtistResponse | BaseError:
-        with self.db_manager.get_session() as session:
-            artist = self.db_manager.get_artist_by_id(session, id)
-            return to_full_artist_response(artist) if artist else NotFoundError()
+        with DBManager.get_session() as session:
+            artist = artist_service.get_artist_by_id(session, id)
+            return check_error(artist, to_full_artist_response)
 
-    def get_artist_top_songs(self, name: str, count: int) -> list[Track]:
-        with self.db_manager.get_session() as session:
-            artist_tracks = self.db_manager.get_tracks_by_artist_name(session, name)
-            return artist_tracks[:50]
+    def get_artist_top_tracks(self, name: str, count: int) -> list[ShortTrackResponse]:
+        with DBManager.get_session() as session:
+            tracks = artist_service.get_artist_top_songs(session, name, count)
+            return [to_short_track_response(track) for track in tracks]
 
     def get_cover_art(self, id: int) -> BinaryBlob | BaseError:
-        with self.db_manager.get_session() as session:
-            storage = self.db_manager.get_storage_object_by_id(session, id)
-            if storage is None:
-                return NotFoundError()
-            cover_art = self.get_file(storage.link, storage.link_provider)
-            if cover_art is None:
-                return NotFoundError()
-            cover_mime = image_mime(cover_art)
-            return BinaryBlob(cover_art, cover_mime)
+        with DBManager.get_session() as session:
+            return StoragesManager.get_cover_art(session, id)
 
     def get_genres(self) -> list[dict[str, str | int]]:
-        with self.db_manager.get_session() as session:
-            genres = self.db_manager.get_genres(session)
-            counted_genres = []
-            for genre in genres:
-                counted_genres.append(
-                    {
-                        "name": genre.name,
-                        "track_count": len(genre.tracks),
-                        "album_count": len(genre.albums),
-                    }
-                )
-            return counted_genres
+        with DBManager.get_session() as session:
+            return track_service.get_genres(session)
 
     def get_moods(self) -> list[dict[str, str | int]]:
-        with self.db_manager.get_session() as session:
-            moods = self.db_manager.get_moods(session)
-            counted_moods = []
-            for mood in moods:
-                albums_ids = set()
-                for track in mood.tracks:
-                    albums_ids.add(album.id for album in track.albums)
-                counted_moods.append(
-                    {
-                        "name": mood.name,
-                        "track_count": len(mood.tracks),
-                        "album_count": len(albums_ids),
-                    }
-                )
-            return counted_moods
+        with DBManager.get_session() as session:
+            return track_service.get_moods(session)
 
     def get_playlist_by_id(self, id: int) -> FullPlaylistResponse | BaseError:
-        with self.db_manager.get_session() as session:
-            playlist = self.db_manager.get_playlist_by_id(session, id)
+        with DBManager.get_session() as session:
+            playlist = playlist_service.get_playlist_by_id(session, id)
             return check_error(playlist, to_full_playlist_response)
 
     def delete_user_by_username(self, username: str, user_id: int) -> int | BaseError:
-        with self.db_manager.get_session() as session:
-            user = self.db_manager.get_user_by_id(session, user_id)
-            if user is None:
-                return NotFoundError()
-            if user.is_admin or user.username == username:
-                return self.db_manager.delete_user_by_username(session, username)
-            return ForbiddenError()
+        with DBManager.get_session() as session:
+            return user_service.delete_user_by_username(session, username, user_id)
 
     def delete_user_by_id(self, id: int, user_id: int) -> int | BaseError:
-        with self.db_manager.get_session() as session:
-            user = self.db_manager.get_user_by_id(session, user_id)
-            if user is None:
-                return NotFoundError()
-            if user.is_admin or user.id == id:
-                return self.db_manager.delete_user_by_id(session, id)
-            return ForbiddenError()
+        with DBManager.get_session() as session:
+            return user_service.delete_user_by_id(session, id, user_id)
 
-    def delete_track(self, track_id: int):
-        with self.db_manager.get_session() as session:
-            track = self.db_manager.delete_track(session, track_id)
-            return track
+    # def delete_track(self, track_id: int):
 
     def star(self, user_id: int, object_id: int, object_type: str) -> BaseError | None:
-        stap_tuple = STAR_LINK_MAP.get(object_type)
-        if stap_tuple is None:
-            return NotFoundError()
-
-        link = stap_tuple(user_id, object_id)
-
-        with self.db_manager.get_session() as session:
-            session.add(link)
-            session.commit()
+        with DBManager.get_session() as session:
+            return user_service.star(session, user_id, object_id, object_type)
 
     def unstar(
         self, user_id: int, object_id: int, object_type: str
     ) -> BaseError | None:
-        unstar_tuple = UNSTAR_LINK_MAP.get(object_type, None)
-        if unstar_tuple is None:
-            return NotFoundError()
-        model, id_field = unstar_tuple
-
-        with self.db_manager.get_session() as session:
-            statement = select(model).where(
-                col(model.user_id) == user_id,
-                getattr(model, id_field) == object_id,
-            )
-            link = session.exec(statement).first()
-            if link is None:
-                return NotFoundError()
-            session.delete(link)
-            session.commit()
+        with DBManager.get_session() as session:
+            return user_service.unstar(session, user_id, object_id, object_type)
 
     def get_user_playlists(
         self, user_id: int, size: int = 10, offset: int = 0
-    ) -> list[FullPlaylistResponse]:
-        with self.db_manager.get_session() as session:
-            playlists = self.db_manager.get_user_playlists(
-                session, user_id, size, offset
-            )
-            return [to_full_playlist_response(playlist) for playlist in playlists]
+    ) -> list[ShortPlaylistResponse]:
+        with DBManager.get_session() as session:
+            playlists = user_service.get_user_playlists(session, user_id, size, offset)
+            return [to_short_playlist_response(playlist) for playlist in playlists]
 
     def create_playlist(
         self,
@@ -769,12 +301,11 @@ class LibraryManager:
         is_public: bool = False,
         cover_path: int | None = None,
     ) -> FullPlaylistResponse | BaseError:
-        with self.db_manager.get_session() as session:
-            new_playlist = self.db_manager.create_playlist(
-                session, user_id, title, is_public, tracks_id, cover_path
+        with DBManager.get_session() as session:
+            playlist = playlist_service.create_playlist(
+                session, user_id, title, tracks_id, is_public, cover_path
             )
-            session.commit()
-            return check_error(new_playlist, to_full_playlist_response)
+            return check_error(playlist, to_full_playlist_response)
 
     def get_config(self) -> str:
         return self.toml_config
@@ -796,16 +327,15 @@ class LibraryManager:
         new_password: str | None = None,
         set_is_admin: bool | None = None,
     ) -> ShortUserResponse | BaseError:
-        with self.db_manager.get_session() as session:
-            user = self.db_manager.update_user_by_username(
-                session=session,
-                current_username=current_username,
-                acting_user_id=acting_user_id,
-                new_password=new_password,
-                set_is_admin=set_is_admin,
-                new_username=new_username,
+        with DBManager.get_session() as session:
+            user = user_service.update_user_by_username(
+                session,
+                acting_user_id,
+                current_username,
+                new_username,
+                new_password,
+                set_is_admin,
             )
-            session.commit()
             return check_error(user, to_short_user_response)
 
     def update_user_by_id(
@@ -816,30 +346,27 @@ class LibraryManager:
         new_password: str | None = None,
         set_is_admin: bool | None = None,
     ) -> ShortUserResponse | BaseError:
-        with self.db_manager.get_session() as session:
-            user = self.db_manager.update_user_by_id(
-                session=session,
-                changed_user_id=changed_user_id,
-                acting_user_id=acting_user_id,
-                new_password=new_password,
-                set_is_admin=set_is_admin,
-                new_username=new_username,
+        with DBManager.get_session() as session:
+            user = user_service.update_user_by_id(
+                session,
+                acting_user_id,
+                changed_user_id,
+                new_username,
+                new_password,
+                set_is_admin,
             )
-            session.commit()
             return check_error(user, to_short_user_response)
 
     def create_user(
         self, username: str, email: str, password: str
-    ) -> ListedUserResponse:
-        with self.db_manager.get_session() as session:
-            new_user = self.db_manager.create_user(session, username, email, password)
-            session.commit()
-            return new_user
+    ) -> ShortUserResponse:
+        with DBManager.get_session() as session:
+            user = user_service.create_user(session, username, email, password)
+            return to_short_user_response(user)
 
     def delete_playlist(self, playlist_id: int):
-        with self.db_manager.get_session() as session:
-            self.db_manager.delete_playlist(session, playlist_id)
-            session.commit()
+        with DBManager.get_session() as session:
+            return playlist_service.delete_playlist(session, playlist_id)
 
     def update_playlist(
         self,
@@ -850,436 +377,104 @@ class LibraryManager:
         owner_ids: list[int] | None,
         is_public: bool | None,
     ) -> FullPlaylistResponse | BaseError:
-        with self.db_manager.get_session() as session:
-            playlist = self.db_manager.update_playlist(
+        with DBManager.get_session() as session:
+            playlist = playlist_service.update_playlist(
                 session, playlist_id, user_id, title, track_ids, owner_ids, is_public
             )
-            session.commit()
             return check_error(playlist, to_full_playlist_response)
 
     def get_all_user_starred(
         self, user_id: int
-    ) -> tuple[list[Track], list[Album], list[Artist]] | None:
-        with self.db_manager.get_session() as session:
-            return self.db_manager.get_all_user_starred(session, user_id)
+    ) -> (
+        tuple[
+            list[ShortTrackResponse],
+            list[ShortAlbumResponse],
+            list[ShortArtistResponse],
+        ]
+        | None
+    ):
+        with DBManager.get_session() as session:
+            starred = user_service.get_all_user_starred(session, user_id)
+            if starred is None:
+                return None
+            tracks, albums, artists = starred
+            return (
+                [to_short_track_response(track) for track in tracks],
+                [to_short_album_response(track) for track in albums],
+                [to_short_artist_response(track) for track in artists],
+            )
 
-    def get_track_by_title(self, title: str) -> Track | BaseError:
-        with self.db_manager.get_session() as session:
-            return self.db_manager.get_track_by_name(session, title)
+    def get_track_by_title(self, title: str) -> FullTrackResponse | BaseError:
+        with DBManager.get_session() as session:
+            track = track_service.get_track_by_title(session, title)
+            return check_error(track, to_full_track_response)
 
     def get_lyrics(self, track_id: int) -> list[LyricsResponse] | BaseError:
-        with self.db_manager.get_session() as session:
-            track = self.db_manager.get_track_by_id(session, track_id)
-            if isinstance(track, BaseError):
-                return track
-            artists_name = ", ".join([artist.name for artist in track.artists])
-            lyrics_list: list[LyricsResponse] = []
-            for lyrics in track.lyrics:
-                lyrics_list.append(
-                    LyricsResponse(
-                        artist=artists_name,
-                        title=track.title,
-                        id=lyrics.id,
-                        is_synced=lyrics.is_synced,
-                        synced_text=lyrics.synced_text,
-                        plain_text=lyrics.plain_text,
-                        language=lyrics.language,
-                        offset=lyrics.offset,
-                    )
-                )
-            return lyrics_list
+        with DBManager.get_session() as session:
+            return track_service.get_lyrics(session, track_id)
 
     def get_user(
         self, username: str | None = None, user_id: int | None = None
-    ) -> StoredUser | None | BaseError:
-        with self.db_manager.get_session() as session:
-            if username is not None:
-                user = self.db_manager.get_user_by_name(session, username)
-                if isinstance(user, BaseError):
-                    return user
+    ) -> ShortUserResponse | None | BaseError:
+        with DBManager.get_session() as session:
+            user = user_service.get_user(session, username, user_id)
+            if user is None or isinstance(user, BaseError):
                 return user
-            elif user_id is not None:
-                user = self.db_manager.get_user_by_id(session, user_id)
-                return user
-            else:
-                return None
+            return to_short_user_response(user)
 
     def stream_track(
         self, id: str, start_bytes: int, end_bytes: int
     ) -> Generator[bytes] | BaseError:
-        with self.db_manager.get_session() as session:
-            object_id = None
-            if "cl-" in id:
-                video_id = id.split("-")[1]
-                video = self.db_manager.get_video_by_id(session, int(video_id))
-                if isinstance(video, BaseError):
-                    return video
-                object_id = video.local_link
-            else:
-                track = self.db_manager.get_track_by_id(session, int(id))
-                if isinstance(track, BaseError):
-                    return track
-                object_id = track.path
-            if object_id is None:
-                return NotFoundError()
-            storage_object = self.db_manager.get_storage_object_by_id(
-                session, object_id
-            )
-            if storage_object is None:
-                return NotFoundError()
-            media_storage = storage_object.link_provider
-            media_link = storage_object.link
-            for storage in self.storages:
-                if storage.id == media_storage:
-                    current_storage = storage.instance
-                    track = current_storage.get_range_bytes(
-                        media_link, start_bytes, end_bytes
-                    )
-                    return track
-            return NotFoundError()
+        return StoragesManager.stream_track(id, start_bytes, end_bytes)
 
     def get_albums_cursor(
         self, cursor: str | None, limit: int = 20
     ) -> tuple[list[ShortAlbumResponse], str | None]:
-        with self.db_manager.get_session() as session:
-            albums, next_cursor = self.db_manager.get_albums_cursor(
-                session, limit, cursor
-            )
-            return [to_short_album_response(album) for album in albums], next_cursor
+        with DBManager.get_session() as session:
+            albums, cursor = album_service.get_albums_cursor(session, cursor, limit)
+            return [to_short_album_response(album) for album in albums], cursor
 
     def get_artists_cursor(
         self, cursor: str | None, limit: int = 20
     ) -> tuple[list[ShortArtistResponse], str | None]:
-        with self.db_manager.get_session() as session:
-            artists, next_cursor = self.db_manager.get_artist_cursor(
-                session, limit, cursor
-            )
-            return [to_short_artist_response(artist) for artist in artists], next_cursor
+        with DBManager.get_session() as session:
+            artists, cursor = artist_service.get_artists_cursor(session, cursor, limit)
+            return [to_short_artist_response(artist) for artist in artists], cursor
 
     def get_tracks_cursor(
         self, cursor: str | None, limit: int = 20
     ) -> tuple[list[ShortTrackResponse], str | None]:
-        with self.db_manager.get_session() as session:
-            tracks, next_cursor = self.db_manager.get_track_cursor(
-                session, limit, cursor
-            )
-            return [to_short_track_response(track) for track in tracks], next_cursor
+        with DBManager.get_session() as session:
+            tracks, cursor = track_service.get_tracks_cursor(session, cursor, limit)
+            return [to_short_track_response(track) for track in tracks], cursor
 
     def get_file_metadata(self, id: str) -> dict | BaseError:
-        with self.db_manager.get_session() as session:
-            object_id = None
-            if "cl-" in id:
-                video_id = id.split("-")[1]
-                video = self.db_manager.get_video_by_id(session, int(video_id))
-                if isinstance(video, BaseError):
-                    return video
-                object_id = video.local_link
-            else:
-                track = self.db_manager.get_track_by_id(session, int(id))
-                if isinstance(track, BaseError):
-                    return track
-                object_id = track.path
-            if object_id is None:
-                return NotFoundError()
-            storage = self.db_manager.get_storage_object_by_id(session, object_id)
-            if storage is None:
-                return NotFoundError()
-            media_storage = storage.link_provider
-            media_link = storage.link
-            for storage in self.storages:
-                if storage.id == media_storage:
-                    current_storage = storage.instance
-                    metadata = current_storage.get_file_metadata(media_link)
-                    return metadata
-            return NotFoundError()
+        return StoragesManager.get_file_metadata(id)
 
     def get_sync_task(self, task_id: str) -> Task[SyncTaskResult] | BaseError:
-        task = self.task_queue.sync.get(task_id, NotFoundError())
-        return task
+        return TasksManager.get_task("sync", task_id)
 
     def cancel_sync_task(self, task_id: str) -> bool | BaseError:
-        task = self.task_queue.sync.get(task_id)
-        if task is None:
-            return NotFoundError()
-        return task.task.cancel()
+        return TasksManager.cancel_task("sync", task_id)
 
     def get_download_task(self, task_id: str) -> Task[DownloadTaskResult] | BaseError:
-        task = self.task_queue.download.get(task_id, NotFoundError())
-        return task
+        return TasksManager.get_task("download", task_id)
 
     def cancel_download_task(self, task_id: str) -> bool | BaseError:
-        task = self.task_queue.download.get(task_id)
-        if task is None:
-            return NotFoundError()
-        return task.task.cancel()
+        return TasksManager.cancel_task("download", task_id)
 
     def get_import_task(self, task_id: str) -> Task[ImportTaskResult] | BaseError:
-        task = self.task_queue.importing.get(task_id, NotFoundError())
-        return task
+        return TasksManager.get_task("importing", task_id)
 
-    def post_task(
-        self, func, queue_name: QueueName, task_id: str | None = None, *args, **kwargs
-    ) -> str:
-        task_id = str(uuid4())[:8] if task_id is None else task_id
-        task_body = self.executor.submit(func, task_id, *args, **kwargs)
-        target = getattr(self.task_queue, queue_name)
-        target[task_id] = Task(task=task_body)
-        return task_id
-
-    def save_object(
-        self,
-        session: Session,
-        file_path: str,
-        saving_path: str,
-        file_size: int | None = None,
-    ) -> ObjectStorageORM | BaseError:
-        file_size = os.path.getsize(file_path) if file_size is None else file_size
-        best_storage = find_best_storage(self.storages, file_size)
-        if isinstance(best_storage, BaseError):
-            return best_storage
-        saved_object_path = best_storage.instance.save_file(file_path, saving_path)
-        object_storage = ObjectStorageORM(
-            link_type="storage",
-            link_provider=best_storage.id,
-            file_name=os.path.basename(saving_path),
-            link=saved_object_path,
-        )
-        session.add(object_storage)
-        session.flush()
-        return object_storage
+    def cancel_import_task(self, task_id: str) -> bool | BaseError:
+        return TasksManager.cancel_task("importing", task_id)
 
     def sync(self, task_id: str | None = None) -> str:
-        task_id = self.post_task(self.sync_library, task_id=task_id, queue_name="sync")
-        self.task_queue.sync[task_id].result = SyncTaskResult()
+        task_id = TasksManager.post_task(
+            StoragesManager.sync_library, task_id=task_id, queue_name="sync"
+        )
+        TasksManager.task_queue.sync[task_id].result = SyncTaskResult()
         return task_id
-
-    def sync_library(self, task_id: str):
-        try:
-            task: Task[SyncTaskResult] = self.task_queue.sync[task_id]
-            with self.db_manager.get_session() as session:
-                db_files = self.db_manager.get_all_tracks_storage_links(session)
-                storaged_files: set[tuple[str, str]] = set()
-                for storage in self.storages:
-                    current_storage = storage.instance
-                    tracks_path = current_storage.get_all_files_paths()
-                    named_paths = [
-                        (f"{storage.id}///{link}", file_name)
-                        for link, file_name in tracks_path
-                    ]
-                    storaged_files.update(named_paths)
-                deleted_objects_links = db_files - storaged_files
-                added_object_links = storaged_files - db_files
-                objects_for_deleting = [
-                    (track.split("///")[0], track.split("///")[1])
-                    for track, _ in deleted_objects_links
-                ]
-                deleted_tracks, deleted_covers, deleted_lyrics, deleted_videos = (
-                    self.db_manager.bulk_delete_by_links(session, objects_for_deleting)
-                )
-                task.result.tracks.deleted = deleted_tracks
-                task.result.covers.deleted = deleted_covers
-                task.result.lyrics.deleted = deleted_lyrics
-                task.result.videos.deleted = deleted_videos
-                tracks_to_adding: defaultdict[str, list[FilePathInfo]] = defaultdict(
-                    list
-                )
-                cover_to_adding: defaultdict[str, list[FilePathInfo]] = defaultdict(
-                    list
-                )
-                lyrics_to_adding: defaultdict[str, list[FilePathInfo]] = defaultdict(
-                    list
-                )
-                videos_to_adding: defaultdict[str, list[FilePathInfo]] = defaultdict(
-                    list
-                )
-                for link, file_name in added_object_links:
-                    k, v = link.split("///", 1)
-                    file_info = FilePathInfo(link=v, filename=file_name)
-                    if any(ext in v for ext in ["jpeg", "jpg", "png"]):
-                        cover_to_adding[k].append(file_info)
-                        task.result.covers.searched_new += 1
-                    elif any(ext in v for ext in ["lrc", "txt"]):
-                        lyrics_to_adding[k].append(file_info)
-                        task.result.lyrics.searched_new += 1
-                    elif "mp4" in v:
-                        videos_to_adding[k].append(file_info)
-                        task.result.videos.searched_new += 1
-                    elif any(ext in v for ext in ["m4a", "flac", "mp3", "opus"]):
-                        tracks_to_adding[k].append(file_info)
-                        task.result.tracks.searched_new += 1
-                for storage in self.storages:
-                    current_storage = storage.instance
-                    for track in tracks_to_adding.get(storage.id, []):
-                        track_bytes = b"".join(
-                            current_storage.get_range_bytes(
-                                track.link, 0, 1024 * 1024 * 5
-                            )
-                        )
-                        track_metadata = get_track_metadata_by_bytes(track_bytes)
-                        self.add_new_track(session, track_metadata, track, storage.id)
-                        task.result.tracks.processed += 1
-                        task.result.tracks.added += 1
-                    for cover in cover_to_adding.get(storage.id, []):
-                        cover_link, cover_name = cover
-                        entity = None
-                        range_bytes: bytes = b"".join(
-                            current_storage.get_range_bytes(cover_link, 0, 99999999)
-                        )
-                        cover_metadata = get_cover_metadata(
-                            range_bytes,
-                        )
-                        if cover_metadata:
-                            title = cover_metadata.get("title")
-                            artists = cover_metadata.get("creator")
-                            if title:
-                                entity = self.db_manager.get_album_orm_by_title(
-                                    session, title
-                                )
-                            elif artists and len(artists) == 1:
-                                entity = self.db_manager.get_artist_orm_by_name(
-                                    session, artists[0]
-                                )
-                        id_tuple = get_id_from_string(cover_name)
-                        if id_tuple and not entity:
-                            content_type, content_id = id_tuple
-                            if content_type == "al":
-                                entity = self.db_manager.get_album_orm_by_id(
-                                    session, content_id
-                                )
-                            elif content_type == "ar":
-                                entity = self.db_manager.get_artist_orm_by_id(
-                                    session, content_id
-                                )
-                            elif content_type == "pl":
-                                entity = self.db_manager.get_playlist_orm_by_id(
-                                    session, content_id
-                                )
-                        if entity is None:
-                            task.result.unbound_files.covers.add(
-                                (f"{storage.id}///{cover_link}", cover_name)
-                            )
-                            task.result.covers.processed += 1
-                            continue
-                        cover_storage = ObjectStorageORM(
-                            link_type="storage",
-                            link_provider=storage.id,
-                            link=cover_link,
-                            file_name=cover_name,
-                        )
-                        session.add(cover_storage)
-                        session.flush()
-                        entity.cover_path = cover_storage.id
-                        session.flush()
-                        task.result.covers.processed += 1
-                        task.result.covers.added += 1
-                    for lyrics in lyrics_to_adding.get(storage.id, []):
-                        link, filename = lyrics
-                        range_bytes: bytes = b"".join(
-                            current_storage.get_range_bytes(lyrics.link, 0, 9999999)
-                        )
-                        decoded_text = range_bytes.decode()
-                        lyrics_text = read_lyrics_text(decoded_text)
-                        name = filename.split(".")[0]
-                        if isinstance(lyrics_text, LRCLyrics):
-                            track = self.db_manager.get_track_by_name(
-                                session, lyrics_text.title
-                            )
-                            if isinstance(track, NotFoundError):
-                                track = self.db_manager.get_track_by_name(session, name)
-                            if isinstance(track, BaseError):
-                                task.result.unbound_files.lyrics.add(
-                                    (f"{storage.id}///{link}", filename)
-                                )
-                                task.result.lyrics.processed += 1
-                                continue
-                            new_lyrics = LyricsORM(
-                                is_synced=True,
-                                language="und",
-                                synced_text=lyrics_text.text,
-                                offset=lyrics_text.offset,
-                                track_id=track.id,
-                            )
-                            session.add(new_lyrics)
-                            session.flush()
-                        elif isinstance(lyrics_text, str):
-                            track = self.db_manager.get_track_by_name(session, name)
-                            if isinstance(track, BaseError):
-                                task.result.unbound_files.lyrics.add(
-                                    (f"{storage.id}///{link}", filename)
-                                )
-                                task.result.lyrics.processed += 1
-                                continue
-                            new_lyrics = LyricsORM(
-                                is_synced=False,
-                                language="und",
-                                plain_text=lyrics_text,
-                                track_id=track.id,
-                            )
-                            session.add(new_lyrics)
-                            session.flush()
-                        lyrics_path = ObjectStorageORM(
-                            link_type="storage",
-                            link_provider=storage.id,
-                            link=link,
-                            lyrics_id=new_lyrics.id,
-                            file_name=filename,
-                        )
-                        new_lyrics.path.append(lyrics_path)
-                        session.add(lyrics_path)
-                        session.flush()
-                        task.result.lyrics.processed += 1
-                        task.result.lyrics.added += 1
-                    for video in videos_to_adding.get(storage.id, []):
-                        link, filename = video
-                        video_bytes = b"".join(
-                            current_storage.get_range_bytes(
-                                video.link, 0, 1024 * 1024 * 5
-                            )
-                        )
-                        video_metadata = get_video_metadata(video_bytes)
-                        video_title = video_metadata.get("title")
-                        if video_title is None:
-                            video_title = filename.rsplit(".", 1)[0]
-                        track = self.db_manager.get_track_by_name(session, video_title)
-                        if isinstance(track, NotFoundError):
-                            id_tuple = get_id_from_string(filename, "tr")
-                            if id_tuple:
-                                track = self.db_manager.get_track_by_id(
-                                    session, id_tuple[1]
-                                )
-                        if isinstance(track, BaseError):
-                            task.result.unbound_files.videos.add(
-                                (f"{storage.id}///{link}", filename)
-                            )
-                            task.result.videos.processed += 1
-                            continue
-                        music_video = MusicVideoORM(
-                            is_external_link=False,
-                            track_id=track.id,
-                        )
-                        session.add(music_video)
-                        session.flush()
-                        video_storage = ObjectStorageORM(
-                            link_type="storage",
-                            link_provider=storage.id,
-                            link=link,
-                            file_name=filename,
-                        )
-                        music_video.local_link.append(video_storage)
-                        session.add(music_video)
-                        session.flush()
-                        task.result.videos.processed += 1
-                        task.result.videos.added += 1
-                self.db_manager.delete_orphans(session)
-                session.commit()
-                self.task_queue.sync[task_id].status = "finished"
-                self.logger.info("Syncing succesful completed")
-        except Exception as e:
-            self.task_queue.sync[task_id].status = "error"
-            self.task_queue.sync[task_id].error = str(e)
-            self.logger.warning(
-                "Problem in library syncing", task_id=task_id, error=str(e)
-            )
 
     def import_library(
         self,
@@ -1287,541 +482,24 @@ class LibraryManager:
         importer_tag: str | None = None,
         user_id: int | None = None,
     ) -> str:
-        task_id = self.post_task(
-            func=self.import_tracks,
+        task_id = TasksManager.post_task(
+            func=ImportersManager.import_tracks,
             queue_name="importing",
             task_id=task_id,
             importer_tag=importer_tag,
             user_id=user_id,
         )
-        self.task_queue.importing[task_id].result = ImportTaskResult()
+        TasksManager.task_queue.importing[task_id].result = ImportTaskResult()
         return task_id
 
-    def import_tracks(
-        self, task_id: str, importer_tag: str, user_id: int | None = None
-    ):
-        task: Task[ImportTaskResult] = self.task_queue.importing[task_id]
-        importers = self.importers
-        selected_importer = None
-        for importer in importers:
-            if importer.tag == importer_tag:
-                selected_importer = importer.instance
-                break
-        if selected_importer is None:
-            return
-        with self.db_manager.get_session() as session:
-            (
-                favorited_tracks,
-                favorited_albums,
-                favorited_artists,
-                favorited_playlists,
-            ) = selected_importer.get_favorited()
-            if user_id:
-                owner = self.db_manager.get_user_by_id(session, user_id)
-            user_id = 1 if user_id is None or owner is None else user_id
-            task.result.tracks.searched = len(favorited_tracks)
-            task.result.albums.searched = len(favorited_albums)
-            task.result.artists.searched = len(favorited_artists)
-            task.result.playlists.searched = len(favorited_playlists)
-            unique_tracks_ids = {*favorited_tracks}
-            unique_albums_ids = {*favorited_albums}
-            unique_artists_ids = {*favorited_artists}
-            unique_playlists_ids = {*favorited_playlists}
-            playlist_tracks_to_add: list[tuple[int, list[ImporterPlaylistTrack]]] = []
-            artist_map: dict[int | str, int] = {}
-            album_map: dict[int | str, int] = {}
-            track_map: dict[int | str, int] = {}
-            tracks_with_lyrics = []
-            tracks_with_music_videos = []
-            album_artist_link = {}
-            unique_playlists_ids.update(selected_importer.get_user_playlists())
-            task.result.playlists.searched = len(unique_playlists_ids)
-            dst = self.temp_dir
-
-            for playlist_id in unique_playlists_ids:
-                try:
-                    playlist_info = selected_importer.get_playlist(playlist_id)
-                    unique_tracks_ids.update(
-                        [track.id for track in playlist_info.tracks]
-                    )
-                    task.result.tracks.searched = len(unique_tracks_ids)
-                    db_playlist = PlaylistORM(name=playlist_info.title, is_public=False)
-                    session.add(db_playlist)
-                    session.flush()
-                    playlist_owner = PlaylistOwnerORM(
-                        owner_id=user_id, playlist_id=db_playlist.id
-                    )
-                    session.add(playlist_owner)
-                    session.flush()
-                    task.result.playlists.saved += 1
-                    playlist_tracks_to_add.append(
-                        (db_playlist.id, playlist_info.tracks)
-                    )
-                    if playlist_info.cover_uri:
-                        cover_path = dst / f"pl-{db_playlist.id}.jpg"
-                        task.result.covers.searched += 1
-                        save_file_from_url(playlist_info.cover_uri, cover_path)
-                        with open(cover_path, "rb") as f:
-                            ext = image_mime(f.read(20)).split("/")[1]
-                        cover_name = f"pl-{db_playlist.id}.{ext}"
-                        cover_object = self.save_object(
-                            session,
-                            str(cover_path),
-                            cover_name,
-                        )
-                        task.result.covers.saved += 1
-                        db_playlist.cover_path = cover_object.id
-                        session.flush()
-                    session.commit()
-                except Exception as e:
-                    session.rollback()
-                    self.logger.warning(
-                        "Problem in importing playlist",
-                        importer=importer_tag,
-                        user_id=user_id,
-                        playlist_id=playlist_id,
-                        error=str(e),
-                    )
-
-            for track_id in unique_tracks_ids:
-                try:
-                    if track_id is None:
-                        continue
-                    track_info = selected_importer.get_track(track_id)
-                    if track_info.has_lyrics:
-                        tracks_with_lyrics.append(track_id)
-                        task.result.lyrics.searched += 1
-                    if track_info.has_video:
-                        tracks_with_music_videos.append(track_id)
-                        task.result.videos.searched += 1
-                    unique_albums_ids.update(track_info.album_ids)
-                    task.result.albums.searched = len(unique_albums_ids)
-                    unique_artists_ids.update(track_info.artist_ids)
-                    task.result.artists.searched = len(unique_artists_ids)
-                    url, name = selected_importer.get_track_download_link(track_id)
-                    track_dst = dst / name
-                    save_file_from_url(url, track_dst)
-                    write_track_metadata(
-                        str(track_dst),
-                        {
-                            "title": [track_info.title],
-                            "artist": track_info.artists,
-                            "album": [track_info.albums[0].title],
-                            "albumartist": track_info.albums[0].album_artists,
-                            "tracknumber": [str(track_info.albums[0].album_position)],
-                            "discnumber": [str(track_info.albums[0].disc_number)],
-                            "date": [str(track_info.year)],
-                            "genre": track_info.genres,
-                            "mood": track_info.moods,
-                        },
-                    )
-                    sanitized_name = (
-                        f"{sanitize_filename(track_info.title)}.{name.split('.')[1]}"
-                    )
-                    saving_path = Path(
-                        (
-                            f"{sanitize_filename(track_info.artists[0])}/{sanitize_filename(track_info.albums[0].title)}/{sanitized_name}"
-                        )
-                    )
-                    best_storage = find_best_storage(
-                        self.storages,
-                        track_dst.stat().st_size,
-                    )
-                    saved_path = best_storage.instance.save_file(track_dst, saving_path)
-                    task.result.tracks.saved += 1
-                    db_track_id = self.add_new_track(
-                        session,
-                        TrackMetadata(
-                            title=track_info.title,
-                            artists=track_info.artists,
-                            albums=track_info.albums,
-                            year=track_info.year,
-                            length=track_info.length,
-                            bpm=track_info.bpm,
-                            genres=track_info.genres,
-                            moods=track_info.moods,
-                        ),
-                        FilePathInfo(link=saved_path, filename=sanitized_name),
-                        best_storage.id,
-                    )
-                    track_map[track_id] = db_track_id
-                    session.commit()
-                except Exception as e:
-                    session.rollback()
-                    self.logger.warning(
-                        "Problem in importing track",
-                        importer=importer_tag,
-                        user_id=user_id,
-                        track_id=track_id,
-                        error=str(e),
-                    )
-
-            for album_id in unique_albums_ids:
-                try:
-                    if album_id is None:
-                        continue
-                    album = selected_importer.get_album(album_id)
-                    unique_artists_ids.update(album.artist_ids)
-                    db_album = self.db_manager.find_or_create_album(
-                        session,
-                        album.title,
-                        artists_names=album.artists,
-                        year=album.year,
-                        type=album.album_type,
-                        description=album.description,
-                    )
-                    task.result.albums.saved += 1
-                    album_map[album_id] = db_album.id
-                    if album.cover_uri:
-                        task.result.covers.searched += 1
-                        sanitized_title = sanitize_filename(db_album.title)
-                        cover_path = dst / f"al-{db_album.id}.jpg"
-                        save_file_from_url(album.cover_uri, cover_path)
-                        try:
-                            write_cover_metadata(
-                                str(cover_path),
-                                album=album.title,
-                                artists=album.artists,
-                                genres=album.genres,
-                            )
-                        except Exception as e:
-                            self.logger.warning(
-                                "Problem in writing imported cover metadata",
-                                importer=importer_tag,
-                                user_id=user_id,
-                                album_id=album_id,
-                                cover_path=str(cover_path),
-                                error=str(e),
-                            )
-                        with open(cover_path, "rb") as f:
-                            ext = image_mime(f.read(20)).split("/")[1]
-                        cover_object = self.save_object(
-                            session,
-                            str(cover_path),
-                            f"{sanitize_filename(album.artists[0])}/{sanitized_title}/{sanitized_title}.{ext}",
-                        )
-                        task.result.covers.saved += 1
-                        db_album.cover_path = cover_object.id
-                        session.flush()
-                    genre_links = []
-                    for genre in album.genres:
-                        db_genre = self.db_manager.find_or_create_genre(session, genre)
-                        exists = session.exec(
-                            select(AlbumGenreLink).where(
-                                AlbumGenreLink.album_id == db_album.id,
-                                AlbumGenreLink.genre_id == db_genre.id,
-                            )
-                        ).first()
-
-                        if not exists:
-                            session.add(
-                                AlbumGenreLink(
-                                    album_id=db_album.id, genre_id=db_genre.id
-                                )
-                            )
-                    session.add_all(genre_links)
-                    session.commit()
-                    for artist_id in album.artist_ids:
-                        if artist_id in album_artist_link:
-                            album_artist_link[artist_id].add(db_album.id)
-                        else:
-                            album_artist_link[artist_id] = {db_album.id}
-
-                except Exception as e:
-                    session.rollback()
-                    self.logger.warning(
-                        "Problem in importing album",
-                        importer=importer_tag,
-                        user_id=user_id,
-                        album_id=album_id,
-                        error=str(e),
-                    )
-
-            for artist_id in unique_artists_ids:
-                try:
-                    if artist_id is None:
-                        continue
-                    artist = selected_importer.get_artist(artist_id)
-
-                    db_artist = self.db_manager.find_or_create_artist(
-                        session, artist.name
-                    )
-                    artist_map[artist_id] = db_artist.id
-                    task.result.artists.saved += 1
-                    db_artist.description = artist.description
-                    db_album_artist_links = []
-                    for album_id in album_artist_link.get(artist_id, {}):
-                        exists = session.exec(
-                            select(AlbumArtistLink).where(
-                                AlbumArtistLink.album_id == album_id,
-                                AlbumArtistLink.artist_id == db_artist.id,
-                            )
-                        ).first()
-
-                        if not exists:
-                            db_album_artist_links.append(
-                                AlbumArtistLink(
-                                    album_id=album_id, artist_id=db_artist.id
-                                )
-                            )
-                    session.add_all(db_album_artist_links)
-                    session.commit()
-                    if artist.cover_uri:
-                        task.result.covers.searched += 1
-                        sanitized_name = sanitize_filename(artist.name)
-                        cover_path = dst / f"ar-{db_artist.id}.jpg"
-                        save_file_from_url(artist.cover_uri, cover_path)
-                        try:
-                            write_cover_metadata(
-                                str(cover_path),
-                                artists=[artist.name],
-                                genres=artist.genres,
-                            )
-                        except Exception as e:
-                            self.logger.warning(
-                                "Problem in writing imported cover metadata",
-                                importer=importer_tag,
-                                user_id=user_id,
-                                artist_id=artist_id,
-                                cover_path=str(cover_path),
-                                error=str(e),
-                            )
-                        with open(cover_path, "rb") as f:
-                            ext = image_mime(f.read(20)).split("/")[1]
-                        cover_object = self.save_object(
-                            session,
-                            str(cover_path),
-                            f"{sanitized_name}/{sanitized_name}.{ext}",
-                        )
-                        task.result.covers.saved += 1
-                        db_artist.cover_path = cover_object.id
-                        session.add(db_artist)
-                        session.flush()
-                    for genre in artist.genres:
-                        db_genre = self.db_manager.find_or_create_genre(session, genre)
-                        exists = session.exec(
-                            select(ArtistGenreLink).where(
-                                ArtistGenreLink.artist_id == db_artist.id,
-                                ArtistGenreLink.genre_id == db_genre.id,
-                            )
-                        ).first()
-
-                        if not exists:
-                            session.add(
-                                ArtistGenreLink(
-                                    artist_id=db_artist.id, genre_id=db_genre.id
-                                )
-                            )
-                    session.commit()
-                except Exception as e:
-                    session.rollback()
-                    self.logger.warning(
-                        "Problem in importing artist",
-                        importer=importer_tag,
-                        user_id=user_id,
-                        artist_id=artist_id,
-                        error=str(e),
-                    )
-
-            for playlist_entry in playlist_tracks_to_add:
-                playlist_id, tracks = playlist_entry
-                try:
-                    for track in tracks:
-                        if track.id in track_map:
-                            link = PlaylistTrackLink(
-                                playlist_id=playlist_id,
-                                track_id=track_map[track.id],
-                                position=track.playlist_position,
-                            )
-                            session.add(link)
-                            session.commit()
-                except Exception as e:
-                    session.rollback()
-                    self.logger.warning(
-                        "Problem in importing playlist",
-                        importer=importer_tag,
-                        user_id=user_id,
-                        playlist_id=playlist_id,
-                        error=str(e),
-                    )
-
-            for track_id in tracks_with_lyrics:
-                try:
-                    track = self.db_manager.get_track_by_id(
-                        session, track_map[track_id]
-                    )
-                    if isinstance(track, BaseError):
-                        continue
-                    url, name = selected_importer.get_lyrics_download_link(track_id)
-
-                    saved_path = dst / sanitize_filename(name)
-                    save_file_from_url(url, saved_path)
-                    text = saved_path.read_text(encoding="utf-8")
-                    lyrics_content = read_lyrics_text(text)
-                    lyrics_type = ""
-                    if isinstance(lyrics_content, LRCLyrics):
-                        lyrics_type = "lrc"
-                        new_lyrics = LyricsORM(
-                            is_synced=True,
-                            language="und",
-                            synced_text=lyrics_content.text,
-                            offset=lyrics_content.offset,
-                            track_id=track.id,
-                        )
-                        session.add(new_lyrics)
-                    else:
-                        lyrics_type = "txt"
-                        new_lyrics = LyricsORM(
-                            is_synced=False,
-                            language="und",
-                            plain_text=lyrics_content,
-                            track_id=track.id,
-                        )
-                        session.add(new_lyrics)
-                    saving_path = f"{sanitize_filename(track.artists[0].name)}/{sanitize_filename(track.albums[0].title)}/{sanitize_filename(track.title)}.{lyrics_type}"
-                    lyrics_object = self.save_object(
-                        session, str(saved_path), saving_path
-                    )
-                    task.result.lyrics.saved += 1
-                    new_lyrics.path.append(lyrics_object)
-                    session.add(lyrics_object)
-                    session.commit()
-                except Exception as e:
-                    session.rollback()
-                    self.logger.warning(
-                        "Problem in importing track lyrics",
-                        importer=importer_tag,
-                        user_id=user_id,
-                        track_id=track_id,
-                        error=str(e),
-                    )
-
-            for track_id in tracks_with_music_videos:
-                try:
-                    track = self.db_manager.get_track_by_id(
-                        session, track_map[track_id]
-                    )
-                    if track is None:
-                        continue
-                    url, name = selected_importer.get_music_video_download_link(
-                        track_id
-                    )
-                    video_dst = dst / sanitize_filename(name)
-                    save_file_from_url(url, video_dst)
-                    write_video_metadata(
-                        ",".join(artist.name for artist in track.artists),
-                        ",".join(album.title for album in track.albums),
-                        track.title,
-                        str(video_dst),
-                    )
-                    music_video = MusicVideoORM(track_id=track.id)
-                    session.add(music_video)
-                    session.flush()
-                    splitted_name = name.rsplit(".", 1)
-                    ext = (
-                        splitted_name[1]
-                        if len(splitted_name) > 1 and splitted_name[1]
-                        else "mp4"
-                    )
-                    saving_path = f"{sanitize_filename(track.artists[0].name)}/{sanitize_filename(track.albums[0].title)}/{sanitize_filename(track.title)}.{ext}"
-                    video_object = self.save_object(
-                        session, str(video_dst), saving_path
-                    )
-                    task.result.videos.saved += 1
-                    music_video.local_link.append(video_object)
-                    session.add(video_object)
-                    session.commit()
-                except Exception as e:
-                    session.rollback()
-                    self.logger.warning(
-                        "Problem in adding imported music video",
-                        importer=importer_tag,
-                        user_id=user_id,
-                        track_id=track_id,
-                        error=str(e),
-                    )
-
-            for importer_track_id in favorited_tracks:
-                db_track_id = track_map.get(importer_track_id)
-                if db_track_id is not None:
-                    session.add(StarredTrack(user_id=user_id, track_id=db_track_id))
-
-            for importer_album_id in favorited_albums:
-                db_album_id = album_map.get(importer_album_id)
-                if db_album_id is not None:
-                    session.add(StarredAlbum(user_id=user_id, album_id=db_album_id))
-
-            for importer_artist_id in favorited_artists:
-                db_artist_id = artist_map.get(importer_artist_id)
-                if db_artist_id is not None:
-                    session.add(StarredArtist(user_id=user_id, artist_id=db_artist_id))
-
-            session.commit()
-            self.task_queue.importing[task_id].status = "finished"
-            self.logger.info(
-                "Succesful imported library", importer=importer_tag, user_id=user_id
-            )
-
-    def get_all_users(self) -> list[ListedUserResponse]:
-        with self.db_manager.get_session() as session:
-            users = self.db_manager.get_all_users(session)
-            return users
+    def get_all_users(self) -> list[ShortUserResponse]:
+        with DBManager.get_session() as session:
+            users = user_service.get_all_users(session)
+            return [to_short_user_response(user) for user in users]
 
     def check_status(self) -> ServicesStatus:
-        return ServicesStatus(
-            downloaders=[
-                *_get_runtime_errors(self.downloaders),
-                *self.start_errors.downloaders,
-            ],
-            importers=[
-                *_get_runtime_errors(self.importers),
-                *self.start_errors.importers,
-            ],
-            scrobblers=[
-                *_get_runtime_errors(self.scrobblers),
-                *self.start_errors.scrobblers,
-            ],
-            search=[
-                *_get_runtime_errors(self.search_engines),
-                *self.start_errors.search,
-            ],
-            storages=[*_get_runtime_errors(self.storages), *self.start_errors.storages],
-        )
+        return server_service.check_status()
 
     def get_library_stats(self) -> LibraryStats:
-        with self.db_manager.get_session() as session:
-            tracks_total = self.db_manager.get_model_count(session, TrackORM)
-            tracks_with_lyrics = self.db_manager.get_count_with_lyrics(session)
-            tracks_with_videos = self.db_manager.get_count_with_videos(session)
-
-            albums_total = self.db_manager.get_model_count(session, AlbumORM)
-            albums_with_cover = self.db_manager.get_count_with_cover(session, AlbumORM)
-
-            artists_total = self.db_manager.get_model_count(session, ArtistORM)
-            artists_with_cover = self.db_manager.get_count_with_cover(
-                session, ArtistORM
-            )
-
-            lyrics_total = self.db_manager.get_model_count(session, LyricsORM)
-            videos_total = self.db_manager.get_model_count(session, MusicVideoORM)
-            genre_count, tracks_genre, albums_genre, artists_genre = (
-                self.db_manager.get_genre_counts(session)
-            )
-            mood_count, tracks_moods = self.db_manager.get_moods_counts(session)
-            return LibraryStats(
-                tracks_total=tracks_total,
-                tracks_with_lyrics=tracks_with_lyrics,
-                tracks_with_videos=tracks_with_videos,
-                albums_total=albums_total,
-                albums_with_cover=albums_with_cover,
-                artists_total=artists_total,
-                artists_with_cover=artists_with_cover,
-                lyrics_total=lyrics_total,
-                videos_total=videos_total,
-                genres_total=genre_count,
-                artists_with_genres=artists_genre,
-                albums_with_genres=albums_genre,
-                tracks_with_genres=tracks_genre,
-                moods_total=mood_count,
-                tracks_with_moods=tracks_moods,
-            )
+        with DBManager.get_session() as session:
+            return server_service.get_library_stats(session)

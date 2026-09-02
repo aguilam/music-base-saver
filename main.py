@@ -1,4 +1,4 @@
-from interface.subsonic_api.main import SubsonicApi
+from interfaces.subsonic_api.main import SubsonicApi
 from core.library_manager import LibraryManager
 import asyncio
 
