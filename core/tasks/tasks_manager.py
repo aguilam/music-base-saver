@@ -33,5 +33,9 @@ class _TasksManager:
         task = queue.get(task_id, NotFoundError())
         return task
 
+    def get_tasks[T](self, queue_name: QueueName) -> dict[str, Task[T]]:
+        queue = getattr(self.task_queue, queue_name)
+        return queue
+
 
 TasksManager = _TasksManager()

@@ -26,6 +26,12 @@ class UnprocessableDataError(BaseError):
     detail: str = "Not enought data or invalid data types"
 
 
+@dataclass(slots=True)
+class UnauthorizedError(BaseError):
+    code: int = 401
+    detail: str = "Please registrate or login"
+
+
 T = TypeVar("T")
 
 U = TypeVar("U")

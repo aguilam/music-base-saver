@@ -1,9 +1,8 @@
-from core.schemas.schemas import (
+from core.schemas import (
     Artist,
     Album,
     Playlist,
     Track,
-    LyricsResponse,
 )
 
 

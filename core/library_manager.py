@@ -33,7 +33,7 @@ from core.schemas import (
     LibraryStats,
     SearchResults,
 )
-from core.errors import BaseError, check_error, NotFoundError
+from core.errors import BaseError, check_error, NotFoundError, UnauthorizedError
 from core.responses import (
     FullTrackResponse,
     FullAlbumResponse,
@@ -422,6 +422,17 @@ class LibraryManager:
                 return user
             return to_short_user_response(user)
 
+    def check_user_login(
+        self, password: str, username: str | None = None, user_id: int | None = None
+    ) -> BaseError | ShortUserResponse:
+        with DBManager.get_session() as session:
+            user = user_service.get_user(session, username, user_id)
+            if user is None or isinstance(user, BaseError):
+                return UnauthorizedError(detail="wrong username or password")
+            if user.password != password:
+                return UnauthorizedError(detail="wrong username or password")
+            return to_short_user_response(user)
+
     def stream_track(
         self, id: str, start_bytes: int, end_bytes: int
     ) -> Generator[bytes] | BaseError:
@@ -454,17 +465,26 @@ class LibraryManager:
     def get_sync_task(self, task_id: str) -> Task[SyncTaskResult] | BaseError:
         return TasksManager.get_task("sync", task_id)
 
+    def get_sync_tasks(self) -> dict[str, Task[SyncTaskResult]]:
+        return TasksManager.get_tasks("sync")
+
     def cancel_sync_task(self, task_id: str) -> bool | BaseError:
         return TasksManager.cancel_task("sync", task_id)
 
     def get_download_task(self, task_id: str) -> Task[DownloadTaskResult] | BaseError:
         return TasksManager.get_task("download", task_id)
 
+    def get_download_tasks(self) -> dict[str, Task[DownloadTaskResult]]:
+        return TasksManager.get_tasks("download")
+
     def cancel_download_task(self, task_id: str) -> bool | BaseError:
         return TasksManager.cancel_task("download", task_id)
 
     def get_import_task(self, task_id: str) -> Task[ImportTaskResult] | BaseError:
         return TasksManager.get_task("importing", task_id)
+
+    def get_import_tasks(self) -> dict[str, Task[ImportTaskResult]]:
+        return TasksManager.get_tasks("importing")
 
     def cancel_import_task(self, task_id: str) -> bool | BaseError:
         return TasksManager.cancel_task("importing", task_id)

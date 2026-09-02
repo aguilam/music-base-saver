@@ -4,10 +4,10 @@ from collections import defaultdict
 import hashlib
 import uvicorn
 from typing import Annotated
-from core.schemas.schemas import StoredUser as User
+from core.schemas import StoredUser as User
 from hmac import compare_digest
 from fastapi.middleware.cors import CORSMiddleware
-from interface.subsonic_api.mappers import (
+from interfaces.subsonic_api.mappers import (
     to_subsonic_album,
     to_subsonic_artist,
     to_subsonic_playlist,
@@ -18,10 +18,10 @@ from interface.subsonic_api.mappers import (
     external_track_to_subsonic,
 )
 import json
-from interface.base_interface import Interface
-from core.schemas.schemas import Task, DownloadTaskResult, SyncTaskResult
-from interface.subsonic_api import admin_router
-from interface.subsonic_api.utils import (
+from interfaces.base_interface import Interface
+from core.tasks.schemas import Task, DownloadTaskResult, SyncTaskResult
+from interfaces.subsonic_api import admin_router
+from interfaces.subsonic_api.utils import (
     CurrentLibrary,
     raise_subsonic_error,
     SubsonicException,

@@ -3,7 +3,7 @@ from typing import Annotated
 import time
 from fastapi import APIRouter, Request, Body, HTTPException, status, Response, Depends
 import jwt
-from interface.subsonic_api.utils import CurrentLibrary, to_camel, check_result
+from interfaces.subsonic_api.utils import CurrentLibrary, to_camel, check_result
 from dataclasses import asdict
 
 SECRET_KEY = "4a1d7f8e3b2c9a1058f321d4c7a9b8e210459f8a3c2b1d0e9f8a7b6c5d4e3f2a"
@@ -87,11 +87,7 @@ def login(
     username: str = Body(),
     password: str = Body(),
 ):
-    user = check_result(library.get_user(username=username))
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-    if user.password != password:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    user = check_result(library.check_user_login(username=username, password=password))
     set_cookie(response, user.id, user.is_admin)
 
 
@@ -384,7 +380,7 @@ def get_playlist(library: CurrentLibrary, id: int):
 def delete_playlist(
     library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)], id: int
 ):
-    playlist = check_result(library.delete_playlist(id))
+    check_result(library.delete_playlist(id))
 
 
 @router.patch("/playlists/{id}")
@@ -418,7 +414,7 @@ def post_sync(library: CurrentLibrary):
 @router.get("/syncs")
 def get_syncs(library: CurrentLibrary):
     result = []
-    for task_id, sync in library.task_queue.sync.items():
+    for task_id, sync in library.get_sync_tasks().items():
         data = {
             field.name: getattr(sync, field.name)
             for field in fields(sync)
@@ -521,7 +517,7 @@ def post_download(
 @router.get("/downloads")
 def get_downloads(library: CurrentLibrary):
     result = []
-    for task_id, download in library.task_queue.download.items():
+    for task_id, download in library.get_download_tasks().items():
         data = asdict(download)
         data.pop("task", None)
         result.append({"id": task_id} | to_camel(data))
