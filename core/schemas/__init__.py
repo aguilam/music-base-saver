@@ -79,6 +79,23 @@ class AlbumShort:
 
 
 @dataclass(slots=True)
+class PlaylistTrack:
+    title: str
+    length: int
+    position: int
+    id: int | None = None
+    cover_path: int | None = None
+    path: int | None = None
+    bpm: int | None = None
+    track_gain: float | None = None
+    track_peak: float | None = None
+    year: int | None = None
+    created_at: datetime | None = None
+    external_id: str | None = None
+    artists: list[ArtistShort] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class Playlist:
     title: str
     owners: list[User]
@@ -88,7 +105,7 @@ class Playlist:
     cover_path: int | None = None
     is_public: bool = False
     created_at: datetime | None = None
-    tracks: list[Track] = field(default_factory=list)
+    tracks: list[PlaylistTrack] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -310,6 +327,25 @@ class ProviderKey:
     user_id: int
     id: int | None = None
     created_at: datetime | None = None
+
+
+@dataclass(slots=True)
+class AlbumTrack:
+    title: str
+    length: int
+    position: int
+    id: int | None = None
+    cover_path: int | None = None
+    path: int | None = None
+    bpm: int | None = None
+    disc_number: int | None = None
+    position: int | None = None
+    track_gain: float | None = None
+    track_peak: float | None = None
+    year: int | None = None
+    created_at: datetime | None = None
+    external_id: str | None = None
+    artists: list[ArtistShort] = field(default_factory=list)
 
 
 @dataclass(slots=True)

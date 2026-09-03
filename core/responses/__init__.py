@@ -35,7 +35,7 @@ class ShortPlaylistResponse:
     id: int
     title: str
     owners: list[ShortUserResponse]
-    public: bool
+    is_public: bool
     created_at: datetime
     tracks_count: int
     duration: int
@@ -112,6 +112,22 @@ class FullAlbumResponse:
 
 
 @dataclass(slots=True)
+class PlaylistTrackResponse:
+    id: int
+    title: str
+    duration: int
+    position: int
+    created_at: datetime | None = None
+    cover_id: int | None = None
+    bpm: int | None = None
+    track_gain: float | None = None
+    track_peak: float | None = None
+    year: int | None = None
+    external_id: str | None = None
+    artists: list[ShortArtistResponse] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class FullPlaylistResponse:
     id: int
     title: str
@@ -120,19 +136,7 @@ class FullPlaylistResponse:
     tracks_count: int
     duration: int
     created_at: datetime
-    tracks: list[ShortTrackResponse] = field(default_factory=list)
-    cover_id: int | None = None
-
-
-@dataclass(slots=True)
-class ShortPlaylistResponse:
-    id: int
-    title: str
-    is_public: bool
-    owners: list[ShortUserResponse]
-    tracks_count: int
-    duration: int
-    created_at: datetime
+    tracks: list[PlaylistTrackResponse] = field(default_factory=list)
     cover_id: int | None = None
 
 
@@ -172,3 +176,20 @@ class SearchResultsResponse:
     artists: list[ShortArtistResponse]
     albums: list[ShortAlbumResponse]
     tracks: list[ShortTrackResponse]
+
+
+@dataclass(slots=True)
+class AlbumTrackResponse:
+    id: int
+    title: str
+    duration: int
+    created_at: datetime | None = None
+    cover_id: int | None = None
+    bpm: int | None = None
+    disc_number: int | None = None
+    position: int | None = None
+    track_gain: float | None = None
+    track_peak: float | None = None
+    year: int | None = None
+    external_id: str | None = None
+    artists: list[ShortArtistResponse] = field(default_factory=list)

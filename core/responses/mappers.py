@@ -13,6 +13,8 @@ from core.responses import (
     ShortLyricsResponse,
     ShortMusicVideoResponse,
     ShortPlaylistResponse,
+    PlaylistTrackResponse,
+    AlbumTrackResponse,
 )
 from core.schemas import (
     Album,
@@ -26,6 +28,8 @@ from core.schemas import (
     Lyrics,
     MusicVideo,
     StoredUser,
+    PlaylistTrack,
+    AlbumTrack,
 )
 
 T = TypeVar("T")
@@ -104,6 +108,23 @@ def to_full_album_response(album: Album) -> FullAlbumResponse:
     )
 
 
+def to_playlist_track_response(track: PlaylistTrack) -> PlaylistTrackResponse:
+    return PlaylistTrackResponse(
+        id=_required(track.id),
+        title=track.title,
+        duration=track.length,
+        created_at=_required(track.created_at),
+        cover_id=track.cover_path,
+        bpm=track.bpm,
+        position=track.position,
+        track_gain=track.track_gain,
+        track_peak=track.track_peak,
+        year=track.year,
+        external_id=track.external_id,
+        artists=[to_short_artist_response(artist) for artist in track.artists],
+    )
+
+
 def to_full_playlist_response(playlist: Playlist) -> FullPlaylistResponse:
     return FullPlaylistResponse(
         id=_required(playlist.id),
@@ -113,7 +134,7 @@ def to_full_playlist_response(playlist: Playlist) -> FullPlaylistResponse:
         tracks_count=playlist.tracks_count,
         duration=playlist.duration,
         created_at=_required(playlist.created_at),
-        tracks=[to_short_track_response(track) for track in playlist.tracks],
+        tracks=[to_playlist_track_response(track) for track in playlist.tracks],
         cover_id=playlist.cover_path,
     )
 
@@ -183,4 +204,22 @@ def to_full_artist_response(artist: Artist) -> FullArtistResponse:
         genres=list(artist.genres),
         created_at=_required(artist.created_at),
         albums=[to_short_album_response(album) for album in artist.albums],
+    )
+
+
+def to_album_track_response(track: AlbumTrack) -> AlbumTrackResponse:
+    return AlbumTrackResponse(
+        id=_required(track.id),
+        title=track.title,
+        duration=track.length,
+        created_at=_required(track.created_at),
+        cover_id=track.cover_path,
+        bpm=track.bpm,
+        position=track.position,
+        disc_number=track.disc_number,
+        track_gain=track.track_gain,
+        track_peak=track.track_peak,
+        year=track.year,
+        external_id=track.external_id,
+        artists=[to_short_artist_response(artist) for artist in track.artists],
     )

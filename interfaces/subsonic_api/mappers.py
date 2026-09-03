@@ -1,3 +1,4 @@
+from core.schemas import Track, Album, Artist
 from core.responses import (
     FullArtistResponse,
     FullAlbumResponse,

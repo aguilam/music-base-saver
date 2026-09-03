@@ -1,3 +1,4 @@
+from pathlib import Path
 from core.db.manager import DBManager
 from core.modules.importers.loader import load_importers
 from core.tasks.tasks_manager import TasksManager
@@ -40,7 +41,7 @@ from core.services import (
 class _ImportersManager:
     def __init__(self):
         self.config = dict()
-        self.temp_dir = self.config["temp_dir"]
+        # self.temp_dir = self.config["temp_dir"]
         self.importers, _ = load_importers(self.config)
 
     def import_tracks(
@@ -82,8 +83,8 @@ class _ImportersManager:
             album_artist_link = {}
             unique_playlists_ids.update(selected_importer.get_user_playlists())
             task.result.playlists.searched = len(unique_playlists_ids)
-            dst = self.temp_dir
-
+            # dst = self.temp_dir
+            dst = Path("test")
             for playlist_id in unique_playlists_ids:
                 try:
                     playlist_info = selected_importer.get_playlist(playlist_id)

@@ -1,6 +1,6 @@
+from core.modules import Service
 from typing import Generator
 from abc import ABC, abstractmethod
-from core.base_service import Service
 
 
 class Storage(Service, ABC):

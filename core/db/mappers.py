@@ -13,6 +13,7 @@ from core.db.models import (
     GenreORM,
     ApiKeyORM,
     ProviderKeyORM,
+    PlaylistTrackLink,
 )
 from core.schemas import (
     TrackShort,
@@ -32,6 +33,7 @@ from core.schemas import (
     TrackAlbum,
     ApiKey,
     ProviderKey,
+    PlaylistTrack,
 )
 
 
@@ -88,6 +90,28 @@ def album_short_from_orm(album: AlbumORM) -> AlbumShort:
     )
 
 
+def playlist_track_from_orm(link: PlaylistTrackLink) -> PlaylistTrack:
+    track = link.track
+    primary_file = next((file for file in track.files if file.is_primary), None)
+    return PlaylistTrack(
+        id=track.id,
+        title=track.title,
+        length=track.length,
+        cover_path=track.albums_links[0].album.cover_path,
+        path=(
+            next((link.id for link in primary_file.links), None)
+            if primary_file
+            else None
+        ),
+        position=link.position,
+        bpm=track.bpm,
+        track_gain=primary_file.trackGain if primary_file else None,
+        track_peak=primary_file.trackPeak if primary_file else None,
+        year=track.year,
+        created_at=track.created_at,
+    )
+
+
 def playlist_from_orm(playlist: PlaylistORM) -> Playlist:
     return Playlist(
         id=playlist.id,
@@ -97,7 +121,7 @@ def playlist_from_orm(playlist: PlaylistORM) -> Playlist:
         owners=[user_from_orm(owner) for owner in playlist.owners],
         duration=playlist.duration,
         tracks_count=playlist.track_count,
-        tracks=[track_from_orm(link.track) for link in playlist.track_links],
+        tracks=[playlist_track_from_orm(link) for link in playlist.track_links],
         created_at=playlist.created_at,
     )
 
