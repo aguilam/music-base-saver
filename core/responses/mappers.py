@@ -88,6 +88,24 @@ def to_short_track_response(track: Track | TrackShort) -> ShortTrackResponse:
     )
 
 
+def to_album_track_response(track: AlbumTrack) -> AlbumTrackResponse:
+    return AlbumTrackResponse(
+        id=_required(track.id),
+        title=track.title,
+        duration=track.length,
+        created_at=_required(track.created_at),
+        cover_id=track.cover_path,
+        bpm=track.bpm,
+        position=track.position,
+        disc_number=track.disc_number,
+        track_gain=track.track_gain,
+        track_peak=track.track_peak,
+        year=track.year,
+        external_id=track.external_id,
+        artists=[to_short_artist_response(artist) for artist in track.artists],
+    )
+
+
 def to_full_album_response(album: Album) -> FullAlbumResponse:
     return FullAlbumResponse(
         id=_required(album.id),
@@ -102,7 +120,7 @@ def to_full_album_response(album: Album) -> FullAlbumResponse:
         description=album.description,
         cover_id=album.cover_path,
         external_id=album.external_id,
-        tracks=[to_short_track_response(track) for track in album.tracks],
+        tracks=[to_album_track_response(track) for track in album.tracks],
         artists=[to_short_artist_response(artist) for artist in album.artists],
         genres=list(album.genres),
     )

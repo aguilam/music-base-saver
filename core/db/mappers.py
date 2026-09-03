@@ -34,6 +34,7 @@ from core.schemas import (
     ApiKey,
     ProviderKey,
     PlaylistTrack,
+    AlbumTrack,
 )
 
 
@@ -59,6 +60,29 @@ def artist_short_from_orm(artist: ArtistORM) -> ArtistShort:
     )
 
 
+def album_track_from_orm(link: TrackAlbumLink) -> AlbumTrack:
+    track = link.track
+    primary_file = next((file for file in track.files if file.is_primary), None)
+    return AlbumTrack(
+        id=track.id,
+        title=track.title,
+        length=track.length,
+        cover_path=track.albums_links[0].album.cover_path,
+        path=(
+            next((link.id for link in primary_file.links), None)
+            if primary_file
+            else None
+        ),
+        position=link.album_position,
+        disc_number=link.disc_number,
+        bpm=track.bpm,
+        track_gain=primary_file.trackGain if primary_file else None,
+        track_peak=primary_file.trackPeak if primary_file else None,
+        year=track.year,
+        created_at=track.created_at,
+    )
+
+
 def album_from_orm(album: AlbumORM) -> Album:
     return Album(
         id=album.id,
@@ -70,7 +94,7 @@ def album_from_orm(album: AlbumORM) -> Album:
         tracks_count=album.track_count,
         genres=[genre.name for genre in album.genres],
         artists=[artist_short_from_orm(artist) for artist in album.artists],
-        tracks=[track_from_orm(link.track) for link in album.tracks_links],
+        tracks=[album_track_from_orm(link) for link in album.tracks_links],
         created_at=album.created_at,
     )
 

@@ -57,7 +57,7 @@ class Album:
     cover_path: int | None = None
     created_at: datetime | None = None
     external_id: str | None = None
-    tracks: list[Track] = field(default_factory=list)
+    tracks: list[AlbumTrack] = field(default_factory=list)
     artists: list[ArtistShort] = field(default_factory=list)
     genres: list[str] = field(default_factory=list)
 
