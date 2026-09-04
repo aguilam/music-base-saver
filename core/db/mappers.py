@@ -43,9 +43,10 @@ def artist_from_orm(artist: ArtistORM) -> Artist:
         id=artist.id,
         name=artist.name,
         cover_path=artist.cover_path,
+        albums_count=artist.albums_count,
         description=artist.description,
         created_at=artist.created_at,
-        albums=[album_from_orm(album) for album in artist.albums],
+        albums=[album_short_from_orm(album) for album in artist.albums],
         genres=[genre.name for genre in artist.genres],
     )
 
@@ -56,6 +57,7 @@ def artist_short_from_orm(artist: ArtistORM) -> ArtistShort:
         name=artist.name,
         description=artist.description,
         cover_path=artist.cover_path,
+        albums_count=artist.albums_count,
         created_at=artist.created_at,
     )
 
@@ -109,7 +111,6 @@ def album_short_from_orm(album: AlbumORM) -> AlbumShort:
         tracks_count=album.track_count,
         genres=[genre.name for genre in album.genres],
         artists=[artist_short_from_orm(artist) for artist in album.artists],
-        tracks=[track_short_from_orm(link.track) for link in album.tracks_links],
         created_at=album.created_at,
     )
 

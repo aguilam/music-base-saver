@@ -231,6 +231,19 @@ class ArtistORM(SQLModel, table=True):
         back_populates="artist",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
+    albums_count: ClassVar[int]
+
+    @hybrid_property
+    def albums_count(self) -> int:
+        return len(self.albums)
+
+    @albums_count.expression
+    def albums_count(cls):
+        return (
+            select(func.count(AlbumArtistLink.album_id))
+            .where(AlbumArtistLink.artist_id == cls.id)
+            .scalar_subquery()
+        )
 
 
 class AlbumORM(SQLModel, table=True):

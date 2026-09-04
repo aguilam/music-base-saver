@@ -42,11 +42,10 @@ def _required(value: T | None) -> T:
 
 
 def to_short_artist_response(artist: Artist | ArtistShort) -> ShortArtistResponse:
-    # TODO: Add albums count
     return ShortArtistResponse(
         id=_required(artist.id),
         name=artist.name,
-        albums_count=0,
+        albums_count=artist.albums_count if artist.albums_count else 0,
         cover_id=artist.cover_path,
         created_at=_required(artist.created_at),
         external_id=artist.external_id,
@@ -215,29 +214,11 @@ def to_full_artist_response(artist: Artist) -> FullArtistResponse:
     return FullArtistResponse(
         id=_required(artist.id),
         name=artist.name,
-        albums_count=0,
+        albums_count=artist.albums_count if artist.albums_count else 0,
         description=artist.description,
         cover_id=artist.cover_path,
         external_id=artist.external_id,
         genres=list(artist.genres),
         created_at=_required(artist.created_at),
         albums=[to_short_album_response(album) for album in artist.albums],
-    )
-
-
-def to_album_track_response(track: AlbumTrack) -> AlbumTrackResponse:
-    return AlbumTrackResponse(
-        id=_required(track.id),
-        title=track.title,
-        duration=track.length,
-        created_at=_required(track.created_at),
-        cover_id=track.cover_path,
-        bpm=track.bpm,
-        position=track.position,
-        disc_number=track.disc_number,
-        track_gain=track.track_gain,
-        track_peak=track.track_peak,
-        year=track.year,
-        external_id=track.external_id,
-        artists=[to_short_artist_response(artist) for artist in track.artists],
     )

@@ -1,5 +1,4 @@
 from __future__ import annotations
-from concurrent.futures import Future
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import NamedTuple
@@ -11,11 +10,12 @@ class Artist:
     name: str
     id: int | None = None
     description: str | None = None
+    albums_count: int | None = None
     cover_path: int | None = None
     external_id: str | None = None
     created_at: datetime | None = None
     genres: list[str] = field(default_factory=list)
-    albums: list[Album] = field(default_factory=list)
+    albums: list[AlbumShort] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -39,6 +39,7 @@ class ArtistShort:
     name: str
     id: int | None = None
     description: str | None = None
+    albums_count: int | None = None
     cover_path: int | None = None
     external_id: str | None = None
     created_at: datetime | None = None
@@ -73,7 +74,6 @@ class AlbumShort:
     cover_path: int | None = None
     created_at: datetime | None = None
     external_id: str | None = None
-    tracks: list[TrackShort] = field(default_factory=list)
     artists: list[ArtistShort] = field(default_factory=list)
     genres: list[str] = field(default_factory=list)
 
