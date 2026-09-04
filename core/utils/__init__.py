@@ -1,7 +1,7 @@
 from core.modules import Service
 from core.modules.storages.loader import StorageEntry
 from core.modules.storages.base import Storage
-from typing import Any, TypeVar
+from typing import Any
 from pathlib import Path
 from collections.abc import Mapping
 from mutagen import File
@@ -300,10 +300,7 @@ def sanitize_filename(filename: str) -> str:
     return re.sub(r'[\\/*?:"<>|]', "", filename).strip()
 
 
-T = TypeVar("T", bound=Service)
-
-
-def _get_runtime_errors(
+def _get_runtime_errors[T: Service](
     modules: list[ModuleEntry[T]] | list[StorageEntry],
 ) -> list[ServiceStatus]:
     statuses: list[ServiceStatus] = []

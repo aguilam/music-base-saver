@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import TypeVar
 from core.responses import (
     FullArtistResponse,
     FullPlaylistResponse,
@@ -32,10 +31,8 @@ from core.schemas import (
     AlbumTrack,
 )
 
-T = TypeVar("T")
 
-
-def _required(value: T | None) -> T:
+def _required[T](value: T | None) -> T:
     if value is None:
         raise ValueError("Cannot build response, required attr not given")
     return value

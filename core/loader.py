@@ -4,20 +4,18 @@ from importlib.util import spec_from_file_location, module_from_spec
 import inspect
 from dataclasses import dataclass
 from core.schemas import ServiceStatus, HealthStatus
-from typing import TypeVar, Generic, Any
-
-T = TypeVar("T")
+from typing import Any
 
 
 @dataclass(slots=True)
-class ModuleEntry(Generic[T]):
+class ModuleEntry[T]:
     tag: str
     priority: int
     params: dict[str, Any]
     instance: T
 
 
-def import_modules(module_folder: str, BaseClass: type[T]) -> dict[str, type[T]]:
+def import_modules[T](module_folder: str, BaseClass: type[T]) -> dict[str, type[T]]:
     path = Path.resolve(Path(__file__))
     searchs_path = (path.parents[1] / module_folder).glob("*.py")
     plugins_path = (path.parents[1] / "plugins" / module_folder).glob("*.py")
@@ -42,7 +40,7 @@ def import_modules(module_folder: str, BaseClass: type[T]) -> dict[str, type[T]]
     return modules
 
 
-def load_modules(
+def load_modules[T](
     config: dict, module_classes: dict[str, type[T]]
 ) -> tuple[list[ModuleEntry[T]], list[ServiceStatus]]:
     modules: list[ModuleEntry[T]] = []

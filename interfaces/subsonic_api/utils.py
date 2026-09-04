@@ -1,9 +1,7 @@
 from fastapi import Request, Depends, HTTPException
-from typing import Annotated, NoReturn, TypeVar, Any, Sequence
+from typing import Annotated, NoReturn, Any, Sequence
 from core.library_manager import LibraryManager
 from core.errors import BaseError
-
-T = TypeVar("T")
 
 
 class SubsonicException(Exception):
@@ -63,7 +61,7 @@ def to_camel(response: dict[str, Any]) -> dict[str, Any]:
     return camel_response
 
 
-def check_result(result: T | BaseError) -> T:
+def check_result[T](result: T | BaseError) -> T:
     if isinstance(result, BaseError):
         raise HTTPException(status_code=result.code, detail=result.detail)
     return result

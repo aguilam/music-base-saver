@@ -1,4 +1,4 @@
-from typing import TypeVar, Callable
+from typing import Callable
 from dataclasses import dataclass
 
 
@@ -32,12 +32,7 @@ class UnauthorizedError(BaseError):
     detail: str = "Please registrate or login"
 
 
-T = TypeVar("T")
-
-U = TypeVar("U")
-
-
-def check_error(result: T | BaseError, func: Callable[..., U]) -> U | BaseError:
+def check_error[T, U](result: T | BaseError, func: Callable[..., U]) -> U | BaseError:
     if isinstance(result, BaseError):
         return result
     return func(result)
