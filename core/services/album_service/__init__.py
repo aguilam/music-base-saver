@@ -38,6 +38,12 @@ def get_album_orm_by_title(session: Session, title: str) -> AlbumORM | None:
     return album_repository.get_album_orm_by_title(session, title)
 
 
+def search_albums(
+    session: Session, query: str, limit: int, offset: int
+) -> list[AlbumShort]:
+    return album_repository.search_albums(session, query, limit, offset)
+
+
 def get_album_orm_by_id(session: Session, id: int) -> AlbumORM | None:
     return album_repository.get_album_orm_by_id(session, id)
 

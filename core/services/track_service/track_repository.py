@@ -163,7 +163,9 @@ def get_video_by_id(session: Session, id: int) -> MusicVideo | BaseError:
     return music_video_from_orm(orm_video) if orm_video else NotFoundError()
 
 
-def search_tracks(session: Session, query: str, limit: int, offset: int) -> list[Track]:
+def search_tracks(
+    session: Session, query: str, limit: int, offset: int
+) -> list[TrackShort]:
     statement = (
         select(TrackORM)
         .where(col(TrackORM.title).ilike(f"%{query}%"))
@@ -177,7 +179,7 @@ def search_tracks(session: Session, query: str, limit: int, offset: int) -> list
         )
     )
     orm_tracks = session.exec(statement).all()
-    return [track_from_orm(track) for track in orm_tracks]
+    return [track_short_from_orm(track) for track in orm_tracks]
 
 
 # def delete_track(session: Session, id: int):

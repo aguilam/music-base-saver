@@ -106,6 +106,12 @@ def get_moods(session: Session) -> list[dict[str, str | int]]:
     return counted_moods
 
 
+def search_tracks(
+    session: Session, query: str, limit: int, offset: int
+) -> list[TrackShort]:
+    return track_repository.search_tracks(session, query, limit, offset)
+
+
 def add_new_track(
     session: Session,
     track_metadata: TrackMetadata,

@@ -114,7 +114,9 @@ def get_album_by_title(session: Session, title: str) -> Album | BaseError:
     return album_from_orm(album) if album else NotFoundError()
 
 
-def search_albums(session: Session, query: str, limit: int, offset: int) -> list[Album]:
+def search_albums(
+    session: Session, query: str, limit: int, offset: int
+) -> list[AlbumShort]:
     statement = (
         select(AlbumORM)
         .where(col(AlbumORM.title).ilike(f"%{query}%"))
@@ -131,7 +133,7 @@ def search_albums(session: Session, query: str, limit: int, offset: int) -> list
         )
     )
     orm_albums = session.exec(statement).all()
-    return [album_from_orm(album) for album in orm_albums]
+    return [album_short_from_orm(album) for album in orm_albums]
 
 
 def get_album_orm_by_title(session: Session, title: str) -> AlbumORM | None:

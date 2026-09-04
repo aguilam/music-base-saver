@@ -23,6 +23,12 @@ def get_artist_top_songs(session: Session, name: str, count: int) -> list[TrackS
     return artist_repository.get_tracks_by_artist_name(session, name, count)
 
 
+def search_artists(
+    session: Session, query: str, limit: int, offset: int
+) -> list[ArtistShort]:
+    return artist_repository.search_artists(session, query, limit, offset)
+
+
 def get_artists_cursor(
     session: Session, cursor: str | None, limit: int = 20
 ) -> tuple[list[ArtistShort], str | None]:

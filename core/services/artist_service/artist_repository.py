@@ -146,7 +146,7 @@ def get_artist_by_name(session: Session, name: str) -> Artist | BaseError:
 
 def search_artists(
     session: Session, query: str, limit: int, offset: int
-) -> list[Artist]:
+) -> list[ArtistShort]:
     statement = (
         select(ArtistORM)
         .outerjoin(ArtistAlias)
@@ -159,4 +159,4 @@ def search_artists(
         .options(selectinload(in_load_typing(ArtistORM.albums)))
     )
     orm_artists = session.exec(statement).all()
-    return [artist_from_orm(artist) for artist in orm_artists]
+    return [artist_short_from_orm(artist) for artist in orm_artists]
