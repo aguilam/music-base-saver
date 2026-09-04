@@ -117,8 +117,8 @@ class TrackArtistsLink(SQLModel, table=True):
 
 class StarredTrack(SQLModel, table=True):
     __tablename__ = "starred_track"
-    user_id: int = Field(foreign_key="user.id", primary_key=True)
-    track_id: int = Field(foreign_key="track.id", primary_key=True)
+    user_id: int = Field(foreign_key="user.id", primary_key=True, ondelete="CASCADE")
+    track_id: int = Field(foreign_key="track.id", primary_key=True, ondelete="CASCADE")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     user: "UserORM" = Relationship(back_populates="starred_tracks_link")
@@ -127,8 +127,8 @@ class StarredTrack(SQLModel, table=True):
 
 class StarredAlbum(SQLModel, table=True):
     __tablename__ = "starred_album"
-    user_id: int = Field(foreign_key="user.id", primary_key=True)
-    album_id: int = Field(foreign_key="album.id", primary_key=True)
+    user_id: int = Field(foreign_key="user.id", primary_key=True, ondelete="CASCADE")
+    album_id: int = Field(foreign_key="album.id", primary_key=True, ondelete="CASCADE")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     user: "UserORM" = Relationship(back_populates="starred_albums_link")
@@ -137,8 +137,10 @@ class StarredAlbum(SQLModel, table=True):
 
 class StarredArtist(SQLModel, table=True):
     __tablename__ = "starred_artist"
-    user_id: int = Field(foreign_key="user.id", primary_key=True)
-    artist_id: int = Field(foreign_key="artist.id", primary_key=True)
+    user_id: int = Field(foreign_key="user.id", primary_key=True, ondelete="CASCADE")
+    artist_id: int = Field(
+        foreign_key="artist.id", primary_key=True, ondelete="CASCADE"
+    )
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     user: "UserORM" = Relationship(back_populates="starred_artists_link")
@@ -147,8 +149,10 @@ class StarredArtist(SQLModel, table=True):
 
 class PlaylistOwnerORM(SQLModel, table=True):
     __tablename__ = "playlist_owner"
-    owner_id: int = Field(foreign_key="user.id", primary_key=True)
-    playlist_id: int = Field(foreign_key="playlist.id", primary_key=True)
+    owner_id: int = Field(foreign_key="user.id", primary_key=True, ondelete="CASCADE")
+    playlist_id: int = Field(
+        foreign_key="playlist.id", primary_key=True, ondelete="CASCADE"
+    )
 
 
 class UserORM(SQLModel, table=True):
@@ -190,8 +194,8 @@ class UserORM(SQLModel, table=True):
 
 class TrackAlbumLink(SQLModel, table=True):
     __tablename__ = "track_album"
-    track_id: int = Field(primary_key=True, foreign_key="track.id")
-    album_id: int = Field(primary_key=True, foreign_key="album.id")
+    track_id: int = Field(primary_key=True, foreign_key="track.id", ondelete="CASCADE")
+    album_id: int = Field(primary_key=True, foreign_key="album.id", ondelete="CASCADE")
     album_position: int
     disc_number: int | None = None
     is_primary_album: bool = False
@@ -351,9 +355,15 @@ class ObjectStorageORM(SQLModel, table=True):
     link: str
     file_name: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    audio_id: int | None = Field(default=None, foreign_key="audio_file.id")
-    music_video_id: int | None = Field(default=None, foreign_key="music_video.id")
-    lyrics_id: int | None = Field(default=None, foreign_key="lyrics.id")
+    audio_id: int | None = Field(
+        default=None, foreign_key="audio_file.id", ondelete="CASCADE"
+    )
+    music_video_id: int | None = Field(
+        default=None, foreign_key="music_video.id", ondelete="CASCADE"
+    )
+    lyrics_id: int | None = Field(
+        default=None, foreign_key="lyrics.id", ondelete="CASCADE"
+    )
 
 
 class AudioFileORM(SQLModel, table=True):
@@ -386,7 +396,9 @@ class TrackORM(SQLModel, table=True):
     bpm: int | None = None
     year: int | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    albums_links: list[TrackAlbumLink] = Relationship(back_populates="track")
+    albums_links: list[TrackAlbumLink] = Relationship(
+        back_populates="track", passive_deletes=True
+    )
 
     lyrics: list["LyricsORM"] = Relationship(
         back_populates="track",
@@ -400,7 +412,9 @@ class TrackORM(SQLModel, table=True):
         },
     )
 
-    playlist_links: list["PlaylistTrackLink"] = Relationship(back_populates="track")
+    playlist_links: list["PlaylistTrackLink"] = Relationship(
+        back_populates="track", passive_deletes=True
+    )
     starred_track_links: list["StarredTrack"] = Relationship(back_populates="track")
     starred_by: list["UserORM"] = Relationship(
         back_populates="starred_tracks",
@@ -503,7 +517,9 @@ class PlaylistORM(SQLModel, table=True):
             .scalar_subquery()
         )
 
-    track_links: list["PlaylistTrackLink"] = Relationship(back_populates="playlist")
+    track_links: list["PlaylistTrackLink"] = Relationship(
+        back_populates="playlist", passive_deletes=True
+    )
 
 
 class ProviderKeyORM(SQLModel, table=True):

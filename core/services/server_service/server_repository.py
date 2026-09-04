@@ -179,16 +179,6 @@ def delete_orphans(session: Session) -> tuple[int, int, int]:
         delete(ArtistORM).where(
             col(ArtistORM.id).not_in(select(AlbumArtistLink.artist_id)),
             col(ArtistORM.id).not_in(select(TrackArtistsLink.artist_id)),
-            col(ArtistORM.id).not_in(
-                select(AlbumArtistLink.artist_id).where(
-                    col(AlbumArtistLink.album_id).is_not(None)
-                )
-            ),
-            col(ArtistORM.id).not_in(
-                select(TrackArtistsLink.artist_id).where(
-                    col(TrackArtistsLink.track_id).is_not(None)
-                )
-            ),
         )
     )
     session.flush()
