@@ -3,7 +3,7 @@ from core.library_manager import LibraryManager
 from rich.table import Table
 from rich.console import Console
 from rich.text import Text
-from core.schemas.schemas import ServiceStatus
+from core.schemas import ServiceStatus
 
 library_manager = LibraryManager()
 

@@ -1,6 +1,7 @@
+from core.errors import BaseError
 import typer
 from core.library_manager import LibraryManager
-from core.schemas.schemas import Task, SyncTaskResult, SyncMetric
+from core.tasks.schemas import Task, SyncTaskResult, SyncMetric
 from rich.console import Console
 from rich.spinner import Spinner
 from rich.table import Table
@@ -59,7 +60,10 @@ def sync():
     sync_progress_task = progress_bar.add_task("Syncing...", total=None)
     with Live(progress_bar) as live:
         while True:
-            task: Task[SyncTaskResult] | None = library_manager.get_sync_task(task_id)
+            task = library_manager.get_sync_task(task_id)
+            if isinstance(task, BaseError):
+                Text(f"Error while syncing: {BaseError.detail}")
+                return
             entities = ["tracks", "covers", "lyrics", "videos"]
             results: list[SyncMetric] = [
                 getattr(task.result, entity) for entity in entities

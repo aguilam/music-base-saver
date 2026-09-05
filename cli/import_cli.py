@@ -5,7 +5,7 @@ from rich.text import Text
 from rich.spinner import Spinner
 from core.library_manager import LibraryManager
 import time
-from core.schemas.schemas import Task, ImportTaskResult, ImportMetric
+from core.tasks.schemas import Task, ImportTaskResult, ImportMetric
 
 import_app = typer.Typer(help="Позволяет импортировать треки в базу")
 

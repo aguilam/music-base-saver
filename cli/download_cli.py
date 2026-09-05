@@ -1,6 +1,6 @@
 import typer
 from core.library_manager import LibraryManager
-from core.schemas.schemas import Task, DownloadTaskResult
+from core.tasks.schemas import Task, DownloadTaskResult
 from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress

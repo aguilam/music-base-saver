@@ -45,8 +45,10 @@ class LocalStorage(Storage):
         return files
 
     def get_file_metadata(self, path: str) -> FileMetadata:
-        file_size = os.stat(self._fix_windows_path(path)).st_size
-        return FileMetadata(file_size=file_size)
+        file_path = Path(path)
+        file_size = file_path.stat().st_size
+        filename = file_path.name
+        return FileMetadata(file_size=file_size, filename=filename)
 
     def get_range_bytes(self, path: str, start: int, end: int):
         chunk_size = 64 * 1024

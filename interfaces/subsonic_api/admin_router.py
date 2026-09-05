@@ -1,3 +1,4 @@
+from fastapi.responses import StreamingResponse
 from dataclasses import fields
 from typing import Annotated
 import time
@@ -478,6 +479,43 @@ def post_track_tool_req(library: CurrentLibrary, track_id: int, tool_id: str):
 @router.patch("/tracks/{id}")
 def patch_track():
     pass
+
+
+@router.get("/tracks/{id}/download")
+def download_track(library: CurrentLibrary, id: str, request: Request):
+    metadata = check_result(library.get_file_metadata(id))
+    range_header = request.headers.get("range")
+    if not range_header:
+        start = 0
+        end = metadata.file_size - 1
+        response_status = status.HTTP_200_OK
+        headers = {
+            "Content-Length": str(metadata.file_size),
+            "Accept-Ranges": "bytes",
+            "Content-Disposition": f'attachment; filename="{metadata.filename}"',
+        }
+    else:
+        range = range_header.replace("bytes=", "").split("-")
+        start = int(range[0])
+        end = (
+            int(range[1])
+            if len(range) > 1 and range[1] != ""
+            else metadata.file_size - 1
+        )
+        response_status = status.HTTP_206_PARTIAL_CONTENT
+        content_length = end - start + 1
+        headers = {
+            "Content-Length": str(content_length),
+            "Content-Range": f"bytes {start}-{end}/{metadata.file_size}",
+            "Accept-Ranges": "bytes",
+            "Content-Disposition": f'attachment; filename="{metadata.filename}"',
+        }
+    return StreamingResponse(
+        check_result(library.stream_track(id, start, end)),
+        headers=headers,
+        status_code=response_status,
+        media_type="application/octet-stream",
+    )
 
 
 @router.get("/tracks/{id}/lyrics")
