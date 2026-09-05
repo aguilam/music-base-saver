@@ -1,3 +1,4 @@
+from core.modules.storages.schemas import FileMetadata
 from core.modules.storages.base import Storage
 from pathlib import Path
 from shutil import disk_usage, move
@@ -22,7 +23,7 @@ class LocalStorage(Storage):
         try:
             os.remove(path)
             return True
-        except:
+        except Exception:
             return False
 
     def check_storage(self) -> int:
@@ -43,9 +44,9 @@ class LocalStorage(Storage):
                 files.append((str(f), f.name))
         return files
 
-    def get_file_metadata(self, path: str) -> dict:
+    def get_file_metadata(self, path: str) -> FileMetadata:
         file_size = os.stat(self._fix_windows_path(path)).st_size
-        return {"file_size": file_size}
+        return FileMetadata(file_size=file_size)
 
     def get_range_bytes(self, path: str, start: int, end: int):
         chunk_size = 64 * 1024

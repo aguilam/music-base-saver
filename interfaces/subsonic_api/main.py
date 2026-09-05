@@ -146,10 +146,10 @@ def stream_track(library_manager: CurrentLibrary, request: Request, id: str):
     range_header = request.headers.get("range")
     if not range_header:
         start = 0
-        end = metadata["file_size"] - 1
+        end = metadata.file_size - 1
         response_status = status.HTTP_200_OK
         headers = {
-            "Content-Length": str(metadata["file_size"]),
+            "Content-Length": str(metadata.file_size),
             "Accept-Ranges": "bytes",
         }
     else:
@@ -158,13 +158,13 @@ def stream_track(library_manager: CurrentLibrary, request: Request, id: str):
         end = (
             int(range[1])
             if len(range) > 1 and range[1] != ""
-            else metadata["file_size"] - 1
+            else metadata.file_size - 1
         )
         response_status = status.HTTP_206_PARTIAL_CONTENT
         content_length = end - start + 1
         headers = {
             "Content-Length": str(content_length),
-            "Content-Range": f"bytes {start}-{end}/{metadata['file_size']}",
+            "Content-Range": f"bytes {start}-{end}/{metadata.file_size}",
             "Accept-Ranges": "bytes",
         }
     return StreamingResponse(

@@ -1,3 +1,4 @@
+from core.modules.storages.schemas import FileMetadata
 from core.db.manager import DBManager
 from core.tasks.tasks_manager import TasksManager
 from core.tasks.schemas import Task, SyncTaskResult
@@ -88,7 +89,7 @@ class _StoragesManager:
                     return track
             return NotFoundError()
 
-    def get_file_metadata(self, id: str) -> dict | BaseError:
+    def get_file_metadata(self, id: str) -> FileMetadata | BaseError:
         with DBManager.get_session() as session:
             object_id = None
             if "cl-" in id:

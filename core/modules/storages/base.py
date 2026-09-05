@@ -1,3 +1,4 @@
+from core.modules.storages.schemas import FileMetadata
 from core.modules import Service
 from typing import Generator
 from abc import ABC, abstractmethod
@@ -30,7 +31,7 @@ class Storage(Service, ABC):
         pass
 
     @abstractmethod
-    def get_file_metadata(self, path: str) -> dict:
+    def get_file_metadata(self, path: str) -> FileMetadata:
         pass
 
     @abstractmethod

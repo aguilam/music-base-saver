@@ -1,3 +1,4 @@
+from core.modules.storages.schemas import FileMetadata
 from core.modules.importers.importers_manager import ImportersManager
 from core.tasks.schemas import (
     DownloadTaskResult,
@@ -471,7 +472,7 @@ class LibraryManager:
             tracks, cursor = track_service.get_tracks_cursor(session, cursor, limit)
             return [to_short_track_response(track) for track in tracks], cursor
 
-    def get_file_metadata(self, id: str) -> dict | BaseError:
+    def get_file_metadata(self, id: str) -> FileMetadata | BaseError:
         return StoragesManager.get_file_metadata(id)
 
     def get_sync_task(self, task_id: str) -> Task[SyncTaskResult] | BaseError:
