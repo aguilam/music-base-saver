@@ -163,9 +163,9 @@ class LibraryManager:
             queue_name="download",
             task_id=task_id,
             query=query,
+            task_result=DownloadTaskResult(),
             object_id=object_id,
         )
-        TasksManager.task_queue.download[task_id].result = DownloadTaskResult()
         return task_id
 
     def get_all_tracks(self) -> list[ShortTrackResponse]:
@@ -504,9 +504,11 @@ class LibraryManager:
 
     def sync(self, task_id: str | None = None) -> str:
         task_id = TasksManager.post_task(
-            StoragesManager.sync_library, task_id=task_id, queue_name="sync"
+            StoragesManager.sync_library,
+            task_id=task_id,
+            queue_name="sync",
+            task_result=SyncTaskResult(),
         )
-        TasksManager.task_queue.sync[task_id].result = SyncTaskResult()
         return task_id
 
     def import_library(
@@ -521,8 +523,8 @@ class LibraryManager:
             task_id=task_id,
             importer_tag=importer_tag,
             user_id=user_id,
+            task_result=ImportTaskResult(),
         )
-        TasksManager.task_queue.importing[task_id].result = ImportTaskResult()
         return task_id
 
     def get_all_users(self) -> list[ShortUserResponse]:

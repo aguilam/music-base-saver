@@ -7,5 +7,5 @@ def load_scrobblers(
     config: dict,
 ) -> tuple[list[ModuleEntry[Scrobbler]], list[ServiceStatus]]:
     return load_modules(
-        config.get("scrobbler", {}), import_modules("scrobbler", Scrobbler)
+        config.get("scrobbler", {}), import_modules(__file__, Scrobbler)
     )

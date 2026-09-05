@@ -15,10 +15,10 @@ class ModuleEntry[T]:
     instance: T
 
 
-def import_modules[T](module_folder: str, BaseClass: type[T]) -> dict[str, type[T]]:
-    path = Path.resolve(Path(__file__))
-    searchs_path = (path.parents[1] / module_folder).glob("*.py")
-    plugins_path = (path.parents[1] / "plugins" / module_folder).glob("*.py")
+def import_modules[T](current_path: str, BaseClass: type[T]) -> dict[str, type[T]]:
+    path = Path.resolve(Path(current_path)).parent
+    searchs_path = (path / "builtin").glob("*.py")
+    plugins_path = (path / "external").glob("*.py")
     searched_modules = [*searchs_path, *plugins_path]
     modules: dict[str, type[T]] = {}
     for search in searched_modules:

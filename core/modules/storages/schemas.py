@@ -5,3 +5,4 @@ from dataclasses import dataclass
 class FileMetadata:
     file_size: int
     filename: str
+    file_suffix: str

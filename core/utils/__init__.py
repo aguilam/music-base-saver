@@ -136,6 +136,18 @@ def _get_clear_track_tags(name_tag: str, metadata) -> list[str]:
     return [value for tag in tags if (value := _clean_track_tag_value(tag)) is not None]
 
 
+def _get_optional_int(value: str | None) -> int | None:
+    if value is None:
+        return None
+    if value.strip().lower() in {"", "none", "null", "unknown", "n/a"}:
+        return None
+
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
 def _get_track_metadata(track_metadata) -> TrackMetadata:
     title = _get_clear_track_tag("title", track_metadata)
     artists_names = _get_clear_track_tags("artist", track_metadata)
@@ -161,12 +173,12 @@ def _get_track_metadata(track_metadata) -> TrackMetadata:
             TrackAlbumMetadata(
                 title=album_title or "Unknown",
                 album_artists=album_artist,
-                disc_number=int(disc_number) if disc_number else None,
-                album_position=int(album_position) if album_position else None,
+                disc_number=_get_optional_int(disc_number),
+                album_position=_get_optional_int(album_position),
             )
         ],
         length=length,
-        year=int(date) if date else None,
+        year=_get_optional_int(date),
         genres=genres,
         moods=moods,
         bitrate=bitrate,

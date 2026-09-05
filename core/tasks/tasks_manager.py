@@ -1,5 +1,6 @@
+from threading import RLock
 from core.errors import NotFoundError, BaseError
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, Future
 from typing import Literal
 from uuid import uuid4
 from core.tasks.schemas import TaskStorage, Task
@@ -11,14 +12,24 @@ class _TasksManager:
     def __init__(self):
         self.executor = ThreadPoolExecutor(max_workers=5)
         self.task_queue: TaskStorage = TaskStorage()
+        self.lock = RLock()
 
     def post_task(
-        self, func, queue_name: QueueName, task_id: str | None = None, *args, **kwargs
+        self,
+        func,
+        queue_name: QueueName,
+        task_result,
+        task_id: str | None = None,
+        *args,
+        **kwargs,
     ) -> str:
         task_id = str(uuid4())[:8] if task_id is None else task_id
-        task_body = self.executor.submit(func, task_id, *args, **kwargs)
         target = getattr(self.task_queue, queue_name)
-        target[task_id] = Task(task=task_body)
+        task = Task(task=Future())
+        task.result = task_result
+        with self.lock:
+            target[task_id] = task
+            task.task = self.executor.submit(func, task_id, *args, **kwargs)
         return task_id
 
     def cancel_task(self, queue_name: QueueName, task_id) -> bool | BaseError:

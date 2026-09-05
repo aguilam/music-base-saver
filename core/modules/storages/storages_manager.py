@@ -1,3 +1,4 @@
+import tomllib
 from core.modules.storages.schemas import FileMetadata
 from core.db.manager import DBManager
 from core.tasks.tasks_manager import TasksManager
@@ -33,10 +34,13 @@ from core.services import (
 class _StoragesManager:
     def __init__(self):
         self.temp_dir = Path("temp_files")
-        self.config = dict()
-        self.storages, _ = load_storages(
-            self.config, import_modules("storage", Storage)
-        )
+        path = Path(__file__).resolve()
+        self.config_path = path.parents[3] / "config.toml"
+        self.toml_config = ""
+        with self.config_path.open("r", encoding="utf-8") as config_file:
+            self.toml_config = config_file.read()
+            self.config = tomllib.loads(self.toml_config)
+        self.storages, _ = load_storages(self.config, import_modules(__file__, Storage))
 
     def get_cover_art(self, session: Session, id: int) -> BinaryBlob | BaseError:
         storage = server_service.get_storage_object_by_id(session, id)
@@ -148,10 +152,19 @@ class _StoragesManager:
 
     def sync_library(self, task_id: str):
         try:
-            task: Task[SyncTaskResult] = TasksManager.task_queue.sync[task_id]
+            task: Task[SyncTaskResult] | BaseError = TasksManager.get_task(
+                "sync", task_id
+            )
+            if isinstance(task, BaseError):
+                TasksManager.cancel_task("sync", task_id)
+                return
             with DBManager.get_session() as session:
                 db_files = track_service.get_all_tracks_storage_links(session)
                 storaged_files: set[tuple[str, str]] = set()
+                if len(self.storages) == 0:
+                    task.status = "error"
+                    task.error = "No connected storages"
+                    TasksManager.cancel_task("sync", task_id)
                 for storage in self.storages:
                     current_storage = storage.instance
                     tracks_path = current_storage.get_all_files_paths()
@@ -203,168 +216,194 @@ class _StoragesManager:
                 for storage in self.storages:
                     current_storage = storage.instance
                     for track in tracks_to_adding.get(storage.id, []):
-                        track_bytes = b"".join(
-                            current_storage.get_range_bytes(
-                                track.link, 0, 1024 * 1024 * 5
+                        try:
+                            track_bytes = b"".join(
+                                current_storage.get_range_bytes(
+                                    track.link, 0, 1024 * 1024 * 5
+                                )
                             )
-                        )
-                        track_metadata = get_track_metadata_by_bytes(track_bytes)
-                        track_service.add_new_track(
-                            session, track_metadata, track, storage.id
-                        )
-                        task.result.tracks.processed += 1
-                        task.result.tracks.added += 1
-                    for cover in cover_to_adding.get(storage.id, []):
-                        cover_link, cover_name = cover
-                        entity = None
-                        range_bytes: bytes = b"".join(
-                            current_storage.get_range_bytes(cover_link, 0, 99999999)
-                        )
-                        cover_metadata = get_cover_metadata(
-                            range_bytes,
-                        )
-                        if cover_metadata:
-                            title = cover_metadata.get("title")
-                            artists = cover_metadata.get("creator")
-                            if title:
-                                entity = album_service.get_album_orm_by_title(
-                                    session, title
-                                )
-                            elif artists and len(artists) == 1:
-                                entity = artist_service.get_artist_orm_by_name(
-                                    session, artists[0]
-                                )
-                        id_tuple = get_id_from_string(cover_name)
-                        if id_tuple and not entity:
-                            content_type, content_id = id_tuple
-                            if content_type == "al":
-                                entity = album_service.get_album_orm_by_id(
-                                    session, content_id
-                                )
-                            elif content_type == "ar":
-                                entity = artist_service.get_artist_orm_by_id(
-                                    session, content_id
-                                )
-                            elif content_type == "pl":
-                                entity = playlist_service.get_playlist_orm_by_id(
-                                    session, content_id
-                                )
-                        if entity is None:
-                            task.result.unbound_files.covers.add(
-                                (f"{storage.id}///{cover_link}", cover_name)
+                            track_metadata = get_track_metadata_by_bytes(track_bytes)
+                            track_service.add_new_track(
+                                session, track_metadata, track, storage.id
                             )
-                            task.result.covers.processed += 1
+                            session.commit()
+                            task.result.tracks.added += 1
+                        except Exception as e:
+                            session.rollback()
                             continue
-                        cover_storage = ObjectStorageORM(
-                            link_type="storage",
-                            link_provider=storage.id,
-                            link=cover_link,
-                            file_name=cover_name,
-                        )
-                        session.add(cover_storage)
-                        session.flush()
-                        entity.cover_path = cover_storage.id
-                        session.flush()
-                        task.result.covers.processed += 1
-                        task.result.covers.added += 1
+                        finally:
+                            task.result.tracks.processed += 1
+                    for cover in cover_to_adding.get(storage.id, []):
+                        try:
+                            cover_link, cover_name = cover
+                            entity = None
+                            range_bytes: bytes = b"".join(
+                                current_storage.get_range_bytes(cover_link, 0, 99999999)
+                            )
+                            cover_metadata = get_cover_metadata(
+                                range_bytes,
+                            )
+                            if cover_metadata:
+                                title = cover_metadata.get("title")
+                                artists = cover_metadata.get("creator")
+                                if title:
+                                    entity = album_service.get_album_orm_by_title(
+                                        session, title
+                                    )
+                                elif artists and len(artists) == 1:
+                                    entity = artist_service.get_artist_orm_by_name(
+                                        session, artists[0]
+                                    )
+                            id_tuple = get_id_from_string(cover_name)
+                            if id_tuple and not entity:
+                                content_type, content_id = id_tuple
+                                if content_type == "al":
+                                    entity = album_service.get_album_orm_by_id(
+                                        session, content_id
+                                    )
+                                elif content_type == "ar":
+                                    entity = artist_service.get_artist_orm_by_id(
+                                        session, content_id
+                                    )
+                                elif content_type == "pl":
+                                    entity = playlist_service.get_playlist_orm_by_id(
+                                        session, content_id
+                                    )
+                            if entity is None:
+                                task.result.unbound_files.covers.add(
+                                    (f"{storage.id}///{cover_link}", cover_name)
+                                )
+                                task.result.covers.processed += 1
+                                continue
+                            cover_storage = ObjectStorageORM(
+                                link_type="storage",
+                                link_provider=storage.id,
+                                link=cover_link,
+                                file_name=cover_name,
+                            )
+                            session.add(cover_storage)
+                            session.flush()
+                            entity.cover_path = cover_storage.id
+                            session.commit()
+                            task.result.covers.added += 1
+                        except Exception as e:
+                            session.rollback()
+                            continue
+                        finally:
+                            task.result.covers.processed += 1
                     for lyrics in lyrics_to_adding.get(storage.id, []):
-                        link, filename = lyrics
-                        range_bytes: bytes = b"".join(
-                            current_storage.get_range_bytes(lyrics.link, 0, 9999999)
-                        )
-                        decoded_text = range_bytes.decode()
-                        lyrics_text = read_lyrics_text(decoded_text)
-                        name = filename.split(".")[0]
-                        if isinstance(lyrics_text, LRCLyrics):
+                        try:
+                            link, filename = lyrics
+                            range_bytes: bytes = b"".join(
+                                current_storage.get_range_bytes(lyrics.link, 0, 9999999)
+                            )
+                            decoded_text = range_bytes.decode()
+                            lyrics_text = read_lyrics_text(decoded_text)
+                            name = filename.split(".")[0]
+                            if isinstance(lyrics_text, LRCLyrics):
+                                track = track_service.get_track_by_title(
+                                    session, lyrics_text.title
+                                )
+                                if isinstance(track, NotFoundError):
+                                    track = track_service.get_track_by_title(
+                                        session, name
+                                    )
+                                if isinstance(track, BaseError):
+                                    task.result.unbound_files.lyrics.add(
+                                        (f"{storage.id}///{link}", filename)
+                                    )
+                                    task.result.lyrics.processed += 1
+                                    continue
+                                new_lyrics = LyricsORM(
+                                    is_synced=True,
+                                    language="und",
+                                    synced_text=lyrics_text.text,
+                                    offset=lyrics_text.offset,
+                                    track_id=track.id,
+                                )
+                                session.add(new_lyrics)
+                                session.flush()
+                            elif isinstance(lyrics_text, str):
+                                track = track_service.get_track_by_title(session, name)
+                                if isinstance(track, BaseError):
+                                    task.result.unbound_files.lyrics.add(
+                                        (f"{storage.id}///{link}", filename)
+                                    )
+                                    task.result.lyrics.processed += 1
+                                    continue
+                                new_lyrics = LyricsORM(
+                                    is_synced=False,
+                                    language="und",
+                                    plain_text=lyrics_text,
+                                    track_id=track.id,
+                                )
+                                session.add(new_lyrics)
+                                session.flush()
+                            lyrics_path = ObjectStorageORM(
+                                link_type="storage",
+                                link_provider=storage.id,
+                                link=link,
+                                lyrics_id=new_lyrics.id,
+                                file_name=filename,
+                            )
+                            new_lyrics.path.append(lyrics_path)
+                            session.add(lyrics_path)
+                            session.commit()
+                            task.result.lyrics.added += 1
+                        except Exception as e:
+                            session.rollback()
+                            continue
+                        finally:
+                            task.result.lyrics.processed += 1
+                    for video in videos_to_adding.get(storage.id, []):
+                        try:
+                            link, filename = video
+                            video_bytes = b"".join(
+                                current_storage.get_range_bytes(
+                                    video.link, 0, 1024 * 1024 * 5
+                                )
+                            )
+                            video_metadata = get_video_metadata(video_bytes)
+                            video_title = video_metadata.get("title")
+                            if video_title is None:
+                                video_title = filename.rsplit(".", 1)[0]
                             track = track_service.get_track_by_title(
-                                session, lyrics_text.title
+                                session, video_title
                             )
                             if isinstance(track, NotFoundError):
-                                track = track_service.get_track_by_title(session, name)
+                                id_tuple = get_id_from_string(filename, "tr")
+                                if id_tuple:
+                                    track = track_service.get_track_by_id(
+                                        session, id_tuple[1]
+                                    )
                             if isinstance(track, BaseError):
-                                task.result.unbound_files.lyrics.add(
+                                task.result.unbound_files.videos.add(
                                     (f"{storage.id}///{link}", filename)
                                 )
-                                task.result.lyrics.processed += 1
+                                task.result.videos.processed += 1
                                 continue
-                            new_lyrics = LyricsORM(
-                                is_synced=True,
-                                language="und",
-                                synced_text=lyrics_text.text,
-                                offset=lyrics_text.offset,
+                            music_video = MusicVideoORM(
+                                is_external_link=False,
                                 track_id=track.id,
                             )
-                            session.add(new_lyrics)
+                            session.add(music_video)
                             session.flush()
-                        elif isinstance(lyrics_text, str):
-                            track = track_service.get_track_by_title(session, name)
-                            if isinstance(track, BaseError):
-                                task.result.unbound_files.lyrics.add(
-                                    (f"{storage.id}///{link}", filename)
-                                )
-                                task.result.lyrics.processed += 1
-                                continue
-                            new_lyrics = LyricsORM(
-                                is_synced=False,
-                                language="und",
-                                plain_text=lyrics_text,
-                                track_id=track.id,
+                            video_storage = ObjectStorageORM(
+                                link_type="storage",
+                                link_provider=storage.id,
+                                link=link,
+                                file_name=filename,
                             )
-                            session.add(new_lyrics)
+                            music_video.local_link.append(video_storage)
+                            session.add(music_video)
                             session.flush()
-                        lyrics_path = ObjectStorageORM(
-                            link_type="storage",
-                            link_provider=storage.id,
-                            link=link,
-                            lyrics_id=new_lyrics.id,
-                            file_name=filename,
-                        )
-                        new_lyrics.path.append(lyrics_path)
-                        session.add(lyrics_path)
-                        session.flush()
-                        task.result.lyrics.processed += 1
-                        task.result.lyrics.added += 1
-                    for video in videos_to_adding.get(storage.id, []):
-                        link, filename = video
-                        video_bytes = b"".join(
-                            current_storage.get_range_bytes(
-                                video.link, 0, 1024 * 1024 * 5
-                            )
-                        )
-                        video_metadata = get_video_metadata(video_bytes)
-                        video_title = video_metadata.get("title")
-                        if video_title is None:
-                            video_title = filename.rsplit(".", 1)[0]
-                        track = track_service.get_track_by_title(session, video_title)
-                        if isinstance(track, NotFoundError):
-                            id_tuple = get_id_from_string(filename, "tr")
-                            if id_tuple:
-                                track = track_service.get_track_by_id(
-                                    session, id_tuple[1]
-                                )
-                        if isinstance(track, BaseError):
-                            task.result.unbound_files.videos.add(
-                                (f"{storage.id}///{link}", filename)
-                            )
-                            task.result.videos.processed += 1
+                            task.result.videos.added += 1
+                        except Exception as e:
+                            session.rollback()
                             continue
-                        music_video = MusicVideoORM(
-                            is_external_link=False,
-                            track_id=track.id,
-                        )
-                        session.add(music_video)
-                        session.flush()
-                        video_storage = ObjectStorageORM(
-                            link_type="storage",
-                            link_provider=storage.id,
-                            link=link,
-                            file_name=filename,
-                        )
-                        music_video.local_link.append(video_storage)
-                        session.add(music_video)
-                        session.flush()
-                        task.result.videos.processed += 1
-                        task.result.videos.added += 1
+                        finally:
+                            task.result.videos.processed += 1
+
                 server_service.delete_orphans(session)
                 session.commit()
                 TasksManager.task_queue.sync[task_id].status = "finished"

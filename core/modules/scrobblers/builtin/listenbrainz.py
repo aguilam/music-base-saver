@@ -1,5 +1,5 @@
 from core.modules.scrobblers.base import Scrobbler
-from core.schemas.schemas import Artist, Track, ArtistShort, AlbumShort
+from core.schemas import Artist, Track, ArtistShort, AlbumShort
 import liblistenbrainz
 import requests
 import musicbrainzngs.musicbrainz

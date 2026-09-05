@@ -1,6 +1,6 @@
 from core.modules.searches.base import Search
 import itunespy
-from core.schemas.schemas import Track, Album, Artist, ArtistShort
+from core.schemas import Track, Album, Artist, ArtistShort
 
 
 class iTunes(Search):

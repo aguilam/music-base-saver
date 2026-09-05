@@ -1,5 +1,5 @@
+from core.modules.storages.base import Storage
 from pathlib import Path
-from storage.base import Storage
 from mega import Mega
 import os
 

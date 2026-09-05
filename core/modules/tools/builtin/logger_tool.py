@@ -2,7 +2,7 @@ from core.modules.tools.base import Tool, event_listener
 from core.modules.tools.events import Event
 from structlog import get_logger
 from structlog.stdlib import BoundLogger
-from core.schemas.schemas import Track
+from core.schemas import Track
 
 
 class LoggerTool(Tool):

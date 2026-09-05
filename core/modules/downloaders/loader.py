@@ -8,5 +8,5 @@ def load_downloaders(
 ) -> tuple[list[ModuleEntry[Downloader]], list[ServiceStatus]]:
     return load_modules(
         config.get("downloader", {}),
-        import_modules("downloader", Downloader),
+        import_modules(__file__, Downloader),
     )

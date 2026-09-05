@@ -7,7 +7,7 @@ from core.responses import ShortToolResponse
 
 class _ToolsManager:
     def __init__(self, plugin_dir: str | None = None):
-        self.functions = load_tools(import_modules("tool", Tool))
+        self.functions = load_tools(import_modules(__file__, Tool))
 
     def send_event(self, event: Event, **kwargs):
         event_functions = self.functions.get(event, [])

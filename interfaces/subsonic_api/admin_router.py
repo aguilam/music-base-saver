@@ -1,3 +1,4 @@
+from urllib.parse import quote
 from fastapi.responses import StreamingResponse
 from dataclasses import fields
 from typing import Annotated
@@ -485,6 +486,10 @@ def patch_track():
 def download_track(library: CurrentLibrary, id: str, request: Request):
     metadata = check_result(library.get_file_metadata(id))
     range_header = request.headers.get("range")
+    content_disposition = (
+        f'attachment; filename="download{metadata.file_suffix}"; '
+        f"filename*=UTF-8''{quote(metadata.filename + metadata.file_suffix, safe='')}"
+    )
     if not range_header:
         start = 0
         end = metadata.file_size - 1
@@ -492,7 +497,7 @@ def download_track(library: CurrentLibrary, id: str, request: Request):
         headers = {
             "Content-Length": str(metadata.file_size),
             "Accept-Ranges": "bytes",
-            "Content-Disposition": f'attachment; filename="{metadata.filename}"',
+            "Content-Disposition": content_disposition,
         }
     else:
         range = range_header.replace("bytes=", "").split("-")
@@ -508,7 +513,7 @@ def download_track(library: CurrentLibrary, id: str, request: Request):
             "Content-Length": str(content_length),
             "Content-Range": f"bytes {start}-{end}/{metadata.file_size}",
             "Accept-Ranges": "bytes",
-            "Content-Disposition": f'attachment; filename="{metadata.filename}"',
+            "Content-Disposition": content_disposition,
         }
     return StreamingResponse(
         check_result(library.stream_track(id, start, end)),
