@@ -14,7 +14,7 @@ from core.responses import (
 )
 
 
-def album_track_to_subsonic_song(track: AlbumTrackResponse):
+def album_track_to_subsonic_song(track: AlbumTrackResponse, cover_id: int | None):
     song = {
         "id": str(track.id),
         # "parent": primary_album.id if primary_album else None,
@@ -32,8 +32,8 @@ def album_track_to_subsonic_song(track: AlbumTrackResponse):
         "isVideo": False,
     }
 
-    # if primary_album and primary_album.cover_id:
-    #    song["coverArt"] = f"{primary_album.cover_id}"
+    if cover_id is not None:
+        song["coverArt"] = f"{cover_id}"
     return song
 
 

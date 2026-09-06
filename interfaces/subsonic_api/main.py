@@ -1,3 +1,4 @@
+from core.responses.mappers import to_short_user_response
 from core.responses import FullAlbumResponse, FullTrackResponse, FullArtistResponse
 from core.errors import BaseError
 from fastapi import FastAPI, Request, APIRouter, Depends, status
@@ -56,19 +57,18 @@ def get_user(
         and salt is not None
         and token is not None
     ):
-        raise_subsonic_error(42)
-        user = library_manager.get_user(username=username)
-        if user is None or (
-            not (
-                compare_digest(
-                    hashlib.md5((user.password + salt).encode("utf-8")).hexdigest(),
-                    token,
-                )
-                and compare_digest(username, user.username)
+        user = library_manager.get_internal_user(username=username)
+        if user is None or isinstance(user, BaseError):
+            raise_subsonic_error(40)
+        if not (
+            compare_digest(
+                hashlib.md5((user.password + salt).encode("utf-8")).hexdigest(),
+                token,
             )
+            and compare_digest(username, user.username)
         ):
             raise_subsonic_error(40)
-        return user
+        return to_short_user_response(user)
     else:
         raise_subsonic_error(10)
 
@@ -96,7 +96,7 @@ async def subsonic_middleware(request: Request, call_next):
         return response
 
     body: bytes = b""
-    if isinstance(response, StreamingResponse):
+    if hasattr(response, "body_iterator"):
         async for chunk in response.body_iterator:
             if isinstance(chunk, str):
                 body += chunk.encode("utf-8")
@@ -264,6 +264,7 @@ def create_user(
 
 
 @subsonic_router.get("/getPlaylist")
+@subsonic_router.get("/getPlaylist.view")
 def get_playlist(
     library_manager: CurrentLibrary, id: int, user: Annotated[User, Depends(get_user)]
 ):
@@ -280,6 +281,7 @@ def get_playlist(
 
 
 @subsonic_router.get("/getStarred2")
+@subsonic_router.get("/getStarred2.view")
 def get_user_starred(
     library_manager: CurrentLibrary, user: Annotated[User, Depends(get_user)]
 ):
@@ -300,8 +302,9 @@ def get_user_starred(
 
 @subsonic_router.get("/getCoverArt.view")
 @subsonic_router.get("/getCoverArt")
-def get_cover_art(library_manager: CurrentLibrary, id: int):
+def get_cover_art(library_manager: CurrentLibrary, id: int, response: Response):
     cover_art = check_subsonic_error(library_manager.get_cover_art(id))
+    response.headers["Cache-Control"] = "public, max-age=3600"
     return Response(content=cover_art.content, media_type=cover_art.mime)
 
 
@@ -449,7 +452,7 @@ def get_album(library_manager: CurrentLibrary, id: str):
         album = check_subsonic_error(library_manager.get_album_by_id(int(id)))
     parsed_album = to_subsonic_album(album)
     parsed_album["song"] = [
-        album_track_to_subsonic_song(track) for track in album.tracks
+        album_track_to_subsonic_song(track, album.cover_id) for track in album.tracks
     ]
     return {
         "album": parsed_album,
@@ -515,6 +518,9 @@ def unstar(
 
 
 @subsonic_router.post("/scrobble")
+@subsonic_router.post("/scrobble.view")
+@subsonic_router.get("/scrobble")
+@subsonic_router.get("/scrobble.view")
 def scrobble(
     library_manager: CurrentLibrary,
     user: Annotated[User, Depends(get_user)],
@@ -530,6 +536,7 @@ def scrobble(
 
 
 @subsonic_router.get("/getLyrics")
+@subsonic_router.get("/getLyrics.view")
 def get_lyrics(library_manager: CurrentLibrary, title: str, artist: str | None = None):
     track = check_subsonic_error(library_manager.get_track_by_title(title))
     lyrics = check_subsonic_error(library_manager.get_lyrics(track.id))
@@ -546,6 +553,7 @@ def get_lyrics(library_manager: CurrentLibrary, title: str, artist: str | None =
 
 
 @subsonic_router.get("/getLyricsBySongId")
+@subsonic_router.get("/getLyricsBySongId.view")
 def get_lyrics_by_song(
     library_manager: CurrentLibrary, id: int, enhanced: bool | None = False
 ):
@@ -557,6 +565,7 @@ def get_lyrics_by_song(
 
 
 @subsonic_router.get("/getTopSongs")
+@subsonic_router.get("/getTopSongs.view")
 def get_artist_top_songs(library_manager: CurrentLibrary, artist: str, count: int = 50):
     tracks = check_subsonic_error(library_manager.get_artist_top_tracks(artist, count))
     artist_songs = [to_subsonic_song(track) for track in tracks]
@@ -584,6 +593,7 @@ def get_genres(library_manager: CurrentLibrary):
 
 
 @subsonic_router.get("/getMoods")
+@subsonic_router.get("/getMoods.view")
 def get_moods(library_manager: CurrentLibrary):
     moods = library_manager.get_moods()
     sub_moods = []
@@ -662,7 +672,7 @@ def get_license():
 class SubsonicApi(Interface):
     async def start(self):
         port = int(self.config.get("port", 8000))
-        host = self.config.get("host", "127.0.0.1")
+        host = self.config.get("host", "0.0.0.0")
         app = FastAPI()
         app.state.library_manager = self.library_manager
         app.add_middleware(

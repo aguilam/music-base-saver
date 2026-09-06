@@ -32,6 +32,7 @@ from core.schemas import (
     BinaryBlob,
     ServicesStatus,
     LibraryStats,
+    StoredUser,
 )
 from core.errors import BaseError, check_error, NotFoundError, UnauthorizedError
 from core.responses import (
@@ -184,7 +185,7 @@ class LibraryManager:
         self, size: int = 10, offset: int = 0
     ) -> list[ShortAlbumResponse]:
         with DBManager.get_session() as session:
-            albums = album_service.get_all_albums(session)
+            albums = album_service.get_all_albums(session, size, offset)
             return [to_short_album_response(album) for album in albums]
 
     def get_track_by_id(self, id: int) -> FullTrackResponse | BaseError:
@@ -425,6 +426,13 @@ class LibraryManager:
     def get_lyrics(self, track_id: int) -> list[LyricsResponse] | BaseError:
         with DBManager.get_session() as session:
             return track_service.get_lyrics(session, track_id)
+
+    def get_internal_user(
+        self, username: str | None = None, user_id: int | None = None
+    ) -> StoredUser | None | BaseError:
+        with DBManager.get_session() as session:
+            user = user_service.get_user(session, username, user_id)
+            return user
 
     def get_user(
         self, username: str | None = None, user_id: int | None = None

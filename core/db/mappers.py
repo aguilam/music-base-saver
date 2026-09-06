@@ -98,6 +98,7 @@ def album_track_from_orm(link: TrackAlbumLink) -> AlbumTrack:
         track_peak=primary_file.trackPeak if primary_file else None,
         year=track.year,
         created_at=track.created_at,
+        artists=[artist_short_from_orm(artist) for artist in track.artists],
     )
 
 
