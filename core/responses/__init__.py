@@ -3,6 +3,18 @@ from datetime import datetime
 
 
 @dataclass(slots=True)
+class ShortGenreResponse:
+    id: int
+    name: str
+
+
+@dataclass(slots=True)
+class ShortMoodResponse:
+    id: int
+    name: str
+
+
+@dataclass(slots=True)
 class ShortArtistResponse:
     id: int
     name: str
@@ -10,6 +22,7 @@ class ShortArtistResponse:
     created_at: datetime
     cover_id: int | None = None
     external_id: str | None = None
+    genres: list[ShortGenreResponse] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -17,10 +30,14 @@ class ShortAlbumResponse:
     id: int
     title: str
     created_at: datetime
+    duration: int
+    tracks_count: int
     cover_id: int | None = None
+    album_type: str | None = None
     year: int | None = None
     external_id: str | None = None
     artists: list[ShortArtistResponse] = field(default_factory=list)
+    genres: list[ShortGenreResponse] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -43,11 +60,26 @@ class ShortPlaylistResponse:
 
 
 @dataclass(slots=True)
+class TrackAlbumResponse:
+    id: int
+    title: str
+    duration: int
+    tracks_count: int
+    created_at: datetime
+    cover_id: int | None = None
+    position: int | None = None
+    disc_number: int | None = None
+    external_id: str | None = None
+    artists: list[ShortArtistResponse] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class ShortTrackResponse:
     id: int
     title: str
     duration: int
-    created_at: datetime | None = None
+    created_at: datetime
+    primary_album: TrackAlbumResponse | None = None
     cover_id: int | None = None
     bpm: int | None = None
     track_gain: float | None = None
@@ -75,19 +107,22 @@ class ShortMusicVideoResponse:
     duration: int | None = None
 
 
-# TODO: Add short album
 @dataclass(slots=True)
 class FullTrackResponse:
     id: int
     title: str
     duration: int
     created_at: datetime
+    primary_album: TrackAlbumResponse | None = None
     cover_id: int | None = None
     bpm: int | None = None
     track_gain: float | None = None
     track_peak: float | None = None
     year: int | None = None
     external_id: str | None = None
+    genres: list[ShortGenreResponse] = field(default_factory=list)
+    moods: list[ShortMoodResponse] = field(default_factory=list)
+    albums: list[TrackAlbumResponse] = field(default_factory=list)
     artists: list[ShortArtistResponse] = field(default_factory=list)
     lyrics: list[ShortLyricsResponse] = field(default_factory=list)
     music_videos: list[ShortMusicVideoResponse] = field(default_factory=list)
@@ -98,7 +133,7 @@ class AlbumTrackResponse:
     id: int
     title: str
     duration: int
-    created_at: datetime | None = None
+    created_at: datetime
     cover_id: int | None = None
     bpm: int | None = None
     disc_number: int | None = None
@@ -124,7 +159,7 @@ class FullAlbumResponse:
     external_id: str | None = None
     tracks: list[AlbumTrackResponse] = field(default_factory=list)
     artists: list[ShortArtistResponse] = field(default_factory=list)
-    genres: list[str] = field(default_factory=list)
+    genres: list[ShortGenreResponse] = field(default_factory=list)
     moods: list[str] = field(default_factory=list)
 
 
@@ -134,7 +169,8 @@ class PlaylistTrackResponse:
     title: str
     duration: int
     position: int
-    created_at: datetime | None = None
+    created_at: datetime
+    primary_album: TrackAlbumResponse | None = None
     cover_id: int | None = None
     bpm: int | None = None
     track_gain: float | None = None
@@ -166,7 +202,8 @@ class FullArtistResponse:
     description: str | None = None
     cover_id: int | None = None
     external_id: str | None = None
-    genres: list[str] = field(default_factory=list)
+    genres: list[ShortGenreResponse] = field(default_factory=list)
+    moods: list[ShortMoodResponse] = field(default_factory=list)
     albums: list[ShortAlbumResponse] = field(default_factory=list)
 
 

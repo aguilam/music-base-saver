@@ -1,3 +1,4 @@
+from core.responses import FullAlbumResponse, FullTrackResponse, FullArtistResponse
 from core.errors import BaseError
 from fastapi import FastAPI, Request, APIRouter, Depends, status
 from fastapi.responses import Response, JSONResponse, StreamingResponse
@@ -14,9 +15,8 @@ from interfaces.subsonic_api.mappers import (
     to_subsonic_playlist,
     to_subsonic_song,
     to_subsonic_lyric,
-    external_album_to_subsonic,
-    external_artist_to_subsonic,
-    external_track_to_subsonic,
+    album_track_to_subsonic_song,
+    playlist_track_to_subsonic_song,
 )
 import json
 from interfaces.base_interface import Interface
@@ -207,7 +207,7 @@ def create_playlist(
     subsonic_playlist = to_subsonic_playlist(new_playlist)
     tracks = []
     for track in new_playlist.tracks:
-        subsonic_track = to_subsonic_song(track)
+        subsonic_track = playlist_track_to_subsonic_song(track)
         tracks.append(subsonic_track)
     subsonic_playlist["entry"] = tracks
     return {"playlists": subsonic_playlist}
@@ -219,7 +219,7 @@ def delete_playlist(
     id: int,
     user: Annotated[User, Depends(get_user)],
 ):
-    check_subsonic_error(library_manager.delete_playlist(id, user.id))
+    check_subsonic_error(library_manager.delete_playlist(id))
     return {}
 
 
@@ -271,7 +271,7 @@ def get_playlist(
     subsonic_playlist = to_subsonic_playlist(playlist)
     tracks = []
     for track in playlist.tracks:
-        subsonic_track = to_subsonic_song(track)
+        subsonic_track = playlist_track_to_subsonic_song(track)
         tracks.append(subsonic_track)
     subsonic_playlist["entry"] = tracks
     return {
@@ -378,16 +378,13 @@ def global_search(
     albums = []
     tracks = []
     for artist in searched.artists:
-        sub_artist = external_artist_to_subsonic(artist)
-        sub_artist["dbId"] = artist.id
+        sub_artist = to_subsonic_artist(artist)
         artists.append(sub_artist)
     for album in searched.albums:
-        sub_album = external_album_to_subsonic(album)
-        sub_album["dbId"] = album.id
+        sub_album = to_subsonic_album(album)
         albums.append(sub_album)
     for track in searched.tracks:
-        sub_track = external_track_to_subsonic(track)
-        sub_track["dbId"] = track.id
+        sub_track = to_subsonic_song(track)
         tracks.append(sub_track)
     return {
         "globalSearchResult": {"artist": artists, "album": albums, "song": tracks},
@@ -397,16 +394,13 @@ def global_search(
 @subsonic_router.get("/getArtist.view")
 @subsonic_router.get("/getArtist")
 def get_artist(library_manager: CurrentLibrary, id: str):
+    artist: FullArtistResponse
     if "-" in id:
         artist = check_subsonic_error(library_manager.get_global_object("artist", id))
-        parsed_artist = external_artist_to_subsonic(artist)
-        parsed_artist["album"] = [
-            external_album_to_subsonic(album) for album in artist.albums
-        ]
     else:
         artist = check_subsonic_error(library_manager.get_artist_by_id(int(id)))
-        parsed_artist = to_subsonic_artist(artist)
-        parsed_artist["album"] = [to_subsonic_album(album) for album in artist.albums]
+    parsed_artist = to_subsonic_artist(artist)
+    parsed_artist["album"] = [to_subsonic_album(album) for album in artist.albums]
     return {
         "artist": parsed_artist,
     }
@@ -434,18 +428,12 @@ def get_artists(library_manager: CurrentLibrary):
 
 @subsonic_router.get("/getSong")
 def get_song(library_manager: CurrentLibrary, id: str):
+    track: FullTrackResponse
     if "-" in id:
-        track = library_manager.get_global_object("track", id)
-        song = check_subsonic_error(external_track_to_subsonic(track))
+        track = check_subsonic_error(library_manager.get_global_object("track", id))
     else:
         track = check_subsonic_error(library_manager.get_track_by_id(int(id)))
-        if track is None:
-            raise_subsonic_error(70)
-        # song_link = next(
-        #    (link.link for link in track.links if link.link_type == "storage"), None
-        # )
-        song = to_subsonic_song(track)
-        # song["path"] = song_link
+    song = to_subsonic_song(track)
     return {
         "song": song,
     }
@@ -454,26 +442,15 @@ def get_song(library_manager: CurrentLibrary, id: str):
 @subsonic_router.get("/getAlbum.view")
 @subsonic_router.get("/getAlbum")
 def get_album(library_manager: CurrentLibrary, id: str):
+    album: FullAlbumResponse
     if "-" in id:
         album = check_subsonic_error(library_manager.get_global_object("album", id))
-        parsed_album = external_album_to_subsonic(album)
-        parsed_album["song"] = [
-            external_track_to_subsonic(track) for track in album.tracks
-        ]
     else:
         album = check_subsonic_error(library_manager.get_album_by_id(int(id)))
-        parsed_album = to_subsonic_album(album)
-        tracks = []
-        for track in album.tracks:
-            # track_link = next(
-            #    (link.link for link in track. if link.link_type == "storage"), None
-            # )
-            subsonic_track = to_subsonic_song(track)
-
-            # subsonic_track["path"] = track_link
-
-            tracks.append(subsonic_track)
-        parsed_album["song"] = tracks
+    parsed_album = to_subsonic_album(album)
+    parsed_album["song"] = [
+        album_track_to_subsonic_song(track) for track in album.tracks
+    ]
     return {
         "album": parsed_album,
     }

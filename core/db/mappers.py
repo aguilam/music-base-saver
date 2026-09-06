@@ -35,7 +35,23 @@ from core.schemas import (
     ProviderKey,
     PlaylistTrack,
     AlbumTrack,
+    MoodShort,
+    GenreShort,
 )
+
+
+def short_mood_from_orm(mood: MoodORM) -> MoodShort:
+    return MoodShort(
+        id=mood.id,
+        name=mood.name,
+    )
+
+
+def short_genre_from_orm(genre: GenreORM) -> GenreShort:
+    return GenreShort(
+        id=genre.id,
+        name=genre.name,
+    )
 
 
 def artist_from_orm(artist: ArtistORM) -> Artist:
@@ -47,7 +63,7 @@ def artist_from_orm(artist: ArtistORM) -> Artist:
         description=artist.description,
         created_at=artist.created_at,
         albums=[album_short_from_orm(album) for album in artist.albums],
-        genres=[genre.name for genre in artist.genres],
+        genres=[short_genre_from_orm(genre) for genre in artist.genres],
     )
 
 
@@ -94,7 +110,7 @@ def album_from_orm(album: AlbumORM) -> Album:
         duration=album.duration,
         description=album.description,
         tracks_count=album.track_count,
-        genres=[genre.name for genre in album.genres],
+        genres=[short_genre_from_orm(genre) for genre in album.genres],
         artists=[artist_short_from_orm(artist) for artist in album.artists],
         tracks=[album_track_from_orm(link) for link in album.tracks_links],
         created_at=album.created_at,
@@ -109,7 +125,7 @@ def album_short_from_orm(album: AlbumORM) -> AlbumShort:
         duration=album.duration,
         description=album.description,
         tracks_count=album.track_count,
-        genres=[genre.name for genre in album.genres],
+        genres=[short_genre_from_orm(genre) for genre in album.genres],
         artists=[artist_short_from_orm(artist) for artist in album.artists],
         created_at=album.created_at,
     )
@@ -118,11 +134,18 @@ def album_short_from_orm(album: AlbumORM) -> AlbumShort:
 def playlist_track_from_orm(link: PlaylistTrackLink) -> PlaylistTrack:
     track = link.track
     primary_file = next((file for file in track.files if file.is_primary), None)
+    primary_album_link = next(
+        (link for link in track.albums_links if link.is_primary_album),
+        track.albums_links[0] if len(track.albums_links) > 0 else None,
+    )
     return PlaylistTrack(
         id=track.id,
         title=track.title,
         length=track.length,
-        cover_path=track.albums_links[0].album.cover_path,
+        cover_path=primary_album_link.album.cover_path if primary_album_link else None,
+        primary_album=track_album_from_orm(primary_album_link)
+        if primary_album_link
+        else None,
         path=(
             next((link.id for link in primary_file.links), None)
             if primary_file
@@ -171,8 +194,9 @@ def track_from_orm(track: TrackORM) -> Track:
     primary_file = next(
         (file for file in track.files if file.is_primary), track.files[0]
     )
-    primary_album = next(
-        (link.album for link in track.albums_links if link.is_primary_album), None
+    primary_album_link = next(
+        (link for link in track.albums_links if link.is_primary_album),
+        track.albums_links[0] if len(track.albums_links) > 0 else None,
     )
     return Track(
         id=track.id,
@@ -180,8 +204,11 @@ def track_from_orm(track: TrackORM) -> Track:
         length=track.length,
         artists=[artist_short_from_orm(artist) for artist in track.artists],
         albums=[track_album_from_orm(link) for link in track.albums_links],
-        cover_path=primary_album.cover_path if primary_album else None,
+        cover_path=primary_album_link.album.cover_path if primary_album_link else None,
         path=(next((link.id for link in primary_file.links), None)),
+        primary_album=track_album_from_orm(primary_album_link)
+        if primary_album_link
+        else None,
         bpm=track.bpm,
         track_gain=primary_file.trackGain if primary_file else None,
         track_peak=primary_file.trackPeak if primary_file else None,
@@ -189,16 +216,25 @@ def track_from_orm(track: TrackORM) -> Track:
         lyrics=[lyrics_from_orm(lyrics) for lyrics in track.lyrics],
         music_videos=[music_video_from_orm(video) for video in track.music_videos],
         created_at=track.created_at,
+        genres=[short_genre_from_orm(genre) for genre in track.genres],
+        moods=[short_mood_from_orm(genre) for genre in track.moods],
     )
 
 
 def track_short_from_orm(track: TrackORM) -> TrackShort:
     primary_file = next((file for file in track.files if file.is_primary), None)
+    primary_album_link = next(
+        (link for link in track.albums_links if link.is_primary_album),
+        track.albums_links[0] if len(track.albums_links) > 0 else None,
+    )
     return TrackShort(
         id=track.id,
         title=track.title,
         length=track.length,
-        cover_path=track.albums_links[0].album.cover_path,
+        cover_path=primary_album_link.album.cover_path if primary_album_link else None,
+        primary_album=track_album_from_orm(primary_album_link)
+        if primary_album_link
+        else None,
         path=(
             next((link.id for link in primary_file.links), None)
             if primary_file

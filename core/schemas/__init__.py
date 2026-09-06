@@ -14,7 +14,7 @@ class Artist:
     cover_path: int | None = None
     external_id: str | None = None
     created_at: datetime | None = None
-    genres: list[str] = field(default_factory=list)
+    genres: list[GenreShort] = field(default_factory=list)
     albums: list[AlbumShort] = field(default_factory=list)
 
 
@@ -35,6 +35,18 @@ class Genre:
 
 
 @dataclass(slots=True)
+class GenreShort:
+    name: str
+    id: int | None = None
+
+
+@dataclass(slots=True)
+class MoodShort:
+    name: str
+    id: int | None = None
+
+
+@dataclass(slots=True)
 class ArtistShort:
     name: str
     id: int | None = None
@@ -43,7 +55,7 @@ class ArtistShort:
     cover_path: int | None = None
     external_id: str | None = None
     created_at: datetime | None = None
-    genres: list[str] = field(default_factory=list)
+    genres: list[GenreShort] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -60,7 +72,7 @@ class Album:
     external_id: str | None = None
     tracks: list[AlbumTrack] = field(default_factory=list)
     artists: list[ArtistShort] = field(default_factory=list)
-    genres: list[str] = field(default_factory=list)
+    genres: list[GenreShort] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -75,7 +87,7 @@ class AlbumShort:
     created_at: datetime | None = None
     external_id: str | None = None
     artists: list[ArtistShort] = field(default_factory=list)
-    genres: list[str] = field(default_factory=list)
+    genres: list[GenreShort] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -92,6 +104,7 @@ class PlaylistTrack:
     year: int | None = None
     created_at: datetime | None = None
     external_id: str | None = None
+    primary_album: TrackAlbum | None = None
     artists: list[ArtistShort] = field(default_factory=list)
 
 
@@ -124,7 +137,10 @@ class Track:
     artists: list[ArtistShort] = field(default_factory=list)
     albums: list[TrackAlbum] = field(default_factory=list)
     lyrics: list[Lyrics] = field(default_factory=list)
+    primary_album: TrackAlbum | None = None
     music_videos: list[MusicVideo] = field(default_factory=list)
+    genres: list[GenreShort] = field(default_factory=list)
+    moods: list[MoodShort] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -140,6 +156,7 @@ class TrackShort:
     year: int | None = None
     created_at: datetime | None = None
     external_id: str | None = None
+    primary_album: TrackAlbum | None = None
     albums: list[TrackAlbum] = field(default_factory=list)
     artists: list[ArtistShort] = field(default_factory=list)
 

@@ -14,6 +14,9 @@ from core.responses import (
     ShortPlaylistResponse,
     PlaylistTrackResponse,
     AlbumTrackResponse,
+    TrackAlbumResponse,
+    ShortGenreResponse,
+    ShortMoodResponse,
 )
 from core.schemas import (
     Album,
@@ -29,6 +32,9 @@ from core.schemas import (
     StoredUser,
     PlaylistTrack,
     AlbumTrack,
+    TrackAlbum,
+    GenreShort,
+    MoodShort,
 )
 
 
@@ -55,7 +61,11 @@ def to_short_album_response(album: Album | AlbumShort) -> ShortAlbumResponse:
         title=album.title,
         cover_id=album.cover_path,
         created_at=_required(album.created_at),
+        duration=_required(album.duration),
+        tracks_count=_required(album.tracks_count),
+        album_type=album.album_type,
         external_id=album.external_id,
+        genres=[to_short_genre_response(genre) for genre in album.genres],
         artists=[to_short_artist_response(artist) for artist in album.artists],
     )
 
@@ -76,6 +86,9 @@ def to_short_track_response(track: Track | TrackShort) -> ShortTrackResponse:
         created_at=_required(track.created_at),
         cover_id=track.cover_path,
         bpm=track.bpm,
+        primary_album=to_track_album_response(track.primary_album)
+        if track.primary_album
+        else None,
         track_gain=track.track_gain,
         track_peak=track.track_peak,
         year=track.year,
@@ -116,9 +129,9 @@ def to_full_album_response(album: Album) -> FullAlbumResponse:
         description=album.description,
         cover_id=album.cover_path,
         external_id=album.external_id,
+        genres=[to_short_genre_response(genre) for genre in album.genres],
         tracks=[to_album_track_response(track) for track in album.tracks],
         artists=[to_short_artist_response(artist) for artist in album.artists],
-        genres=list(album.genres),
     )
 
 
@@ -131,6 +144,9 @@ def to_playlist_track_response(track: PlaylistTrack) -> PlaylistTrackResponse:
         cover_id=track.cover_path,
         bpm=track.bpm,
         position=track.position,
+        primary_album=to_track_album_response(track.primary_album)
+        if track.primary_album
+        else None,
         track_gain=track.track_gain,
         track_peak=track.track_peak,
         year=track.year,
@@ -178,11 +194,34 @@ def to_short_lyrics_response(lyrics: Lyrics) -> ShortLyricsResponse:
     )
 
 
+def to_short_genre_response(genre: GenreShort) -> ShortGenreResponse:
+    return ShortGenreResponse(id=_required(genre.id), name=genre.name)
+
+
+def to_short_mood_response(genre: MoodShort) -> ShortMoodResponse:
+    return ShortMoodResponse(id=_required(genre.id), name=genre.name)
+
+
 def to_short_music_video_response(music_video: MusicVideo) -> ShortMusicVideoResponse:
     return ShortMusicVideoResponse(
         id=_required(music_video.id),
         track_id=music_video.track_id,
         duration=music_video.duration_ms,
+    )
+
+
+def to_track_album_response(album: TrackAlbum) -> TrackAlbumResponse:
+    return TrackAlbumResponse(
+        id=_required(album.id),
+        title=album.title,
+        duration=_required(album.duration),
+        tracks_count=_required(album.tracks_count),
+        created_at=_required(album.created_at),
+        cover_id=album.cover_path,
+        position=album.album_position,
+        disc_number=album.disc_number,
+        external_id=album.external_id,
+        artists=[to_short_artist_response(artist) for artist in album.artists],
     )
 
 
@@ -197,7 +236,13 @@ def to_full_track_response(track: Track) -> FullTrackResponse:
         track_gain=track.track_gain,
         track_peak=track.track_peak,
         year=track.year,
+        primary_album=to_track_album_response(track.primary_album)
+        if track.primary_album
+        else None,
+        albums=[to_track_album_response(album) for album in track.albums],
         external_id=track.external_id,
+        genres=[to_short_genre_response(genre) for genre in track.genres],
+        moods=[to_short_mood_response(moods) for moods in track.moods],
         artists=[to_short_artist_response(artist) for artist in track.artists],
         lyrics=[to_short_lyrics_response(lyrics) for lyrics in track.lyrics],
         music_videos=[
@@ -215,7 +260,7 @@ def to_full_artist_response(artist: Artist) -> FullArtistResponse:
         description=artist.description,
         cover_id=artist.cover_path,
         external_id=artist.external_id,
-        genres=list(artist.genres),
         created_at=_required(artist.created_at),
+        genres=[to_short_genre_response(genre) for genre in artist.genres],
         albums=[to_short_album_response(album) for album in artist.albums],
     )

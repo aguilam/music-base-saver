@@ -1,4 +1,4 @@
-from core.schemas import Track, Album, Artist
+from core.schemas import Track, Album
 from core.responses import (
     FullArtistResponse,
     FullAlbumResponse,
@@ -9,11 +9,36 @@ from core.responses import (
     ShortTrackResponse,
     ShortPlaylistResponse,
     LyricsResponse,
+    AlbumTrackResponse,
+    PlaylistTrackResponse,
 )
 
 
-def to_subsonic_song(track: FullTrackResponse | ShortTrackResponse):
-    primary_album = next((album for album in track.albums if album.is_primary), None)
+def album_track_to_subsonic_song(track: AlbumTrackResponse):
+    song = {
+        "id": str(track.id),
+        # "parent": primary_album.id if primary_album else None,
+        "isDir": False,
+        "title": track.title,
+        # "album": primary_album.title if primary_album else None,
+        "artist": ", ".join(artist.name for artist in track.artists),
+        "duration": int(track.duration / 1000),
+        "created": track.created_at,
+        # "albumId": str(primary_album.id) if primary_album else None,
+        "artistId": str(track.artists[0].id),
+        "type": "music",
+        "mediaType": "song",
+        "externalId": track.external_id,
+        "isVideo": False,
+    }
+
+    # if primary_album and primary_album.cover_id:
+    #    song["coverArt"] = f"{primary_album.cover_id}"
+    return song
+
+
+def playlist_track_to_subsonic_song(track: PlaylistTrackResponse):
+    primary_album = track.primary_album
     song = {
         "id": str(track.id),
         "parent": primary_album.id if primary_album else None,
@@ -24,17 +49,44 @@ def to_subsonic_song(track: FullTrackResponse | ShortTrackResponse):
         "duration": int(track.duration / 1000),
         "created": track.created_at,
         "albumId": str(primary_album.id) if primary_album else None,
-        "artistId": str(primary_album.artists[0].id) if primary_album else None,
+        "artistId": str(track.artists[0].id),
         "type": "music",
         "mediaType": "song",
+        "externalId": track.external_id,
+        "isVideo": False,
+    }
+
+    if primary_album and primary_album.cover_id:
+        song["coverArt"] = f"{primary_album.cover_id}"
+    return song
+
+
+def to_subsonic_song(track: FullTrackResponse | ShortTrackResponse):
+    primary_album = track.primary_album
+    song = {
+        "id": str(track.id),
+        "parent": primary_album.id if primary_album else None,
+        "isDir": False,
+        "title": track.title,
+        "album": primary_album.title if primary_album else None,
+        "artist": ", ".join(artist.name for artist in track.artists),
+        "duration": int(track.duration / 1000),
+        "created": track.created_at,
+        "albumId": str(primary_album.id) if primary_album else None,
+        "artistId": str(track.artists[0].id),
+        "type": "music",
+        "mediaType": "song",
+        "externalId": track.external_id,
         "isVideo": False,
     }
     if isinstance(track, FullTrackResponse):
         song["musicVideo"] = (
             f"cl-{track.music_videos[0].id}" if len(track.music_videos) > 0 else None
         )
-    if primary_album and primary_album.cover_path:
-        song["coverArt"] = f"{primary_album.cover_path}"
+        song["genres"] = ([{"name": genre.name} for genre in track.genres],)
+        song["moods"] = ([{"name": mood.name} for mood in track.moods],)
+    if primary_album and primary_album.cover_id:
+        song["coverArt"] = f"{primary_album.cover_id}"
     return song
 
 
@@ -47,11 +99,13 @@ def to_subsonic_album(album: FullAlbumResponse | ShortAlbumResponse):
         "title": album.title,
         "name": album.title,
         "isDir": True,
-        "songCount": len(album.tracks),
+        "songCount": album.tracks_count,
         "created": album.created_at,
         "duration": int(album.duration / 1000) if album.duration else None,
         "artistId": str(artist.id),
         "artist": artist.name,
+        "genres": [{"name": genre.name} for genre in album.genres],
+        "externalId": album.external_id,
     }
     if album.cover_id:
         sub_album["coverArt"] = f"{album.cover_id}"
@@ -62,7 +116,8 @@ def to_subsonic_artist(artist: FullArtistResponse | ShortArtistResponse):
     sub_artist = {
         "id": str(artist.id),
         "name": artist.name,
-        "albumCount": len(artist.albums),
+        "albumCount": artist.albums_count,
+        "externalId": artist.external_id,
     }
     if artist.cover_id:
         sub_artist["coverArt"] = f"{artist.cover_id}"
@@ -101,63 +156,48 @@ def to_subsonic_lyric(lyrics: LyricsResponse):
     return sub_lyrics
 
 
-def external_track_to_subsonic(track: Track):
-    song = {
-        "id": track.external_id,
-        "isDir": False,
-        "title": track.title,
-        "album": track.albums[0].title,
-        "artist": (track.artists[0]),
-        "duration": track.length,
-        "type": "music",
-        "mediaType": "song",
-        "isVideo": False,
-    }
-
-    if track.cover_path:
-        song["coverArt"] = track.cover_path
-
-    if track.id:
-        song["db_id"] = track.id
-
-    return song
-
-
-def external_album_to_subsonic(album: Album):
-    sub_album = {
-        "id": album.external_id,
-        "album": album.title,
-        "title": album.title,
-        "name": album.title,
-        "isDir": True,
-        "artist": album.artists[0].name,
-        "songCount": album.tracks_count,
-        "created": album.created_at,
-    }
-    if album.cover_path:
-        sub_album["coverArt"] = album.cover_path
-
-    if album.id:
-        sub_album["db_id"] = album.id
-        # sub_album["parent"] = album.get("artist_id")
-        # sub_album["artistId"] = album.get("artist_id")
-    if album.tracks:
-        if album.duration:
-            sub_album["duration"] = album.duration
-    return sub_album
-
-
-def external_artist_to_subsonic(artist: Artist):
-    sub_artist = {
-        "id": artist.external_id,
-        "name": artist.name,
-        "albumCount": len(artist.albums),
-    }
-
-    if artist.cover_path:
-        sub_artist["coverArt"] = artist.cover_path
-
-    if artist.id:
-        sub_artist["db_id"] = artist.id
-
-    return sub_artist
+# def external_track_to_subsonic(track: Track):
+#    song = {
+#        "id": track.external_id,
+#        "isDir": False,
+#        "title": track.title,
+#        "album": track.albums[0].title,
+#        "artist": (track.artists[0]),
+#        "duration": track.length,
+#        "type": "music",
+#        "mediaType": "song",
+#        "isVideo": False,
+#    }
+#
+#    if track.cover_path:
+#        song["coverArt"] = track.cover_path
+#
+#    if track.id:
+#        song["db_id"] = track.id
+#
+#    return song
+#
+#
+# def external_album_to_subsonic(album: Album):
+#    sub_album = {
+#        "id": album.external_id,
+#        "album": album.title,
+#        "title": album.title,
+#        "name": album.title,
+#        "isDir": True,
+#        "artist": album.artists[0].name,
+#        "songCount": album.tracks_count,
+#        "created": album.created_at,
+#    }
+#    if album.cover_path:
+#        sub_album["coverArt"] = album.cover_path
+#
+#    if album.id:
+#        sub_album["db_id"] = album.id
+#        # sub_album["parent"] = album.get("artist_id")
+#        # sub_album["artistId"] = album.get("artist_id")
+#    if album.tracks:
+#        if album.duration:
+#            sub_album["duration"] = album.duration
+#    return sub_album
+#
