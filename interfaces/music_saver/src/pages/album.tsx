@@ -1,16 +1,18 @@
 import { useParams } from "@solidjs/router";
-import { For, Show } from "solid-js";
+import { Show } from "solid-js";
 import { formatTimeToString } from "~/shared/lib/utils";
 import Cover from "~/shared/ui/cover";
-import TrackCard from "~/entities/track/ui/trackCard";
 import { createAlbumQuery } from "~/entities/album/api/queries";
 import TrackList from "~/entities/track/ui/trackList";
 const AlbumPage = () => {
-  const params = useParams()
+  const params = useParams();
   const albumQuery = createAlbumQuery(() => Number(params.id));
 
   return (
-    <Show when={albumQuery.data} fallback={albumQuery.isLoading ? <div>Loading</div> : <div>Not found</div>}>
+    <Show
+      when={albumQuery.data}
+      fallback={albumQuery.isLoading ? <div>Loading</div> : <div>Not found</div>}
+    >
       {(album) => (
         <div>
           <div class="h-48 flex gap-5">
@@ -29,7 +31,7 @@ const AlbumPage = () => {
             </div>
           </div>
           <div class="">
-              <TrackList tracks={album().tracks}/>
+            <TrackList tracks={album().tracks} />
           </div>
         </div>
       )}

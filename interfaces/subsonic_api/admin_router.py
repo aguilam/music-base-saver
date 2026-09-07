@@ -175,7 +175,9 @@ def local_search(library: CurrentLibrary, query: str):
 
 
 @router.get("/users")
-def get_users(library: CurrentLibrary):
+def get_users(library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)]):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Not permitted")
     users = library.get_all_users()
     return [to_camel(asdict(user)) for user in users]
 
@@ -408,13 +410,17 @@ def patch_playlist(
 
 
 @router.post("/syncs", status_code=status.HTTP_201_CREATED)
-def post_sync(library: CurrentLibrary):
+def post_sync(library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)]):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Not permitted")
     sync_id = library.sync()
     return {"syncId": sync_id}
 
 
 @router.get("/syncs")
-def get_syncs(library: CurrentLibrary):
+def get_syncs(library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)]):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Not permitted")
     result = []
     for task_id, sync in library.get_sync_tasks().items():
         data = {
@@ -427,7 +433,11 @@ def get_syncs(library: CurrentLibrary):
 
 
 @router.get("/syncs/{id}")
-def get_sync(library: CurrentLibrary, id: str):
+def get_sync(
+    library: CurrentLibrary, id: str, user: Annotated[dict, Depends(user_auth)]
+):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Not permitted")
     sync = check_result(library.get_sync_task(id))
     cameled = to_camel(asdict(sync))
     cameled.pop("task", None)
@@ -435,7 +445,11 @@ def get_sync(library: CurrentLibrary, id: str):
 
 
 @router.delete("/syncs/{id}")
-def cancel_sync(library: CurrentLibrary, id: str):
+def cancel_sync(
+    library: CurrentLibrary, id: str, user: Annotated[dict, Depends(user_auth)]
+):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Not permitted")
     is_canceled = check_result(library.cancel_sync_task(id))
     return {"isCanceled": is_canceled}
 
