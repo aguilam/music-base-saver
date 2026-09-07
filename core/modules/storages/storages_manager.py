@@ -45,6 +45,7 @@ class _StoragesManager:
     def get_cover_art(self, session: Session, id: int) -> BinaryBlob | BaseError:
         storage = server_service.get_storage_object_by_id(session, id)
         if storage is None:
+            print("t1")
             return NotFoundError()
         cover_art = self.get_file(storage.link, storage.link_provider)
         if cover_art is None:
