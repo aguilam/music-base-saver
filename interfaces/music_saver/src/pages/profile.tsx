@@ -1,13 +1,12 @@
 import { useParams } from "@solidjs/router";
 import { Component, createEffect, createResource, createSignal, For, Show } from "solid-js";
-import { Button } from "~/components/ui/button";
-import { TextField, TextFieldInput, TextFieldLabel } from "~/components/ui/text-field";
+
 import { createUserPlaylistsQuery } from "~/entities/playlist/api/queries";
 import PlaylistCard from "~/entities/playlist/ui/playlistCard";
 import { pathUsersMutation } from "~/entities/user";
+import UserCredentialsDialog from "~/entities/user/ui/userCredentialsDialog";
 import { getUser } from "~/shared/api/users";
 import { user } from "~/shared/store/user";
-import { Dialog, DialogContent, DialogPortal, DialogTrigger } from "~/shared/ui/dialog/dialog";
 
 const ProfilePage: Component = () => {
   const params = useParams();
@@ -43,26 +42,16 @@ const ProfilePage: Component = () => {
         </div>
         <p class="text-7xl font-extrabold text-gray-800">{currentUser()?.username}</p>
         <Show when={user.id === currentUser()?.id || user.role == "admin"}>
-          <Dialog>
-            <DialogTrigger<typeof Button> as={(props) => <Button {...props}>...</Button>} />
-            <DialogPortal>
-              <DialogContent class=" flex flex-col gap-2">
-                <TextField value={username()} onChange={(v) => setUsername(v)}>
-                  <TextFieldLabel>Username</TextFieldLabel>
-                  <TextFieldInput />
-                </TextField>
-                <TextField value={password()} onChange={(v) => setPassword(v)}>
-                  <TextFieldLabel>Write new password</TextFieldLabel>
-                  <TextFieldInput />
-                </TextField>
-                <TextField value={newPassword()} onChange={(v) => setNewPassword(v)}>
-                  <TextFieldLabel>Repeat new password</TextFieldLabel>
-                  <TextFieldInput />
-                </TextField>
-                <Button onClick={handleSaveUser}>Save</Button>
-              </DialogContent>
-            </DialogPortal>
-          </Dialog>
+          <UserCredentialsDialog
+            buttonText="..."
+            handleSave={handleSaveUser}
+            username={username}
+            setUsername={setUsername}
+            password={password}
+            setPassword={setPassword}
+            repeatedPassword={newPassword}
+            setRepeatedPassword={setNewPassword}
+          />
         </Show>
       </div>
       <div class="w-full h-full px-4">

@@ -1,5 +1,5 @@
 import { createMutation, createQuery, useQueryClient } from "@tanstack/solid-query";
-import { getAllUsers, pathUser } from "./endpoint";
+import { createUser, getAllUsers, pathUser } from "./endpoint";
 
 export function createUsersQuery() {
   return createQuery(() => ({
@@ -15,6 +15,17 @@ export function pathUsersMutation() {
       pathUser(data.userId, data.username, data.password),
     onSuccess: (_, data) => {
       queryClient.invalidateQueries({ queryKey: ["user", data.userId] });
+    },
+  }));
+}
+
+export function addUserMutation() {
+  const queryClient = useQueryClient();
+  return createMutation(() => ({
+    mutationFn: (data: { username: string; password: string }) =>
+      createUser(data.username, data.password),
+    onSuccess: () => {
+      queryClient.refetchQueries({ queryKey: ["users"] });
     },
   }));
 }

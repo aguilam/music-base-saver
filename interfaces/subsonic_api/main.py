@@ -73,7 +73,9 @@ def get_user(
         raise_subsonic_error(10)
 
 
-subsonic_router = APIRouter(prefix="/rest", dependencies=[Depends(get_user)])
+subsonic_router = APIRouter(
+    prefix="/rest", dependencies=[Depends(get_user)], tags=["OpenSubsonic"]
+)
 
 
 async def subsonic_exception_handler(request: Request, exc: Exception):

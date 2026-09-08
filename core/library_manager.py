@@ -376,6 +376,7 @@ class LibraryManager:
     ) -> ShortUserResponse:
         with DBManager.get_session() as session:
             user = user_service.create_user(session, username, email, password)
+            session.commit()
             return to_short_user_response(user)
 
     def delete_playlist(self, playlist_id: int):

@@ -67,8 +67,8 @@ def user_auth(request: Request):
         )
 
 
-router = APIRouter()
-auth_router = APIRouter(prefix="/auth")
+router = APIRouter(tags=["Admin API"])
+auth_router = APIRouter(prefix="/auth", tags=["Admin API"])
 
 
 @auth_router.post("/register", status_code=status.HTTP_201_CREATED)
@@ -183,8 +183,16 @@ def get_users(library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)]
 
 
 @router.post("/users")
-def post_user():
-    pass
+def post_user(
+    library: CurrentLibrary,
+    user: Annotated[dict, Depends(user_auth)],
+    username: str = Body(),
+    password: str = Body(),
+):
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Not permitted")
+    new_user = check_result(library.create_user(username, "", password))
+    return to_camel(asdict(new_user))
 
 
 @router.get("/users/{id}")

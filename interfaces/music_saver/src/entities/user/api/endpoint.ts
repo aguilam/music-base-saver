@@ -6,6 +6,10 @@ export async function getAllUsers() {
   return users;
 }
 
+export async function createUser(username: string, password: string) {
+  await client.post("/users", { json: { username: username, password: password } });
+}
+
 export async function pathUser(userId: number, username: string, password: string) {
   await client.patch(`/users/${userId}`, { json: { username: username, password: password } });
 }
