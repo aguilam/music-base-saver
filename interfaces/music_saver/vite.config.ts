@@ -1,9 +1,9 @@
-import path from "path"
+import path from "path";
 
-import tailwindcss from '@tailwindcss/vite';
-import { defineConfig } from 'vite';
-import solidPlugin from 'vite-plugin-solid';
-import devtools from 'solid-devtools/vite';
+import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "vite";
+import solidPlugin from "vite-plugin-solid";
+import devtools from "solid-devtools/vite";
 
 export default defineConfig({
   plugins: [devtools(), solidPlugin(), tailwindcss()],
@@ -12,10 +12,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "~": path.resolve(__dirname, "./src")
-    }
+      "~": path.resolve(__dirname, "./src"),
+    },
   },
   build: {
-    target: 'esnext',
+    target: "esnext",
   },
 });
