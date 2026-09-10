@@ -1,0 +1,9 @@
+.venv
+venv
+__pycache__
+.git
+node_modules
+dist
+*.pyc
+database.db
+external
