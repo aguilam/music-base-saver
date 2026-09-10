@@ -49,7 +49,8 @@ from core.responses import (
     ShortPlaylistResponse,
     SearchResultsResponse,
 )
-from typing import Literal, Generator, overload
+from typing import Literal, overload
+from collections.abc import Iterator
 from core.services import (
     album_service,
     artist_service,
@@ -457,7 +458,7 @@ class LibraryManager:
 
     def stream_track(
         self, id: str, start_bytes: int, end_bytes: int
-    ) -> Generator[bytes] | BaseError:
+    ) -> Iterator[bytes] | BaseError:
         return StoragesManager.stream_track(id, start_bytes, end_bytes)
 
     def get_albums_cursor(

@@ -1,6 +1,6 @@
 from core.modules.storages.schemas import FileMetadata
 from core.modules import Service
-from typing import Generator
+from collections.abc import Iterator
 from abc import ABC, abstractmethod
 
 
@@ -35,5 +35,5 @@ class Storage(Service, ABC):
         pass
 
     @abstractmethod
-    def get_range_bytes(self, path: str, start: int, end: int) -> Generator[bytes]:
+    def get_range_bytes(self, path: str, start: int, end: int) -> Iterator[bytes]:
         pass

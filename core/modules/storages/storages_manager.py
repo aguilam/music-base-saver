@@ -20,7 +20,7 @@ from collections import defaultdict
 import os
 from core.db.models import ObjectStorageORM, LyricsORM, MusicVideoORM
 from core.errors import BaseError, NotFoundError
-from typing import Generator
+from collections.abc import Iterator
 from sqlmodel import Session
 from core.services import (
     album_service,
@@ -64,7 +64,7 @@ class _StoragesManager:
 
     def stream_track(
         self, id: str, start_bytes: int, end_bytes: int
-    ) -> Generator[bytes] | BaseError:
+    ) -> Iterator[bytes] | BaseError:
         with DBManager.get_session() as session:
             object_id = None
             if "cl-" in id:
