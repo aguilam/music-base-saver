@@ -27,61 +27,63 @@ const App: ParentComponent = (props) => {
   });
   return (
     <QueryClientProvider client={queryClient}>
-      <Show when={user.username} fallback={<Navigate href="/auth" />}>
         <SidebarProvider>
-          <Sidebar>
-            <SidebarHeader />
-            <SidebarContent>
-              <SidebarGroup>
+          <Show when={user.username} fallback={<Navigate href="/auth" />}>
+            <Sidebar>
+              <SidebarHeader />
+              <SidebarContent>
+                <SidebarGroup>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton onClick={() => navigate("/search")}>
+                          Search
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton onClick={() => navigate("/")}>Main</SidebarMenuButton>
+                      </SidebarMenuItem>
+                      <Show when={user.isAdmin}>
+                        <SidebarMenuItem>
+                          <SidebarMenuButton onClick={() => navigate("/statuses")}>
+                            Statuses
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                        <SidebarMenuItem>
+                          <SidebarMenuButton onClick={() => navigate("/users")}>
+                            Users
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      </Show>
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              </SidebarContent>
+              <SidebarFooter>
                 <SidebarGroupContent>
                   <SidebarMenu>
                     <SidebarMenuItem>
-                      <SidebarMenuButton onClick={() => navigate("/search")}>
-                        Search
+                      <SidebarMenuButton onClick={() => navigate("/settings")}>
+                        Settings
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
-                      <SidebarMenuButton onClick={() => navigate("/")}>Main</SidebarMenuButton>
+                      <SidebarMenuButton onClick={() => navigate(`/profile/${user.id}`)}>
+                        Profile
+                      </SidebarMenuButton>
                     </SidebarMenuItem>
-                    <Show when={user.role == "admin"}>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton onClick={() => navigate("/statuses")}>
-                          Statuses
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton onClick={() => navigate("/users")}>
-                          Users
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    </Show>
                   </SidebarMenu>
                 </SidebarGroupContent>
-              </SidebarGroup>
-            </SidebarContent>
-            <SidebarFooter>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton onClick={() => navigate("/settings")}>
-                      Settings
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton onClick={() => navigate(`/profile/${user.id}`)}>
-                      Profile
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarFooter>
-          </Sidebar>
+              </SidebarFooter>
+            </Sidebar>
+          </Show>
           <main class="w-full h-full">
-            <SidebarTrigger />
+            <Show when={user.username}>
+              <SidebarTrigger />
+            </Show>
             {props.children}
           </main>
         </SidebarProvider>
-      </Show>
     </QueryClientProvider>
   );
 };

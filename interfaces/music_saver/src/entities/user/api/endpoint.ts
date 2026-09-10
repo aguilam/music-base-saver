@@ -13,3 +13,7 @@ export async function createUser(username: string, password: string) {
 export async function pathUser(userId: number, username: string, password: string) {
   await client.patch(`/users/${userId}`, { json: { username: username, password: password } });
 }
+
+export async function getUser(id: number) {
+    return await client.get(`/users/${id}`).json<ListedUser>()
+}

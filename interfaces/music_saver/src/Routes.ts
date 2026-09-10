@@ -2,10 +2,7 @@ import { lazy } from "solid-js";
 import App from "./App";
 
 export const routes = [
-    {
-        path: "/auth",
-        component: lazy(() => import("./pages/auth")),
-    },
+
     {
         path: "/",
         component: App,
@@ -13,6 +10,10 @@ export const routes = [
             {
                 path: "/",
                 component: lazy(() => import("./pages/main")),
+            },
+            {
+                path: "/auth",
+                component: lazy(() => import("./pages/auth")),
             },
             {
                 path: "/statuses",

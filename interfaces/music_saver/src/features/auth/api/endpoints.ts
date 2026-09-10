@@ -1,6 +1,5 @@
-import { CurrentUser } from "./types";
-import { client } from "./client";
-import { setUser, user } from "../store/user";
+import { ListedUser } from "~/entities/user";
+import { client } from "~/shared/api/client";
 
 export async function refreshAuth() {
     try {
@@ -23,12 +22,6 @@ export async function logoutAuth() {
 }
 
 export async function getMe() {
-    const CurrentUser = await client.get("/auth/me").json<CurrentUser>()
-    setUser(CurrentUser)
+    return await client.get("/auth/me").json<ListedUser>()
 }
-
-
-
-
-
 

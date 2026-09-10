@@ -50,7 +50,7 @@ const SettingsPage: Component = () => {
         </div>
       </div>
 
-      <Show when={user.role == "admin"}>
+      <Show when={user.isAdmin}>
         <div>
           <div class=" flex gap-2 items-center">
             <p>Sync</p>

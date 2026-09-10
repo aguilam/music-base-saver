@@ -144,7 +144,7 @@ def get_me(library: CurrentLibrary, request: Request):
     return {
         "id": user.id,
         "username": user.username,
-        "role": "admin" if user.is_admin else "user",
+        "isAdmin": user.is_admin,
     }
 
 

@@ -1,16 +1,16 @@
 import { createStore, SetStoreFunction } from "solid-js/store";
-import { CurrentUser } from "../api/types";
 import { makePersisted } from "@solid-primitives/storage";
+import { ListedUser } from "~/entities/user";
 
-const initialUser: CurrentUser = {
+const initialUser: ListedUser = {
   id: NaN,
   username: "",
-  role: "",
+  isAdmin: false,
 };
 
 export const [user, setUser] = makePersisted<
-  CurrentUser,
-  [CurrentUser, SetStoreFunction<CurrentUser>]
+ListedUser,
+  [ListedUser, SetStoreFunction<ListedUser>]
 >(createStore(initialUser), {
   name: "user",
 });
