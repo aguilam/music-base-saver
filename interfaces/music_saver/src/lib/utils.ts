@@ -1,29 +1,27 @@
-import { type ClassValue, clsx } from "clsx"
-import { twMerge } from "tailwind-merge"
-import { onMount, onCleanup } from "solid-js"
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+import { onCleanup, createEffect, Accessor } from "solid-js";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
-export function createObserver(
-  target: () => HTMLElement | undefined,
-  onIntersect: () => void
-) {
-  onMount(() => {
-    const el = target()
-    if (!el) return
+export function createObserver(target: Accessor<HTMLElement | undefined>, onIntersect: () => void) {
+  createEffect(() => {
+    const el = target();
+    if (!el) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
+        console.log(entry);
         if (entry.isIntersecting) {
-          onIntersect()
+          onIntersect();
         }
       },
-      { rootMargin: "230px" }
-    )
+      { rootMargin: "240px" },
+    );
 
-    observer.observe(el)
-    onCleanup(() => observer.disconnect())
-  })
+    observer.observe(el);
+    onCleanup(() => observer.disconnect());
+  });
 }
