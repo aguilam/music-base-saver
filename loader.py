@@ -15,6 +15,8 @@ def init_interfaces(
     interfaces_dict: dict[str, Interface] = {}
     for id, interface in classes.items():
         interface_config = config.get(id, {})
+        if not interface_config.get("enabled", True):
+            continue
         interfaces_dict[id] = interface(
             library_manager=library_manager, config=interface_config
         )

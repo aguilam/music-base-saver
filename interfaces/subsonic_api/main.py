@@ -681,6 +681,8 @@ class SubsonicApi(Interface):
         host = self.config.get("host", "0.0.0.0")
         app = FastAPI()
         app.state.library_manager = self.library_manager
+        app.state.SECRET_KEY: str = self.config.get("jwt_secret", "test-key")
+        app.state.ALLOW_REGISTRATION: str = self.config.get("allow_registration", False)
         app.add_middleware(
             CORSMiddleware,
             allow_origin_regex=r".*",

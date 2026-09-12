@@ -9,10 +9,8 @@ from fastapi.responses import StreamingResponse
 
 from interfaces.subsonic_api.utils import CurrentLibrary, check_result, to_camel
 
-SECRET_KEY = "4a1d7f8e3b2c9a1058f321d4c7a9b8e210459f8a3c2b1d0e9f8a7b6c5d4e3f2a"
 
-
-def create_keys(id: int, is_admin: bool) -> tuple[str, str]:
+def create_keys(SECRET_KEY: str, id: int, is_admin: bool) -> tuple[str, str]:
     now = int(time.time())
     access_token = jwt.encode(
         {
@@ -38,8 +36,9 @@ def create_keys(id: int, is_admin: bool) -> tuple[str, str]:
     return (access_token, refresh_token)
 
 
-def set_cookie(response: Response, id: int, is_admin: bool):
-    access_token, refresh_token = create_keys(id, is_admin)
+def set_cookie(response: Response, request: Request, id: int, is_admin: bool):
+    SECRET_KEY = request.app.state.SECRET_KEY
+    access_token, refresh_token = create_keys(SECRET_KEY, id, is_admin)
     response.set_cookie(
         "access_token",
         access_token,
@@ -60,6 +59,7 @@ def user_auth(request: Request):
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
     try:
+        SECRET_KEY = request.app.state.SECRET_KEY
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         return payload
     except Exception:
@@ -75,28 +75,36 @@ auth_router = APIRouter(prefix="/auth", tags=["Admin API"])
 @auth_router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(
     library: CurrentLibrary,
+    request: Request,
     response: Response,
     username: str = Body(),
     password: str = Body(),
 ):
+    if not request.app.state.ALLOW_REGISTRATION:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Registration is disabled on this server",
+        )
     user = check_result(library.create_user(username, "", password))
-    set_cookie(response, user.id, user.is_admin)
+    set_cookie(response, request, user.id, user.is_admin)
 
 
 @auth_router.post("/login")
 def login(
     library: CurrentLibrary,
     response: Response,
+    request: Request,
     username: str = Body(),
     password: str = Body(),
 ):
     user = check_result(library.check_user_login(username=username, password=password))
-    set_cookie(response, user.id, user.is_admin)
+    set_cookie(response, request, user.id, user.is_admin)
 
 
 @auth_router.post("/refresh")
 def refresh(request: Request, response: Response):
     token = request.cookies.get("refresh_token")
+    SECRET_KEY = request.app.state.SECRET_KEY
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -128,6 +136,7 @@ def logout(response: Response):
 @auth_router.get("/me")
 def get_me(library: CurrentLibrary, request: Request):
     token = request.cookies.get("access_token")
+    SECRET_KEY = request.app.state.SECRET_KEY
     if token is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
     try:
