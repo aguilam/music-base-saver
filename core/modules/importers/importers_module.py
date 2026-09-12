@@ -42,7 +42,7 @@ from core.utils import (
 
 
 class ImportersModule(Module):
-    ID = "importers"
+    ID = "importer"
 
     def __init__(self, modules, config, logger):
         super().__init__(modules, config, logger)

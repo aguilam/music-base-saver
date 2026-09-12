@@ -34,11 +34,12 @@ from core.utils import (
 
 
 class StoragesModule(Module):
-    ID = "storages"
+    ID = "storage"
 
     def __init__(self, modules, config, logger):
         super().__init__(modules, config, logger)
         self.temp_dir = Path("temp_files")
+        self.config: list
         self.storages, _ = load_storages(self.config, import_modules(__file__, Storage))
 
     def get_cover_art(self, session: Session, id: int) -> BinaryBlob | BaseError:

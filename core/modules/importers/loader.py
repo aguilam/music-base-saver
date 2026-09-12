@@ -1,9 +1,9 @@
-from core.schemas import ServiceStatus
+from core.loader import ModuleEntry, import_modules, load_modules
 from core.modules.importers.base import Importer
-from core.loader import load_modules, import_modules, ModuleEntry
+from core.schemas import ServiceStatus
 
 
 def load_importers(
     config: dict,
 ) -> tuple[list[ModuleEntry[Importer]], list[ServiceStatus]]:
-    return load_modules(config.get("importer", {}), import_modules(__file__, Importer))
+    return load_modules(config, import_modules(__file__, Importer))

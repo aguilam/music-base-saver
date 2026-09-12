@@ -1,8 +1,9 @@
-from core.loader import ModuleEntry
-from typing import Any
-from core.schemas import ServiceStatus, HealthStatus
-from core.modules.storages.base import Storage
 from dataclasses import dataclass
+from typing import Any
+
+from core.loader import ModuleEntry
+from core.modules.storages.base import Storage
+from core.schemas import HealthStatus, ServiceStatus
 
 
 @dataclass(slots=True)
@@ -12,12 +13,11 @@ class StorageEntry(ModuleEntry[Storage]):
 
 
 def load_storages(
-    config: dict, storage_classes: dict[str, Any]
+    config: list, storage_classes: dict[str, Any]
 ) -> tuple[list[StorageEntry], list[ServiceStatus]]:
-    storages: dict = config.get("storage", {})
     active_storages: list[StorageEntry] = []
     errors = []
-    for storage in storages:
+    for storage in config:
         try:
             if storage.get("enabled", True):
                 storage_tag = storage["tag"]

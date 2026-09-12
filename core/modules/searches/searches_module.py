@@ -13,7 +13,7 @@ from core.services import (
 
 
 class SearchesModule(Module):
-    ID = "searches"
+    ID = "search"
 
     def __init__(self, modules, config, logger):
         super().__init__(modules, config, logger)

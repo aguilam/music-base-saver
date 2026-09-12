@@ -13,7 +13,7 @@ from core.services import (
 
 
 class ScrobblersModule(Module):
-    ID = "scrobblers"
+    ID = "scrobbler"
 
     def __init__(self, modules, config, logger):
         super().__init__(modules, config, logger)

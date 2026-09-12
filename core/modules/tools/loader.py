@@ -1,7 +1,8 @@
-from core.modules.tools.base import ToolFunction, Tool
-from core.modules.tools.events import Event
 import inspect
 from collections import defaultdict
+
+from core.modules.tools.base import Tool, ToolFunction
+from core.modules.tools.events import Event
 
 
 def load_tools(modules: dict[str, type[Tool]]) -> dict[Event, list[ToolFunction]]:
