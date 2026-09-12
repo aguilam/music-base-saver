@@ -1,8 +1,10 @@
-from core.db.manager import DBManager
-from core.modules.searches.loader import import_searches
-from core.schemas import Artist, Album, Track, SearchResults
 from typing import Literal, overload
+
+from core.db.manager import DBManager
 from core.errors import BaseError
+from core.modules import Module
+from core.modules.searches.loader import import_searches
+from core.schemas import Album, Artist, SearchResults, Track
 from core.services import (
     album_service,
     artist_service,
@@ -10,9 +12,11 @@ from core.services import (
 )
 
 
-class _SearchesManager:
-    def __init__(self):
-        self.config = dict()
+class SearchesModule(Module):
+    ID = "searches"
+
+    def __init__(self, modules, config, logger):
+        super().__init__(modules, config, logger)
         self.search_engines, _ = import_searches(self.config)
 
     def global_search(self, query: str) -> SearchResults:
@@ -92,6 +96,3 @@ class _SearchesManager:
                     for album in artist.albums:
                         album.external_id = f"{engine.tag}-{album.external_id}"
                     return artist
-
-
-SearchesManager = _SearchesManager()

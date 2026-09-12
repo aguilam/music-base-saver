@@ -1,6 +1,6 @@
-from core.schemas import ServiceStatus
+from core.loader import ModuleEntry, import_modules, load_modules
 from core.modules.scrobblers.base import Scrobbler
-from core.loader import load_modules, import_modules, ModuleEntry
+from core.schemas import ServiceStatus
 
 
 def load_scrobblers(

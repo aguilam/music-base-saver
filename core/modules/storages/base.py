@@ -1,7 +1,8 @@
-from core.modules.storages.schemas import FileMetadata
-from core.modules import Service
-from collections.abc import Iterator
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
+
+from core.modules import Service
+from core.modules.storages.schemas import FileMetadata
 
 
 class Storage(Service, ABC):

@@ -1,56 +1,53 @@
-from core.modules.storages.schemas import FileMetadata
-from core.modules.importers.importers_manager import ImportersManager
-from core.tasks.schemas import (
-    DownloadTaskResult,
-    ImportTaskResult,
-    SyncTaskResult,
-    Task,
-)
-from core.tasks.tasks_manager import TasksManager
-from core.modules.storages.storages_manager import StoragesManager
-from core.modules.tools.events import Event
-from core.modules.tools.tools_manager import ToolsManager
-from core.responses.mappers import (
-    to_short_track_response,
-    to_short_album_response,
-    to_short_artist_response,
-    to_full_track_response,
-    to_full_playlist_response,
-    to_short_user_response,
-    to_full_artist_response,
-    to_full_album_response,
-    to_short_playlist_response,
-)
-from core.modules.scrobblers.scrobblers_manager import ScrobblersManager
-from core.modules.searches.searches_manager import SearchesManager
-from core.db.manager import DBManager
-import tomllib
+from collections.abc import Iterator
 from pathlib import Path
-from core.schemas import (
-    ApiKey,
-    ProviderKey,
-    BinaryBlob,
-    ServicesStatus,
-    LibraryStats,
-    StoredUser,
-)
-from core.errors import BaseError, check_error, NotFoundError, UnauthorizedError
+from typing import Literal, overload
+
+import tomllib
+
+from core.db.manager import DBManager
+from core.errors import BaseError, NotFoundError, UnauthorizedError, check_error
+from core.modules.downloaders.downloaders_module import DownloadersModule
+from core.modules.importers.importers_module import ImportersModule
+from core.modules.modules_manager import ModulesManager
+from core.modules.scrobblers.scrobblers_module import ScrobblersModule
+from core.modules.searches.searches_module import SearchesModule
+from core.modules.storages.schemas import FileMetadata
+from core.modules.storages.storages_module import StoragesModule
+from core.modules.tools.events import Event
+from core.modules.tools.tools_module import ToolsModule
 from core.responses import (
-    FullTrackResponse,
     FullAlbumResponse,
     FullArtistResponse,
-    ShortTrackResponse,
-    ShortToolResponse,
-    ShortArtistResponse,
-    ShortAlbumResponse,
     FullPlaylistResponse,
-    ShortUserResponse,
+    FullTrackResponse,
     LyricsResponse,
-    ShortPlaylistResponse,
     SearchResultsResponse,
+    ShortAlbumResponse,
+    ShortArtistResponse,
+    ShortPlaylistResponse,
+    ShortToolResponse,
+    ShortTrackResponse,
+    ShortUserResponse,
 )
-from typing import Literal, overload
-from collections.abc import Iterator
+from core.responses.mappers import (
+    to_full_album_response,
+    to_full_artist_response,
+    to_full_playlist_response,
+    to_full_track_response,
+    to_short_album_response,
+    to_short_artist_response,
+    to_short_playlist_response,
+    to_short_track_response,
+    to_short_user_response,
+)
+from core.schemas import (
+    ApiKey,
+    BinaryBlob,
+    LibraryStats,
+    ProviderKey,
+    ServicesStatus,
+    StoredUser,
+)
 from core.services import (
     album_service,
     artist_service,
@@ -59,12 +56,19 @@ from core.services import (
     track_service,
     user_service,
 )
-from core.modules.downloaders.downloaders_manager import DownloadManager
+from core.tasks.schemas import (
+    DownloadTaskResult,
+    ImportTaskResult,
+    SyncTaskResult,
+    Task,
+)
+from core.tasks.tasks_manager import TasksManager
 
 
 class LibraryManager:
-    def __init__(self) -> None:
+    def __init__(self, modules: ModulesManager) -> None:
         path = Path(__file__).resolve()
+        self.modules = modules
         self.config_path = path.parents[1] / "config.toml"
         self.toml_config = ""
         with self.config_path.open("r", encoding="utf-8") as config_file:
@@ -100,8 +104,11 @@ class LibraryManager:
                 tracks=[to_short_track_response(track) for track in searched.tracks],
             )
 
-    def global_search(self, query: str) -> SearchResultsResponse:
-        searched = SearchesManager.global_search(query)
+    def global_search(self, query: str) -> SearchResultsResponse | BaseError:
+        search_module = self.modules.get(SearchesModule)
+        if isinstance(search_module, BaseError):
+            return search_module
+        searched = search_module.global_search(query)
         return SearchResultsResponse(
             artists=[to_short_artist_response(artist) for artist in searched.artists],
             albums=[to_short_album_response(album) for album in searched.albums],
@@ -124,32 +131,47 @@ class LibraryManager:
     def get_global_object(
         self, object_type: Literal["track", "album", "artist"], object_id: str
     ):
-        return SearchesManager.get_global_object(object_type, object_id)
+        search_module = self.modules.get(SearchesModule)
+        if isinstance(search_module, BaseError):
+            return search_module
+        return search_module.get_global_object(object_type, object_id)
 
     def get_similiar_artists_random_tracks(
         self, artist_id: int, count: int
     ) -> list[ShortTrackResponse] | BaseError:
-        tracks = ScrobblersManager.get_similiar_artists_random_tracks(artist_id, count)
+        scrobblers_module = self.modules.get(ScrobblersModule)
+        if isinstance(scrobblers_module, BaseError):
+            return scrobblers_module
+        tracks = scrobblers_module.get_similiar_artists_random_tracks(artist_id, count)
         if isinstance(tracks, BaseError):
             return tracks
         return [to_short_track_response(track) for track in tracks]
 
-    def get_track_tools(self) -> list[ShortToolResponse]:
-        return ToolsManager.get_track_process_events()
+    def get_track_tools(self) -> list[ShortToolResponse] | BaseError:
+        tools_module = self.modules.get(ToolsModule)
+        if isinstance(tools_module, BaseError):
+            return tools_module
+        return tools_module.get_track_process_events()
 
     def process_track(self, tool_func_id: str, track_id: int) -> BaseError | None:
+        tools_module = self.modules.get(ToolsModule)
+        if isinstance(tools_module, BaseError):
+            return tools_module
         with DBManager.get_session() as session:
             track = track_service.get_track_by_id(session, track_id)
             if isinstance(track, BaseError):
                 return NotFoundError()
-            return ToolsManager.send_event(
+            return tools_module.send_event(
                 Event.PROCESS_TRACK, track=track, tool_func_id=tool_func_id
             )
 
     def get_user_tracks_recommendations(
         self, user_id: int, count: int
     ) -> list[ShortTrackResponse] | BaseError:
-        tracks = ScrobblersManager.get_user_tracks_recommendations(user_id, count)
+        scrobblers_module = self.modules.get(ScrobblersModule)
+        if isinstance(scrobblers_module, BaseError):
+            return scrobblers_module
+        tracks = scrobblers_module.get_user_tracks_recommendations(user_id, count)
         if isinstance(tracks, BaseError):
             return tracks
         return [to_short_track_response(track) for track in tracks]
@@ -159,9 +181,12 @@ class LibraryManager:
         task_id: str | None = None,
         query: str | None = None,
         object_id: str | None = None,
-    ) -> str:
+    ) -> str | BaseError:
+        downloaders_module = self.modules.get(DownloadersModule)
+        if isinstance(downloaders_module, BaseError):
+            return downloaders_module
         task_id = TasksManager.post_task(
-            func=DownloadManager.download_track,
+            func=downloaders_module.download_track,
             queue_name="download",
             task_id=task_id,
             query=query,
@@ -197,17 +222,26 @@ class LibraryManager:
     def scrobble(
         self, id: int, user_id: int, listen_time: int | None = None
     ) -> BaseError | None:
-        return ScrobblersManager.scrobble(id, user_id, listen_time)
+        scrobblers_module = self.modules.get(ScrobblersModule)
+        if isinstance(scrobblers_module, BaseError):
+            return scrobblers_module
+        return scrobblers_module.scrobble(id, user_id, listen_time)
 
     def post_now_playing(self, id: int, user_id: int) -> BaseError | None:
-        return ScrobblersManager.post_now_playing(id, user_id)
+        scrobblers_module = self.modules.get(ScrobblersModule)
+        if isinstance(scrobblers_module, BaseError):
+            return scrobblers_module
+        return scrobblers_module.post_now_playing(id, user_id)
 
     def delete_provider_key(self, key_id: int):
         with DBManager.get_session() as session:
             return user_service.delete_provider_key(session, key_id)
 
-    def get_provider_types(self) -> list[str]:
-        return [scrobbler.tag for scrobbler in ScrobblersManager.scrobblers]
+    def get_provider_types(self) -> list[str] | BaseError:
+        scrobblers_module = self.modules.get(ScrobblersModule)
+        if isinstance(scrobblers_module, BaseError):
+            return scrobblers_module
+        return [scrobbler.tag for scrobbler in scrobblers_module.scrobblers]
 
     def create_api_key(self, user_id: int) -> ApiKey | BaseError:
         with DBManager.get_session() as session:
@@ -244,7 +278,10 @@ class LibraryManager:
     def get_similiar_artists(
         self, id: int, count: int = 5
     ) -> list[ShortArtistResponse] | BaseError:
-        artists = ScrobblersManager.get_similiar_artists(id, count)
+        scrobblers_module = self.modules.get(ScrobblersModule)
+        if isinstance(scrobblers_module, BaseError):
+            return scrobblers_module
+        artists = scrobblers_module.get_similiar_artists(id, count)
         if isinstance(artists, BaseError):
             return artists
         return [to_short_artist_response(artist) for artist in artists]
@@ -265,8 +302,11 @@ class LibraryManager:
             return [to_short_track_response(track) for track in tracks]
 
     def get_cover_art(self, id: int) -> BinaryBlob | BaseError:
+        storage_module = self.modules.get(StoragesModule)
+        if isinstance(storage_module, BaseError):
+            return storage_module
         with DBManager.get_session() as session:
-            return StoragesManager.get_cover_art(session, id)
+            return storage_module.get_cover_art(session, id)
 
     def get_genres(self) -> list[dict[str, str | int]]:
         with DBManager.get_session() as session:
@@ -459,7 +499,10 @@ class LibraryManager:
     def stream_track(
         self, id: str, start_bytes: int, end_bytes: int
     ) -> Iterator[bytes] | BaseError:
-        return StoragesManager.stream_track(id, start_bytes, end_bytes)
+        storage_module = self.modules.get(StoragesModule)
+        if isinstance(storage_module, BaseError):
+            return storage_module
+        return storage_module.stream_track(id, start_bytes, end_bytes)
 
     def get_albums_cursor(
         self, cursor: str | None, limit: int = 20
@@ -483,7 +526,10 @@ class LibraryManager:
             return [to_short_track_response(track) for track in tracks], cursor
 
     def get_file_metadata(self, id: str) -> FileMetadata | BaseError:
-        return StoragesManager.get_file_metadata(id)
+        storage_module = self.modules.get(StoragesModule)
+        if isinstance(storage_module, BaseError):
+            return storage_module
+        return storage_module.get_file_metadata(id)
 
     def get_sync_task(self, task_id: str) -> Task[SyncTaskResult] | BaseError:
         return TasksManager.get_task("sync", task_id)
@@ -512,9 +558,12 @@ class LibraryManager:
     def cancel_import_task(self, task_id: str) -> bool | BaseError:
         return TasksManager.cancel_task("importing", task_id)
 
-    def sync(self, task_id: str | None = None) -> str:
+    def sync(self, task_id: str | None = None) -> str | BaseError:
+        storage_module = self.modules.get(StoragesModule)
+        if isinstance(storage_module, BaseError):
+            return storage_module
         task_id = TasksManager.post_task(
-            StoragesManager.sync_library,
+            storage_module.sync_library,
             task_id=task_id,
             queue_name="sync",
             task_result=SyncTaskResult(),
@@ -526,9 +575,12 @@ class LibraryManager:
         task_id: str | None = None,
         importer_tag: str | None = None,
         user_id: int | None = None,
-    ) -> str:
+    ) -> str | BaseError:
+        importer_module = self.modules.get(ImportersModule)
+        if isinstance(importer_module, BaseError):
+            return importer_module
         task_id = TasksManager.post_task(
-            func=ImportersManager.import_tracks,
+            func=importer_module.import_tracks,
             queue_name="importing",
             task_id=task_id,
             importer_tag=importer_tag,

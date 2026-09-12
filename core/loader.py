@@ -1,10 +1,11 @@
-from importlib.abc import Loader
-from pathlib import Path
-from importlib.util import spec_from_file_location, module_from_spec
 import inspect
 from dataclasses import dataclass
-from core.schemas import ServiceStatus, HealthStatus
+from importlib.abc import Loader
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
 from typing import Any
+
+from core.schemas import HealthStatus, ServiceStatus
 
 
 @dataclass(slots=True)
@@ -15,6 +16,7 @@ class ModuleEntry[T]:
     instance: T
 
 
+# TODO: Rename to maybe plugin
 def import_modules[T](current_path: str, BaseClass: type[T]) -> dict[str, type[T]]:
     path = Path.resolve(Path(current_path)).parent
     searchs_path = (path / "builtin").glob("*.py")
@@ -49,7 +51,7 @@ def load_modules[T](
         try:
             cls = module_classes[module]
             if cls and settings.get("enabled", True):
-                params = settings.get("params", {})
+                params: dict = settings.get("params", {})
                 modules.append(
                     ModuleEntry(
                         module, settings.get("priority", 0), params, cls(params)

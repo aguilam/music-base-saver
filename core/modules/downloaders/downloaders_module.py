@@ -1,23 +1,28 @@
-from core.tasks.tasks_manager import TasksManager
-from core.db.manager import DBManager
-from core.modules.downloaders.loader import load_downloaders
-from core.modules.storages.storages_manager import StoragesManager
-from core.modules.searches.searches_manager import SearchesManager
-from core.utils import get_track_metadata_by_path, full_track_save
-from core.db.models import ObjectStorageORM
-from core.tasks.schemas import DownloadTaskResult
-from core.schemas import FilePathInfo, Track
+import shutil
 from pathlib import Path
+
+from core.db.manager import DBManager
+from core.db.models import ObjectStorageORM
+from core.errors import BaseError
+from core.modules import Module
+from core.modules.downloaders.loader import load_downloaders
+from core.modules.downloaders.utils import compare_tracks, find_best_track
+from core.modules.searches.searches_module import SearchesModule
+from core.modules.storages.storages_module import StoragesModule
+from core.schemas import FilePathInfo, Track
 from core.services import (
     track_service,
 )
-from core.modules.downloaders.utils import find_best_track, compare_tracks
-import shutil
+from core.tasks.schemas import DownloadTaskResult
+from core.tasks.tasks_manager import TasksManager
+from core.utils import full_track_save, get_track_metadata_by_path
 
 
-class _DownloadersManager:
-    def __init__(self):
-        self.config = dict()
+class DownloadersModule(Module):
+    ID = "downloader"
+
+    def __init__(self, modules, config, logger):
+        super().__init__(modules, config, logger)
         self.downloaders, _ = load_downloaders(self.config)
         self.temp_dir = Path("temp_files")
 
@@ -27,23 +32,29 @@ class _DownloadersManager:
         query: str | None = None,
         object_id: str | None = None,
     ):
+        search_module = self.modules.get(SearchesModule)
+        storage_module = self.modules.get(StoragesModule)
+        if isinstance(search_module, BaseError) or isinstance(
+            storage_module, BaseError
+        ):
+            return
         if query is None and object_id is None:
-            return None
+            return
         downloaders = self.downloaders
         original_track: Track | None = None
 
         tracks_dict = []
         searched_tracks = []
         if query:
-            search_results = SearchesManager.global_search(query).tracks
+            search_results = search_module.global_search(query).tracks
             if len(search_results) < 1:
-                return None
+                return
             original_track = find_best_track(search_results)
         elif object_id:
-            track = SearchesManager.get_global_object("track", object_id)
+            track = search_module.get_global_object("track", object_id)
             original_track = track
         if original_track is None:
-            return None
+            return
         search_query = original_track.title if object_id else query
         for downloader in downloaders:
             current_downloader = downloader.instance
@@ -76,8 +87,8 @@ class _DownloadersManager:
             title = track.title
             artist_name = track.artists[0]
             album_title = track.albums[0].title
-            saving_path = Path((f"{artist_name}/{album_title}/{dst.name}"))
-            best_storage = StoragesManager.find_best_storage(
+            saving_path = Path(f"{artist_name}/{album_title}/{dst.name}")
+            best_storage = storage_module.find_best_storage(
                 file_size=best_track["size"]
             )
             paths = full_track_save(best_storage, dst, saving_path)
@@ -109,6 +120,3 @@ class _DownloadersManager:
                 saved_path=saved_path,
             )
             TasksManager.task_queue.download[task_id].status = "finished"
-
-
-DownloadManager = _DownloadersManager()

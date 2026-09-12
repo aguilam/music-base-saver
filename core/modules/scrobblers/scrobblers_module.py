@@ -1,8 +1,10 @@
-from core.db.manager import DBManager
-from core.modules.scrobblers.loader import load_scrobblers
-from core.errors import BaseError, NotFoundError
-from core.schemas import TrackShort, ArtistShort, Track
 import time
+
+from core.db.manager import DBManager
+from core.errors import BaseError, NotFoundError
+from core.modules import Module
+from core.modules.scrobblers.loader import load_scrobblers
+from core.schemas import ArtistShort, Track, TrackShort
 from core.services import (
     artist_service,
     track_service,
@@ -10,9 +12,11 @@ from core.services import (
 )
 
 
-class _ScrobblersManager:
-    def __init__(self):
-        self.config = dict()
+class ScrobblersModule(Module):
+    ID = "scrobblers"
+
+    def __init__(self, modules, config, logger):
+        super().__init__(modules, config, logger)
         self.scrobblers, _ = load_scrobblers(self.config)
 
     def scrobble(
@@ -93,6 +97,3 @@ class _ScrobblersManager:
                 if not isinstance(db_track, BaseError):
                     db_tracks.append(db_track)
             return db_tracks
-
-
-ScrobblersManager = _ScrobblersManager()

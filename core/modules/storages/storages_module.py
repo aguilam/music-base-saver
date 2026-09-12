@@ -1,27 +1,19 @@
-import tomllib
-from core.modules.storages.schemas import FileMetadata
-from core.db.manager import DBManager
-from core.tasks.tasks_manager import TasksManager
-from core.tasks.schemas import Task, SyncTaskResult
-from core.loader import import_modules
-from core.modules.storages.loader import StorageEntry, load_storages
-from core.utils import (
-    read_lyrics_text,
-    get_video_metadata,
-    get_id_from_string,
-    get_track_metadata_by_bytes,
-    get_cover_metadata,
-    image_mime,
-)
-from pathlib import Path
-from core.modules.storages.base import Storage
-from core.schemas import FilePathInfo, BinaryBlob, LRCLyrics
-from collections import defaultdict
 import os
-from core.db.models import ObjectStorageORM, LyricsORM, MusicVideoORM
-from core.errors import BaseError, NotFoundError
+from collections import defaultdict
 from collections.abc import Iterator
+from pathlib import Path
+
 from sqlmodel import Session
+
+from core.db.manager import DBManager
+from core.db.models import LyricsORM, MusicVideoORM, ObjectStorageORM
+from core.errors import BaseError, NotFoundError
+from core.loader import import_modules
+from core.modules import Module
+from core.modules.storages.base import Storage
+from core.modules.storages.loader import StorageEntry, load_storages
+from core.modules.storages.schemas import FileMetadata
+from core.schemas import BinaryBlob, FilePathInfo, LRCLyrics
 from core.services import (
     album_service,
     artist_service,
@@ -29,17 +21,24 @@ from core.services import (
     server_service,
     track_service,
 )
+from core.tasks.schemas import SyncTaskResult, Task
+from core.tasks.tasks_manager import TasksManager
+from core.utils import (
+    get_cover_metadata,
+    get_id_from_string,
+    get_track_metadata_by_bytes,
+    get_video_metadata,
+    image_mime,
+    read_lyrics_text,
+)
 
 
-class _StoragesManager:
-    def __init__(self):
+class StoragesModule(Module):
+    ID = "storages"
+
+    def __init__(self, modules, config, logger):
+        super().__init__(modules, config, logger)
         self.temp_dir = Path("temp_files")
-        path = Path(__file__).resolve()
-        self.config_path = path.parents[3] / "config.toml"
-        self.toml_config = ""
-        with self.config_path.open("r", encoding="utf-8") as config_file:
-            self.toml_config = config_file.read()
-            self.config = tomllib.loads(self.toml_config)
         self.storages, _ = load_storages(self.config, import_modules(__file__, Storage))
 
     def get_cover_art(self, session: Session, id: int) -> BinaryBlob | BaseError:
@@ -229,7 +228,7 @@ class _StoragesManager:
                             )
                             session.commit()
                             task.result.tracks.added += 1
-                        except Exception as e:
+                        except Exception:
                             session.rollback()
                             continue
                         finally:
@@ -287,7 +286,7 @@ class _StoragesManager:
                             entity.cover_path = cover_storage.id
                             session.commit()
                             task.result.covers.added += 1
-                        except Exception as e:
+                        except Exception:
                             session.rollback()
                             continue
                         finally:
@@ -351,7 +350,7 @@ class _StoragesManager:
                             session.add(lyrics_path)
                             session.commit()
                             task.result.lyrics.added += 1
-                        except Exception as e:
+                        except Exception:
                             session.rollback()
                             continue
                         finally:
@@ -399,7 +398,7 @@ class _StoragesManager:
                             session.add(music_video)
                             session.flush()
                             task.result.videos.added += 1
-                        except Exception as e:
+                        except Exception:
                             session.rollback()
                             continue
                         finally:
@@ -415,6 +414,3 @@ class _StoragesManager:
             # self.logger.warning(
             #    "Problem in library syncing", task_id=task_id, error=str(e)
             # )
-
-
-StoragesManager = _StoragesManager()

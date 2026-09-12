@@ -647,7 +647,7 @@ def getSimiliarSong(library_manager: CurrentLibrary, id: int, count: int = 50):
 @subsonic_router.get("/getScanStatus")
 def scan_status(library_manager: CurrentLibrary):
     task = check_subsonic_error(library_manager.get_sync_task("sub"))
-    is_scanning = True if task.status == "processing" else False
+    is_scanning = task.status == "processing"
     count = (
         task.result.covers.added
         + task.result.lyrics.added

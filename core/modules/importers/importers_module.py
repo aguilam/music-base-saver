@@ -1,52 +1,60 @@
 from pathlib import Path
-from core.db.manager import DBManager
-from core.modules.importers.loader import load_importers
-from core.tasks.tasks_manager import TasksManager
-from core.tasks.schemas import Task, ImportTaskResult
+
 from sqlmodel import select
-from core.schemas import LRCLyrics, TrackMetadata, FilePathInfo
-from core.utils import (
-    sanitize_filename,
-    save_file_from_url,
-    write_video_metadata,
-    read_lyrics_text,
-    image_mime,
-    write_cover_metadata,
-    write_track_metadata,
-)
-from core.errors import BaseError
-from core.modules.storages.storages_manager import StoragesManager
-from core.modules.importers.schemas import ImporterPlaylistTrack
+
+from core.db.manager import DBManager
 from core.db.models import (
-    StarredArtist,
-    StarredAlbum,
-    StarredTrack,
-    LyricsORM,
-    MusicVideoORM,
-    PlaylistTrackLink,
-    ArtistGenreLink,
     AlbumArtistLink,
     AlbumGenreLink,
-    PlaylistOwnerORM,
+    ArtistGenreLink,
+    LyricsORM,
+    MusicVideoORM,
     PlaylistORM,
+    PlaylistOwnerORM,
+    PlaylistTrackLink,
+    StarredAlbum,
+    StarredArtist,
+    StarredTrack,
 )
+from core.errors import BaseError
+from core.modules import Module
+from core.modules.importers.loader import load_importers
+from core.modules.importers.schemas import ImporterPlaylistTrack
+from core.modules.storages.storages_module import StoragesModule
+from core.schemas import FilePathInfo, LRCLyrics, TrackMetadata
 from core.services import (
     album_service,
     artist_service,
     track_service,
     user_service,
 )
+from core.tasks.schemas import ImportTaskResult, Task
+from core.tasks.tasks_manager import TasksManager
+from core.utils import (
+    image_mime,
+    read_lyrics_text,
+    sanitize_filename,
+    save_file_from_url,
+    write_cover_metadata,
+    write_track_metadata,
+    write_video_metadata,
+)
 
 
-class _ImportersManager:
-    def __init__(self):
-        self.config = dict()
+class ImportersModule(Module):
+    ID = "importers"
+
+    def __init__(self, modules, config, logger):
+        super().__init__(modules, config, logger)
         # self.temp_dir = self.config["temp_dir"]
         self.importers, _ = load_importers(self.config)
 
     def import_tracks(
         self, task_id: str, importer_tag: str, user_id: int | None = None
     ):
+        storage_module = self.modules.get(StoragesModule)
+        if isinstance(storage_module, BaseError):
+            return
         task: Task[ImportTaskResult] = TasksManager.task_queue.importing[task_id]
         importers = self.importers
         selected_importer = None
@@ -111,7 +119,7 @@ class _ImportersManager:
                         with open(cover_path, "rb") as f:
                             ext = image_mime(f.read(20)).split("/")[1]
                         cover_name = f"pl-{db_playlist.id}.{ext}"
-                        cover_object = StoragesManager.save_object(
+                        cover_object = storage_module.save_object(
                             session,
                             str(cover_path),
                             cover_name,
@@ -122,13 +130,13 @@ class _ImportersManager:
                     session.commit()
                 except Exception as e:
                     session.rollback()
-                    # self.logger.warning(
-                    #    "Problem in importing playlist",
-                    #    importer=importer_tag,
-                    #    user_id=user_id,
-                    #    playlist_id=playlist_id,
-                    #    error=str(e),
-                    # )
+                    self.logger.warning(
+                        "Problem in importing playlist",
+                        importer=importer_tag,
+                        user_id=user_id,
+                        playlist_id=playlist_id,
+                        error=str(e),
+                    )
 
             for track_id in unique_tracks_ids:
                 try:
@@ -167,7 +175,7 @@ class _ImportersManager:
                     )
                     saving_path = f"{sanitize_filename(track_info.artists[0])}/{sanitize_filename(track_info.albums[0].title)}/{sanitized_name}"
 
-                    best_storage = StoragesManager.find_best_storage(
+                    best_storage = storage_module.find_best_storage(
                         track_dst.stat().st_size,
                     )
                     saved_path = best_storage.instance.save_file(track_dst, saving_path)
@@ -191,13 +199,13 @@ class _ImportersManager:
                     session.commit()
                 except Exception as e:
                     session.rollback()
-                    # self.logger.warning(
-                    #    "Problem in importing track",
-                    #    importer=importer_tag,
-                    #    user_id=user_id,
-                    #    track_id=track_id,
-                    #    error=str(e),
-                    # )
+                    self.logger.warning(
+                        "Problem in importing track",
+                        importer=importer_tag,
+                        user_id=user_id,
+                        track_id=track_id,
+                        error=str(e),
+                    )
 
             for album_id in unique_albums_ids:
                 try:
@@ -228,18 +236,17 @@ class _ImportersManager:
                                 genres=album.genres,
                             )
                         except Exception as e:
-                            pass
-                            # self.logger.warning(
-                            #    "Problem in writing imported cover metadata",
-                            #    importer=importer_tag,
-                            #    user_id=user_id,
-                            #    album_id=album_id,
-                            #    cover_path=str(cover_path),
-                            #    error=str(e),
-                            # )
+                            self.logger.warning(
+                                "Problem in writing imported cover metadata",
+                                importer=importer_tag,
+                                user_id=user_id,
+                                album_id=album_id,
+                                cover_path=str(cover_path),
+                                error=str(e),
+                            )
                         with open(cover_path, "rb") as f:
                             ext = image_mime(f.read(20)).split("/")[1]
-                        cover_object = StoragesManager.save_object(
+                        cover_object = storage_module.save_object(
                             session,
                             str(cover_path),
                             f"{sanitize_filename(album.artists[0])}/{sanitized_title}/{sanitized_title}.{ext}",
@@ -273,13 +280,13 @@ class _ImportersManager:
 
                 except Exception as e:
                     session.rollback()
-                    # self.logger.warning(
-                    #    "Problem in importing album",
-                    #    importer=importer_tag,
-                    #    user_id=user_id,
-                    #    album_id=album_id,
-                    #    error=str(e),
-                    # )
+                    self.logger.warning(
+                        "Problem in importing album",
+                        importer=importer_tag,
+                        user_id=user_id,
+                        album_id=album_id,
+                        error=str(e),
+                    )
 
             for artist_id in unique_artists_ids:
                 try:
@@ -322,18 +329,17 @@ class _ImportersManager:
                                 genres=artist.genres,
                             )
                         except Exception as e:
-                            pass
-                            # self.logger.warning(
-                            #    "Problem in writing imported cover metadata",
-                            #    importer=importer_tag,
-                            #    user_id=user_id,
-                            #    artist_id=artist_id,
-                            #    cover_path=str(cover_path),
-                            #    error=str(e),
-                            # )
+                            self.logger.warning(
+                                "Problem in writing imported cover metadata",
+                                importer=importer_tag,
+                                user_id=user_id,
+                                artist_id=artist_id,
+                                cover_path=str(cover_path),
+                                error=str(e),
+                            )
                         with open(cover_path, "rb") as f:
                             ext = image_mime(f.read(20)).split("/")[1]
-                        cover_object = StoragesManager.save_object(
+                        cover_object = storage_module.save_object(
                             session,
                             str(cover_path),
                             f"{sanitized_name}/{sanitized_name}.{ext}",
@@ -360,13 +366,13 @@ class _ImportersManager:
                     session.commit()
                 except Exception as e:
                     session.rollback()
-                    # self.logger.warning(
-                    #    "Problem in importing artist",
-                    #    importer=importer_tag,
-                    #    user_id=user_id,
-                    #    artist_id=artist_id,
-                    #    error=str(e),
-                    # )
+                    self.logger.warning(
+                        "Problem in importing artist",
+                        importer=importer_tag,
+                        user_id=user_id,
+                        artist_id=artist_id,
+                        error=str(e),
+                    )
 
             for playlist_entry in playlist_tracks_to_add:
                 playlist_id, tracks = playlist_entry
@@ -382,13 +388,13 @@ class _ImportersManager:
                             session.commit()
                 except Exception as e:
                     session.rollback()
-                    # self.logger.warning(
-                    #    "Problem in importing playlist",
-                    #    importer=importer_tag,
-                    #    user_id=user_id,
-                    #    playlist_id=playlist_id,
-                    #    error=str(e),
-                    # )
+                    self.logger.warning(
+                        "Problem in importing playlist",
+                        importer=importer_tag,
+                        user_id=user_id,
+                        playlist_id=playlist_id,
+                        error=str(e),
+                    )
 
             for track_id in tracks_with_lyrics:
                 try:
@@ -422,7 +428,7 @@ class _ImportersManager:
                         )
                         session.add(new_lyrics)
                     saving_path = f"{sanitize_filename(track.artists[0].name)}/{sanitize_filename(track.albums[0].title)}/{sanitize_filename(track.title)}.{lyrics_type}"
-                    lyrics_object = StoragesManager.save_object(
+                    lyrics_object = storage_module.save_object(
                         session, str(saved_path), saving_path
                     )
                     task.result.lyrics.saved += 1
@@ -431,13 +437,13 @@ class _ImportersManager:
                     session.commit()
                 except Exception as e:
                     session.rollback()
-                    # self.logger.warning(
-                    #    "Problem in importing track lyrics",
-                    #    importer=importer_tag,
-                    #    user_id=user_id,
-                    #    track_id=track_id,
-                    #    error=str(e),
-                    # )
+                    self.logger.warning(
+                        "Problem in importing track lyrics",
+                        importer=importer_tag,
+                        user_id=user_id,
+                        track_id=track_id,
+                        error=str(e),
+                    )
 
             for track_id in tracks_with_music_videos:
                 try:
@@ -465,7 +471,7 @@ class _ImportersManager:
                         else "mp4"
                     )
                     saving_path = f"{sanitize_filename(track.artists[0].name)}/{sanitize_filename(track.albums[0].title)}/{sanitize_filename(track.title)}.{ext}"
-                    video_object = StoragesManager.save_object(
+                    video_object = storage_module.save_object(
                         session, str(video_dst), saving_path
                     )
                     task.result.videos.saved += 1
@@ -474,13 +480,13 @@ class _ImportersManager:
                     session.commit()
                 except Exception as e:
                     session.rollback()
-                    # self.logger.warning(
-                    #    "Problem in adding imported music video",
-                    #    importer=importer_tag,
-                    #    user_id=user_id,
-                    #    track_id=track_id,
-                    #    error=str(e),
-                    # )
+                    self.logger.warning(
+                        "Problem in adding imported music video",
+                        importer=importer_tag,
+                        user_id=user_id,
+                        track_id=track_id,
+                        error=str(e),
+                    )
 
             for importer_track_id in favorited_tracks:
                 db_track_id = track_map.get(importer_track_id)
@@ -499,9 +505,6 @@ class _ImportersManager:
 
             session.commit()
             TasksManager.task_queue.importing[task_id].status = "finished"
-            # self.logger.info(
-            #    "Succesful imported library", importer=importer_tag, user_id=user_id
-            # )
-
-
-ImportersManager = _ImportersManager()
+            self.logger.info(
+                "Succesful imported library", importer=importer_tag, user_id=user_id
+            )

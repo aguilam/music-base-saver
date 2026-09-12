@@ -1,8 +1,9 @@
-from core.modules.scrobblers.base import Scrobbler
-from core.schemas import Artist, Track, ArtistShort, AlbumShort
 import liblistenbrainz
-import requests
 import musicbrainzngs.musicbrainz
+import requests
+
+from core.modules.scrobblers.base import Scrobbler
+from core.schemas import AlbumShort, Artist, ArtistShort, Track
 
 musicbrainzngs.set_useragent("YourAppName", "0.1", "https://yourdomain.example/contact")
 
