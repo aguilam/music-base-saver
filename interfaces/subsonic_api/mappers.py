@@ -1,16 +1,15 @@
-from core.schemas import Track, Album
 from core.responses import (
-    FullArtistResponse,
+    AlbumTrackResponse,
     FullAlbumResponse,
+    FullArtistResponse,
     FullPlaylistResponse,
     FullTrackResponse,
+    LyricsResponse,
+    PlaylistTrackResponse,
     ShortAlbumResponse,
     ShortArtistResponse,
-    ShortTrackResponse,
     ShortPlaylistResponse,
-    LyricsResponse,
-    AlbumTrackResponse,
-    PlaylistTrackResponse,
+    ShortTrackResponse,
 )
 
 

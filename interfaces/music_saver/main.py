@@ -1,10 +1,12 @@
-from fastapi.responses import FileResponse
 from pathlib import Path
-from fastapi.staticfiles import StaticFiles
+
 import uvicorn
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
-from interfaces.base_interface import Interface
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+from interfaces import Interface
 
 BASE_DIR = Path(__file__).resolve().parent / "dist"
 
@@ -19,6 +21,8 @@ async def pages(path: str):
 
 
 class WebUi(Interface):
+    ID = "web-ui"
+
     async def start(self):
         port = int(self.config.get("port", 3000))
         host = self.config.get("host", "0.0.0.0")

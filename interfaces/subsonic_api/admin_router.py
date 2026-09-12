@@ -1,12 +1,13 @@
-from urllib.parse import quote
-from fastapi.responses import StreamingResponse
-from dataclasses import fields
-from typing import Annotated
 import time
-from fastapi import APIRouter, Request, Body, HTTPException, status, Response, Depends
+from dataclasses import asdict, fields
+from typing import Annotated
+from urllib.parse import quote
+
 import jwt
-from interfaces.subsonic_api.utils import CurrentLibrary, to_camel, check_result
-from dataclasses import asdict
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
+from fastapi.responses import StreamingResponse
+
+from interfaces.subsonic_api.utils import CurrentLibrary, check_result, to_camel
 
 SECRET_KEY = "4a1d7f8e3b2c9a1058f321d4c7a9b8e210459f8a3c2b1d0e9f8a7b6c5d4e3f2a"
 
@@ -490,7 +491,7 @@ def get_track(library: CurrentLibrary, id: int):
 
 @router.get("/tools/tracks")
 def get_track_tools(library: CurrentLibrary):
-    tools = library.get_track_tools()
+    tools = check_result(library.get_track_tools())
     return [to_camel(asdict(tool)) for tool in tools]
 
 

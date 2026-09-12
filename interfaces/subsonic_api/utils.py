@@ -1,7 +1,10 @@
-from fastapi import Request, Depends, HTTPException
-from typing import Annotated, NoReturn, Any, Sequence
-from core.library_manager import LibraryManager
+from collections.abc import Sequence
+from typing import Annotated, Any, NoReturn
+
+from fastapi import Depends, HTTPException, Request
+
 from core.errors import BaseError
+from core.library_manager import LibraryManager
 
 
 class SubsonicException(Exception):

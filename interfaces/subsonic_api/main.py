@@ -1,32 +1,34 @@
-from core.responses.mappers import to_short_user_response
-from core.responses import FullAlbumResponse, FullTrackResponse, FullArtistResponse
-from core.errors import BaseError
-from fastapi import FastAPI, Request, APIRouter, Depends, status
-from fastapi.responses import Response, JSONResponse, StreamingResponse
-from collections import defaultdict
 import hashlib
-import uvicorn
-from typing import Annotated
-from core.schemas import StoredUser as User
+import json
+from collections import defaultdict
 from hmac import compare_digest
+from typing import Annotated
+
+import uvicorn
+from fastapi import APIRouter, Depends, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response, StreamingResponse
+
+from core.errors import BaseError
+from core.responses import FullAlbumResponse, FullArtistResponse, FullTrackResponse
+from core.responses.mappers import to_short_user_response
+from core.schemas import StoredUser as User
+from interfaces import Interface
+from interfaces.subsonic_api import admin_router
 from interfaces.subsonic_api.mappers import (
-    to_subsonic_album,
-    to_subsonic_artist,
-    to_subsonic_playlist,
-    to_subsonic_song,
-    to_subsonic_lyric,
     album_track_to_subsonic_song,
     playlist_track_to_subsonic_song,
+    to_subsonic_album,
+    to_subsonic_artist,
+    to_subsonic_lyric,
+    to_subsonic_playlist,
+    to_subsonic_song,
 )
-import json
-from interfaces.base_interface import Interface
-from interfaces.subsonic_api import admin_router
 from interfaces.subsonic_api.utils import (
     CurrentLibrary,
-    raise_subsonic_error,
     SubsonicException,
     check_subsonic_error,
+    raise_subsonic_error,
 )
 
 
@@ -672,6 +674,8 @@ def get_license():
 
 
 class SubsonicApi(Interface):
+    ID = "subsonic-api"
+
     async def start(self):
         port = int(self.config.get("port", 8000))
         host = self.config.get("host", "0.0.0.0")
