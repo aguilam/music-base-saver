@@ -15,9 +15,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
+COPY loader.py .
 COPY core ./core
 COPY cli ./cli
-COPY interfaces/base_interface.py interfaces/base_interface.py
+COPY interfaces/__init__.py interfaces/__init__.py
 COPY interfaces/subsonic_api interfaces/subsonic_api
 COPY interfaces/music_saver/main.py interfaces/music_saver/main.py
 COPY --from=frontend /app/dist ./interfaces/music_saver/dist

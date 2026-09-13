@@ -18,6 +18,9 @@ class ModulesManager:
     def get[T: Module](self, module_class: type[T]) -> T | BaseError:
         module = self._modules.get(module_class.ID)
 
-        if module is None or not type(module) is module_class:
-            return NotFoundError(detail=f"Module '{module_class.ID}' not found")
+        if module is None:
+            return NotFoundError(detail=f"Module {module_class.ID} not found")
+
+        if not isinstance(module, module_class):
+            return NotFoundError(detail=(f"Module {module_class.ID} has wrong type"))
         return cast(T, module)
