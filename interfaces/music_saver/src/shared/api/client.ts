@@ -1,10 +1,9 @@
 import ky from "ky";
 import { refreshAuth } from "~/features/auth";
 
-export const API_URL = "http://127.0.0.1:8000";
-
+export const API_URL = "/api/"
 const api = ky.create({
-  baseUrl: API_URL,
+  prefix: API_URL,
   credentials: "include",
 });
 
@@ -33,7 +32,7 @@ export const client = api.extend({
   parseJson: (text) => {
     return JSON.parse(text, (_, value) => {
       if (value && value.coverId != null) {
-        value.coverUri = `${API_URL}/covers/${value.coverId}`;
+        value.coverUri = `${API_URL}covers/${value.coverId}`;
       }
       if (value && value.duration != null) {
         value.duration /= 1000;

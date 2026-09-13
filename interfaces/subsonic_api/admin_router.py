@@ -48,7 +48,7 @@ def set_cookie(response: Response, request: Request, id: int, is_admin: bool):
         "refresh_token",
         refresh_token,
         httponly=True,
-        path="/auth/refresh",
+        path="/api/auth/refresh",
     )
 
 
@@ -130,7 +130,7 @@ def refresh(request: Request, response: Response):
 @auth_router.post("/logout")
 def logout(response: Response):
     response.delete_cookie("access_token")
-    response.delete_cookie("refresh_token", path="/auth/refresh")
+    response.delete_cookie("refresh_token", path="/api/auth/refresh")
 
 
 @auth_router.get("/me")
@@ -431,7 +431,7 @@ def patch_playlist(
 def post_sync(library: CurrentLibrary, user: Annotated[dict, Depends(user_auth)]):
     if user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Not permitted")
-    sync_id = library.sync()
+    sync_id = check_result(library.sync())
     return {"syncId": sync_id}
 
 
