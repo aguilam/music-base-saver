@@ -679,7 +679,12 @@ class SubsonicApi(Interface):
     async def start(self):
         port = int(self.config.get("port", 8000))
         host = self.config.get("host", "0.0.0.0")
-        app = FastAPI()
+        docs = self.config.get("docs", False)
+        app = FastAPI(
+            docs_url="/docs" if docs else None,
+            redoc_url="/redoc" if docs else None,
+            openapi_url="/openapi.json" if docs else None,
+        )
         app.state.library_manager = self.library_manager
         app.state.SECRET_KEY = self.config.get("jwt_secret", "test-key")
         app.state.ALLOW_REGISTRATION = self.config.get("allow_registration", False)

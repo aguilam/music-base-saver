@@ -17,7 +17,7 @@ class SearchesModule(Module):
 
     def __init__(self, modules, config, logger):
         super().__init__(modules, config, logger)
-        self.search_engines, _ = import_searches(self.config)
+        self.search_engines, self.statuses = import_searches(self.config)
 
     def global_search(self, query: str) -> SearchResults:
         search_results = SearchResults(artists=[], albums=[], tracks=[])

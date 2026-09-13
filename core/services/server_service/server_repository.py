@@ -1,25 +1,26 @@
-from sqlalchemy import tuple_, func, distinct
+from sqlalchemy import distinct, func, tuple_
+from sqlmodel import Session, col, delete, select
+
 from core.db.mappers import object_storage_from_orm
-from core.schemas import ObjectStorage
 from core.db.models import (
-    AlbumORM,
-    ArtistORM,
-    TrackAlbumLink,
-    TrackORM,
-    ObjectStorageORM,
-    AudioFileORM,
-    LyricsORM,
-    MusicVideoORM,
-    GenreORM,
-    TrackGenreLink,
-    AlbumGenreLink,
-    ArtistGenreLink,
-    MoodORM,
-    TrackMoodLink,
     AlbumArtistLink,
+    AlbumGenreLink,
+    AlbumORM,
+    ArtistGenreLink,
+    ArtistORM,
+    AudioFileORM,
+    GenreORM,
+    LyricsORM,
+    MoodORM,
+    MusicVideoORM,
+    ObjectStorageORM,
+    TrackAlbumLink,
     TrackArtistsLink,
+    TrackGenreLink,
+    TrackMoodLink,
+    TrackORM,
 )
-from sqlmodel import select, col, Session, delete
+from core.schemas import ObjectStorage
 
 
 def get_storage_object_by_id(session: Session, id: int) -> ObjectStorage | None:
@@ -49,7 +50,7 @@ def bulk_delete_by_links(
     videos_ids = [r[3] for r in ids_statement]
     covers_links_count = (
         session.exec(
-            select(func.count(ObjectStorageORM.id)).where(
+            select(func.count(col(ObjectStorageORM.id))).where(
                 col(ObjectStorageORM.id).in_(links_ids),
                 col(ObjectStorageORM.audio_id).is_(None),
                 col(ObjectStorageORM.lyrics_id).is_(None),
@@ -106,7 +107,7 @@ def get_model_count(session: Session, model) -> int:
 
 
 def get_genre_counts(session: Session) -> tuple[int, int, int, int]:
-    genre_count: int = session.scalar(select(func.count(GenreORM.id))) or 0
+    genre_count: int = session.scalar(select(func.count(col(GenreORM.id)))) or 0
     tracks_genre: int = (
         session.scalar(select(func.count(distinct(col(TrackGenreLink.track_id))))) or 0
     )
@@ -121,7 +122,7 @@ def get_genre_counts(session: Session) -> tuple[int, int, int, int]:
 
 
 def get_moods_counts(session: Session) -> tuple[int, int]:
-    mood_count: int = session.scalar(select(func.count(MoodORM.id))) or 0
+    mood_count: int = session.scalar(select(func.count(col(MoodORM.id)))) or 0
     tracks_moods: int = (
         session.scalar(select(func.count(distinct(col(TrackMoodLink.track_id))))) or 0
     )
@@ -131,7 +132,7 @@ def get_moods_counts(session: Session) -> tuple[int, int]:
 def get_count_with_lyrics(session: Session) -> int:
     tracks_count: int = (
         session.scalar(
-            select(func.count(TrackORM.id)).where(col(TrackORM.lyrics).any())
+            select(func.count(col(TrackORM.id))).where(col(TrackORM.lyrics).any())
         )
         or 0
     )
@@ -141,7 +142,7 @@ def get_count_with_lyrics(session: Session) -> int:
 def get_count_with_videos(session: Session) -> int:
     tracks_count: int = (
         session.scalar(
-            select(func.count(TrackORM.id)).where(col(TrackORM.music_videos).any())
+            select(func.count(col(TrackORM.id))).where(col(TrackORM.music_videos).any())
         )
         or 0
     )

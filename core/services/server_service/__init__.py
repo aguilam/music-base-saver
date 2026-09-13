@@ -1,11 +1,12 @@
-from core.db.models import TrackORM, AlbumORM, ArtistORM, LyricsORM, MusicVideoORM
+from sqlmodel import Session
+
+from core.db.models import AlbumORM, ArtistORM, LyricsORM, MusicVideoORM, TrackORM
+from core.schemas import LibraryStats, ObjectStorage, SearchResults, ServicesStatus
 from core.services import (
     album_service,
     artist_service,
     track_service,
 )
-from core.schemas import SearchResults, ServicesStatus, LibraryStats, ObjectStorage
-from sqlmodel import Session
 from core.services.server_service import server_repository
 
 
@@ -40,28 +41,6 @@ def delete_orphans(session: Session) -> tuple[int, int, int]:
 
 def get_storage_object_by_id(session: Session, object_id: int) -> ObjectStorage | None:
     return server_repository.get_storage_object_by_id(session, object_id)
-
-
-def check_status() -> ServicesStatus:
-    return ServicesStatus(
-        downloaders=[
-            *_get_runtime_errors(self.downloaders),
-            *self.start_errors.downloaders,
-        ],
-        importers=[
-            *_get_runtime_errors(self.importers),
-            *self.start_errors.importers,
-        ],
-        scrobblers=[
-            *_get_runtime_errors(self.scrobblers),
-            *self.start_errors.scrobblers,
-        ],
-        search=[
-            *_get_runtime_errors(self.search_engines),
-            *self.start_errors.search,
-        ],
-        storages=[*_get_runtime_errors(self.storages), *self.start_errors.storages],
-    )
 
 
 def get_library_stats(session: Session) -> LibraryStats:

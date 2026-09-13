@@ -12,6 +12,7 @@ class ToolsModule(Module):
     def __init__(self, modules, config, logger, plugin_dir: str | None = None):
         super().__init__(modules, config, logger)
         self.functions = load_tools(import_modules(__file__, Tool))
+        self.statuses = []
 
     def send_event(self, event: Event, **kwargs):
         event_functions = self.functions.get(event, [])

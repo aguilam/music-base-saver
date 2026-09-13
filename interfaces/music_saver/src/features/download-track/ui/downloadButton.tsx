@@ -6,7 +6,7 @@ interface DownloadButtonProps {
 }
 const DownloadButton = (props: DownloadButtonProps) => {
   return (
-    <Button as="a" href={`${API_URL}/tracks/${props.contentId}/download`}>
+    <Button as="a" href={`${API_URL}tracks/${props.contentId}/download`} download="">
       Download
     </Button>
   );

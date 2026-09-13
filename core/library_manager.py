@@ -595,7 +595,28 @@ class LibraryManager:
             return [to_short_user_response(user) for user in users]
 
     def check_status(self) -> ServicesStatus:
-        return server_service.check_status()
+        downloaders_statuses = self.modules.get_module_statuses("downloader")
+        importers_statuses = self.modules.get_module_statuses("importer")
+        scrobblers_statuses = self.modules.get_module_statuses("scrobbler")
+        search_statuses = self.modules.get_module_statuses("search")
+        storages_statuses = self.modules.get_module_statuses("storage")
+        return ServicesStatus(
+            downloaders=downloaders_statuses
+            if not isinstance(downloaders_statuses, BaseError)
+            else [],
+            importers=importers_statuses
+            if not isinstance(importers_statuses, BaseError)
+            else [],
+            scrobblers=scrobblers_statuses
+            if not isinstance(scrobblers_statuses, BaseError)
+            else [],
+            search=search_statuses
+            if not isinstance(search_statuses, BaseError)
+            else [],
+            storages=storages_statuses
+            if not isinstance(storages_statuses, BaseError)
+            else [],
+        )
 
     def get_library_stats(self) -> LibraryStats:
         with DBManager.get_session() as session:

@@ -17,7 +17,7 @@ class ScrobblersModule(Module):
 
     def __init__(self, modules, config, logger):
         super().__init__(modules, config, logger)
-        self.scrobblers, _ = load_scrobblers(self.config)
+        self.scrobblers, self.statuses = load_scrobblers(self.config)
 
     def scrobble(
         self, id: int, user_id: int, listen_time: int | None = None

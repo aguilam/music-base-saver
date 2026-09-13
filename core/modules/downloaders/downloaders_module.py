@@ -23,7 +23,7 @@ class DownloadersModule(Module):
 
     def __init__(self, modules, config, logger):
         super().__init__(modules, config, logger)
-        self.downloaders, _ = load_downloaders(self.config)
+        self.downloaders, self.statuses = load_downloaders(self.config)
         self.temp_dir = Path("temp_files")
 
     def download_track(

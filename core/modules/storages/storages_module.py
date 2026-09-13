@@ -40,7 +40,9 @@ class StoragesModule(Module):
         super().__init__(modules, config, logger)
         self.temp_dir = Path("temp_files")
         self.config: list
-        self.storages, _ = load_storages(self.config, import_modules(__file__, Storage))
+        self.storages, self.statuses = load_storages(
+            self.config, import_modules(__file__, Storage)
+        )
 
     def get_cover_art(self, session: Session, id: int) -> BinaryBlob | BaseError:
         storage = server_service.get_storage_object_by_id(session, id)
@@ -408,10 +410,10 @@ class StoragesModule(Module):
                 server_service.delete_orphans(session)
                 session.commit()
                 TasksManager.task_queue.sync[task_id].status = "finished"
-                # self.logger.info("Syncing succesful completed")
+                self.logger.info("Syncing succesful completed")
         except Exception as e:
             TasksManager.task_queue.sync[task_id].status = "error"
             TasksManager.task_queue.sync[task_id].error = str(e)
-            # self.logger.warning(
-            #    "Problem in library syncing", task_id=task_id, error=str(e)
-            # )
+            self.logger.warning(
+                "Problem in library syncing", task_id=task_id, error=str(e)
+            )

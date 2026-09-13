@@ -47,7 +47,7 @@ class ImportersModule(Module):
     def __init__(self, modules, config, logger):
         super().__init__(modules, config, logger)
         # self.temp_dir = self.config["temp_dir"]
-        self.importers, _ = load_importers(self.config)
+        self.importers, self.statuses = load_importers(self.config)
 
     def import_tracks(
         self, task_id: str, importer_tag: str, user_id: int | None = None

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from structlog import BoundLogger
 
 from core.modules import Module
+from core.schemas import ServiceStatus
 
 if TYPE_CHECKING:
     from core.modules.modules_manager import ModulesManager
@@ -18,14 +19,15 @@ def init_modules(
     logger: BoundLogger,
     config: dict,
     classes: dict[str, type[Module]],
-) -> dict[str, Module]:
-    modules_dict: dict[str, Module] = {}
+) -> dict[str, tuple[Module, list[ServiceStatus]]]:
+    modules_dict: dict[str, tuple[Module, list[ServiceStatus]]] = {}
     for id, class_type in classes.items():
         module_config = config.get(id, {})
         module_logger = logger.bind(module=id)
-        modules_dict[id] = class_type(
+        instance = class_type(
             modules=modules, config=module_config, logger=module_logger
         )
+        modules_dict[id] = (instance, instance.statuses)
     return modules_dict
 
 
