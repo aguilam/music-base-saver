@@ -1,27 +1,28 @@
-from core.utils import decode_datetime_cursor, encode_datetime_cursor
+from sqlalchemy import and_, or_
+from sqlalchemy.orm import selectinload
+from sqlmodel import Session, col, literal, select
+
 from core.db.mappers import (
+    genre_from_orm,
+    mood_from_orm,
+    music_video_from_orm,
     track_from_orm,
     track_short_from_orm,
-    mood_from_orm,
-    genre_from_orm,
-    music_video_from_orm,
 )
-from core.schemas import Track, TrackShort, Mood, Genre, MusicVideo
-from core.errors import NotFoundError, BaseError
-from core.db.utils import in_load_typing
-from sqlalchemy import or_, and_
-from sqlalchemy.orm import selectinload
-from sqlmodel import select, col, Session, literal
 from core.db.models import (
-    TrackORM,
-    ArtistORM,
     AlbumORM,
-    TrackAlbumLink,
-    ObjectStorageORM,
-    MoodORM,
+    ArtistORM,
     GenreORM,
+    MoodORM,
     MusicVideoORM,
+    ObjectStorageORM,
+    TrackAlbumLink,
+    TrackORM,
 )
+from core.db.utils import in_load_typing
+from core.errors import BaseError, NotFoundError
+from core.schemas import Genre, Mood, MusicVideo, Track, TrackShort
+from core.utils import decode_datetime_cursor, encode_datetime_cursor
 
 
 def find_track(
@@ -109,9 +110,7 @@ def get_all_tracks_storage_links(session: Session) -> set[tuple[str, str]]:
     combined = (
         ObjectStorageORM.link_provider + literal("///") + ObjectStorageORM.link
     ).label("combined")
-    statement = select(combined, ObjectStorageORM.file_name).where(
-        ObjectStorageORM.link_type == "storage"
-    )
+    statement = select(combined, ObjectStorageORM.file_name)
     result = session.exec(statement).all()
     return set(result)
 

@@ -1,21 +1,22 @@
-from core.responses import LyricsResponse
-from sqlmodel import select, Session
+from sqlmodel import Session, select
+
 from core.db.models import (
-    TrackArtistsLink,
-    ObjectStorageORM,
-    AudioFileORM,
-    TrackMoodLink,
-    TrackGenreLink,
-    TrackAlbumLink,
     AlbumArtistLink,
-    TrackORM,
+    AudioFileORM,
     GenreORM,
+    ObjectStorageORM,
+    TrackAlbumLink,
+    TrackArtistsLink,
+    TrackGenreLink,
+    TrackMoodLink,
+    TrackORM,
 )
 from core.errors import BaseError
-from core.schemas import Track, TrackShort, TrackMetadata, FilePathInfo, MusicVideo
-from core.services.track_service import track_repository
+from core.responses import LyricsResponse
+from core.schemas import FilePathInfo, MusicVideo, Track, TrackMetadata, TrackShort
 from core.services.album_service import album_repository
 from core.services.artist_service import artist_repository
+from core.services.track_service import track_repository
 
 
 def get_track_by_id(session: Session, id: int) -> Track | BaseError:
@@ -181,7 +182,6 @@ def add_new_track(
     session.add(audio_file)
     session.flush()
     new_link = ObjectStorageORM(
-        link_type="storage",
         audio_id=audio_file.id,
         file_name=track_info.filename,
         link_provider=storage_id,

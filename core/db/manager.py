@@ -1,13 +1,15 @@
 from __future__ import annotations
-from core.services.server_service import delete_orphans
+
+from sqlalchemy import func
 from sqlmodel import (
+    Session,
     SQLModel,
     create_engine,
-    Session,
     select,
 )
-from sqlalchemy import func
+
 from core.db.models import UserORM
+from core.services.server_service import delete_orphans
 
 
 def admin_create(session: Session):
@@ -27,10 +29,9 @@ class _DBManager:
     def __init__(self) -> None:
         self.engine = create_engine("sqlite:///database.db")
         SQLModel.metadata.create_all(self.engine)
-        with self.get_session() as session:
-            with session.begin():
-                admin_create(session)
-                delete_orphans(session)
+        with self.get_session() as session, session.begin():
+            admin_create(session)
+            delete_orphans(session)
 
     def get_session(self) -> Session:
         return Session(self.engine)

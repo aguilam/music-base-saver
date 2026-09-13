@@ -96,7 +96,6 @@ class DownloadersModule(Module):
             saved_path = paths["track_path"]
             with DBManager.get_session() as session:
                 cover = ObjectStorageORM(
-                    link_type="storage",
                     file_name=Path(cover_storage_path).name,
                     link_provider=best_storage.id,
                     link=cover_storage_path,

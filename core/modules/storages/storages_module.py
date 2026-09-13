@@ -144,7 +144,6 @@ class StoragesModule(Module):
             return best_storage
         saved_object_path = best_storage.instance.save_file(file_path, saving_path)
         object_storage = ObjectStorageORM(
-            link_type="storage",
             link_provider=best_storage.id,
             file_name=os.path.basename(saving_path),
             link=saved_object_path,
@@ -279,7 +278,6 @@ class StoragesModule(Module):
                                 task.result.covers.processed += 1
                                 continue
                             cover_storage = ObjectStorageORM(
-                                link_type="storage",
                                 link_provider=storage.id,
                                 link=cover_link,
                                 file_name=cover_name,
@@ -343,7 +341,6 @@ class StoragesModule(Module):
                                 session.add(new_lyrics)
                                 session.flush()
                             lyrics_path = ObjectStorageORM(
-                                link_type="storage",
                                 link_provider=storage.id,
                                 link=link,
                                 lyrics_id=new_lyrics.id,
@@ -392,7 +389,6 @@ class StoragesModule(Module):
                             session.add(music_video)
                             session.flush()
                             video_storage = ObjectStorageORM(
-                                link_type="storage",
                                 link_provider=storage.id,
                                 link=link,
                                 file_name=filename,

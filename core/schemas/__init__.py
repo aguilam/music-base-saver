@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import NamedTuple
 from enum import Enum
+from typing import NamedTuple
 
 
 @dataclass(slots=True)
@@ -202,7 +203,6 @@ class User:
 
 @dataclass(slots=True)
 class ObjectStorage:
-    link_type: str
     link_provider: str
     link: str
     id: int | None = None

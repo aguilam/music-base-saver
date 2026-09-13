@@ -1,22 +1,23 @@
-from sqlmodel import (
-    SQLModel,
-    Field,
-    select,
-    Relationship,
-    col,
+from datetime import datetime, timezone
+from typing import ClassVar
+
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    Column,
+    ForeignKey,
+    Integer,
+    UniqueConstraint,
+    func,
 )
 from sqlalchemy.ext.hybrid import hybrid_property
-from typing import ClassVar
-from sqlalchemy import (
-    Column,
-    Integer,
-    ForeignKey,
-    func,
-    UniqueConstraint,
-    CheckConstraint,
-    JSON,
+from sqlmodel import (
+    Field,
+    Relationship,
+    SQLModel,
+    col,
+    select,
 )
-from datetime import datetime, timezone
 
 
 class AlbumArtistLink(SQLModel, table=True):
@@ -244,7 +245,7 @@ class ArtistORM(SQLModel, table=True):
     @albums_count.expression
     def albums_count(cls):
         return (
-            select(func.count(AlbumArtistLink.album_id))
+            select(func.count(col(AlbumArtistLink.album_id)))
             .where(AlbumArtistLink.artist_id == cls.id)
             .scalar_subquery()
         )
@@ -306,7 +307,7 @@ class AlbumORM(SQLModel, table=True):
     @track_count.expression
     def track_count(cls):
         return (
-            select(func.count(TrackAlbumLink.track_id))
+            select(func.count(col(TrackAlbumLink.track_id)))
             .where(TrackAlbumLink.album_id == cls.id)
             .scalar_subquery()
         )
@@ -350,10 +351,11 @@ class MoodORM(SQLModel, table=True):
 class ObjectStorageORM(SQLModel, table=True):
     __tablename__ = "object_storage"
     id: int | None = Field(default=None, primary_key=True)
-    link_type: str
     link_provider: str
     link: str
     file_name: str
+    file_size: int | None = None
+    hash: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     audio_id: int | None = Field(
         default=None, foreign_key="audio_file.id", ondelete="CASCADE"
@@ -369,8 +371,6 @@ class ObjectStorageORM(SQLModel, table=True):
 class AudioFileORM(SQLModel, table=True):
     __tablename__ = "audio_file"
     id: int | None = Field(default=None, primary_key=True)
-    file_size: int | None = None
-    hash: str | None = None
     is_primary: bool = False
     bitrate: int | None = None
     bit_depth: int | None = None

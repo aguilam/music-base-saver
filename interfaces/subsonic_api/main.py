@@ -380,7 +380,7 @@ def global_search(
     library_manager: CurrentLibrary,
     query: str,
 ):
-    searched = library_manager.global_search(query)
+    searched = check_subsonic_error(library_manager.global_search(query))
     artists = []
     albums = []
     tracks = []
