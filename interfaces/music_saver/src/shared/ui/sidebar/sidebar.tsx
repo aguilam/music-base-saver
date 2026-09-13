@@ -22,7 +22,7 @@ import { Button } from "~/components/ui/button";
 import { useIsMobile } from "~/shared/lib/use-mobile";
 import { combineStyle } from "~/shared/lib/combine-style";
 import { cva, cx } from "~/shared/lib/cva";
-import { callHandler } from "~/shared/lib/call-hendler";
+import { callHandler } from "~/shared/lib/call-handler";
 import { Separator } from "../separator/separator";
 import { TooltipContent, Tooltip, TooltipTrigger, TooltipPortal } from "../tooltip/tooltip";
 import { Skeleton } from "../skeleton/skeleton";

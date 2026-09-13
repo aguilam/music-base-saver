@@ -1,5 +1,5 @@
 import { useParams } from "@solidjs/router";
-import { Component, createEffect, createResource, createSignal, For, Show } from "solid-js";
+import { Component, createEffect, createSignal, For, Show } from "solid-js";
 import { Button } from "~/components/ui/button";
 
 import { createUserPlaylistsQuery } from "~/entities/playlist/api/queries";

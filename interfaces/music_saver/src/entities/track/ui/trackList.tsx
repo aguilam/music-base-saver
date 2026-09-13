@@ -13,6 +13,7 @@ import { Button } from '~/components/ui/button'
 import { Popover, PopoverContent,PopoverPortal,PopoverTrigger } from '~/shared/ui/popover/popover'
 import { formatTime } from '~/shared/lib/utils'
 import { Checkbox, CheckboxControl, CheckboxInput, CheckboxLabel } from '~/shared/ui/checkbox/checkbox'
+import { A } from '@solidjs/router'
 const features = tableFeatures({
     columnSizingFeature,
     columnResizingFeature,
@@ -27,7 +28,7 @@ const columns = columnHelper.columns([
     }),
     columnHelper.accessor("title",{
         header: "title",
-        cell: (info) => info.getValue()
+        cell: (info) => <A href={`/tracks/${info.row.original.id}`}>{info.getValue()}</A>
     }),
     columnHelper.accessor("createdAt",{
         header: "Adding date",
