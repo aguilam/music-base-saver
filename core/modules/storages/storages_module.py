@@ -219,9 +219,10 @@ class StoragesModule(Module):
                     current_storage = storage.instance
                     for track in tracks_to_adding.get(storage.id, []):
                         try:
+                            # TODO: Fix method to get metadata with bytes. Current length need all file
                             track_bytes = b"".join(
                                 current_storage.get_range_bytes(
-                                    track.link, 0, 1024 * 1024 * 5
+                                    track.link, 0, 1024 * 1024 * 255
                                 )
                             )
                             track_metadata = get_track_metadata_by_bytes(track_bytes)

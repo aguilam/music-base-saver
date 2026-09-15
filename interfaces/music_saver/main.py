@@ -80,8 +80,7 @@ async def proxy_api(path: str, request: Request):
     return result
 
 
-@app.get("/{path:path}")
-async def pages(path: str):
+async def get_pages(path: str):
     return FileResponse(BASE_DIR / "index.html")
 
 
@@ -98,6 +97,11 @@ class WebUi(Interface):
                 proxy_api,
                 methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
             )
+        app.add_api_route(
+            "/{path:path}",
+            get_pages,
+            methods=["GET"],
+        )
         app.add_middleware(
             CORSMiddleware,
             allow_origin_regex=r".*",

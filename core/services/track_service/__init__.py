@@ -155,6 +155,7 @@ def add_new_track(
             ).first()
             if not exists:
                 session.add(AlbumArtistLink(artist_id=artist.id, album_id=db_album.id))
+            session.flush()
         track_album = TrackAlbumLink(
             track_id=new_track.id,
             album_id=db_album.id,

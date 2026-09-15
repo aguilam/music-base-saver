@@ -1,33 +1,35 @@
-from core.modules import Service
-from core.modules.storages.loader import StorageEntry
-from core.modules.storages.base import Storage
-from typing import Any
-from pathlib import Path
-from collections.abc import Mapping
-from mutagen import File
-import mutagen.flac
-from mutagen.mp3 import MP3
-from mutagen.flac import FLAC, Picture
-from mutagen.oggvorbis import OggVorbis
-from mutagen.oggopus import OggOpus
-import mutagen.mp4
-from mutagen.mp4 import MP4
 import base64
-import mutagen
-import requests
-import re
-import pyexiv2
 import io
+import json
+import re
+from collections.abc import Mapping
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+import mutagen
+import mutagen.flac
+import mutagen.mp4
+import pyexiv2
+import requests
+from mutagen import File
+from mutagen.flac import FLAC, Picture
+from mutagen.mp3 import MP3
+from mutagen.mp4 import MP4
+from mutagen.oggopus import OggOpus
+from mutagen.oggvorbis import OggVorbis
+
 from core.loader import ModuleEntry
+from core.modules import Service
+from core.modules.storages.base import Storage
+from core.modules.storages.loader import StorageEntry
 from core.schemas import (
-    TrackMetadata,
-    TrackAlbumMetadata,
     HealthStatus,
     LRCLyrics,
     ServiceStatus,
+    TrackAlbumMetadata,
+    TrackMetadata,
 )
-import json
-from datetime import datetime
 
 
 def _get_tag_value(text: str) -> str:
